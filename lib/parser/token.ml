@@ -150,11 +150,13 @@ let of_super (s : string) : string =
 
 let to_string = function
   | Field (f, strs) ->
-      if List.fold_right (fun s m -> max (String.length s) m) strs 0 > 1 then
+      if List.is_empty strs then "." ^ f
+      else if List.fold_right (fun s m -> max (String.length s) m) strs 0 > 1 then
         "." ^ f ^ ".." ^ String.concat "." strs
       else "." ^ f ^ "." ^ String.concat "" strs
   | Constr (c, strs) ->
-      if List.fold_right (fun s m -> max (String.length s) m) strs 0 > 1 then
+      if List.is_empty strs then c ^ "."
+      else if List.fold_right (fun s m -> max (String.length s) m) strs 0 > 1 then
         c ^ ".." ^ String.concat "." strs ^ "."
       else c ^ "." ^ String.concat "" strs ^ "."
   | LParen -> "("

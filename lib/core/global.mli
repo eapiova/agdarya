@@ -46,6 +46,15 @@ val add_meta :
   energy:'s energy ->
   unit
 
+val add_evar :
+  ?loc:Asai.Range.t ->
+  ('a, 'b, 's) Meta.t ->
+  termctx:('a, 'b) termctx ->
+  ty:('b, kinetic) term ->
+  printable:Reporter.printable ->
+  energy:'s energy ->
+  unit
+
 val set_meta : ('a, 'b, 's) Meta.t -> tm:('b, 's) term -> unit
 val unsolved_holes : unit -> int
 val current_unsolved_holes : unit -> int

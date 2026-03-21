@@ -62,7 +62,7 @@ module Equal = struct
     (* The type must be fully instantiated. *)
     match view_type ty "equal_at" with
     (* The only interesting thing here happens when the type is one with an eta-rule, such as a pi-type. *)
-    | Canonical (_, Pi (name, doms, cods), ins, tyargs) ->
+    | Canonical (_, Pi (_, name, doms, cods), ins, tyargs) ->
         let Eq = eq_of_ins_zero ins in
         let newargs, newnfs = dom_vars ctx doms in
         let (Any_ctx newctx) = Ctx.variables_vis ctx name newnfs in
@@ -102,42 +102,66 @@ module Equal = struct
           | `Full -> (view_term x, view_term y) in
         match (x, y) with
         | Constr (xconstr, xn, xargs), Constr (yconstr, yn, yargs) -> (
-            let (Dataconstr { env; args = argtys; indices = _ }) =
-              match Abwd.find_opt xconstr constrs with
-              | Some x -> x
-              | None -> fatal (Anomaly "constr not found in equality-check") in
             let* () = guard (xconstr = yconstr) (Unequal.Constrs (xconstr, yconstr)) in
-            match
-              ( D.compare xn yn,
-                D.compare xn (TubeOf.inst tyargs),
-                D.compare (TubeOf.inst tyargs) (dim_env env) )
-            with
-            | Neq, _, _ -> fatal (Dimension_mismatch ("equality of constrs", xn, yn))
-            | _, Neq, _ ->
-                fatal (Dimension_mismatch ("equality of constrs", xn, TubeOf.inst tyargs))
-            | _, _, Neq ->
-                fatal
-                  (Dimension_mismatch ("equality at canonical", TubeOf.inst tyargs, dim_env env))
-            | Eq, Eq, Eq ->
-                (* The instantiation must be at other instances of the same constructor; we take its arguments as in 'check'. *)
-                let tyarg_args =
-                  TubeOf.mmap
-                    {
-                      map =
-                        (fun _ [ tm ] ->
-                          match view_term tm.tm with
-                          | Constr (tmname, _, tmargs) ->
-                              if tmname = xconstr then List.map (fun a -> CubeOf.find_top a) tmargs
-                              else fatal (Anomaly "inst arg wrong constr in equality at datatype")
-                          | _ -> fatal (Anomaly "inst arg not constr in equality at datatype"));
-                    }
-                    [ tyargs ] in
-                (* It suffices to compare the top-dimensional faces of the cubes; the others are only there for evaluating case trees.  It would be nice to do this recursion directly on the Bwds, but equal_at_tel is expressed much more cleanly as an operation on lists. *)
-                equal_at_tel ctx env
-                  (List.fold_right (fun a args -> CubeOf.find_top a :: args) xargs [])
-                  (List.fold_right (fun a args -> CubeOf.find_top a :: args) yargs [])
-                  argtys
-                  (TubeOf.mmap { map = (fun _ [ args ] -> args) } [ tyarg_args ]))
+            (match Abwd.find_opt xconstr constrs with
+            | Some (Dataconstr { args = Emp; indices = _; _ }) -> (
+                match D.compare xn yn with
+                | Neq -> fatal (Dimension_mismatch ("equality of constrs", xn, yn))
+                | Eq -> (
+                    match D.compare xn (TubeOf.inst tyargs) with
+                    | Neq ->
+                        fatal (Dimension_mismatch ("equality of constrs", xn, TubeOf.inst tyargs))
+                    | Eq -> ok))
+            | Some (Dataconstr { env; args = argtys; indices = _ }) -> (
+                match D.compare xn yn with
+                | Neq -> fatal (Dimension_mismatch ("equality of constrs", xn, yn))
+                | Eq -> (
+                    match D.compare xn (TubeOf.inst tyargs) with
+                    | Neq ->
+                        fatal (Dimension_mismatch ("equality of constrs", xn, TubeOf.inst tyargs))
+                    | Eq -> (
+                        match D.compare (TubeOf.inst tyargs) (dim_env env) with
+                        | Neq ->
+                            fatal
+                              (Dimension_mismatch
+                                 ("equality at canonical", TubeOf.inst tyargs, dim_env env))
+                        | Eq ->
+                            let tyarg_args =
+                              TubeOf.mmap
+                                {
+                                  map =
+                                    (fun _ [ tm ] ->
+                                      match view_term tm.tm with
+                                      | Constr (tmname, _, tmargs) ->
+                                          if tmname = xconstr then
+                                            List.map (fun a -> CubeOf.find_top a) tmargs
+                                          else
+                                            fatal
+                                              (Anomaly
+                                                 "inst arg wrong constr in equality at datatype")
+                                      | _ ->
+                                          fatal
+                                            (Anomaly
+                                               "inst arg not constr in equality at datatype"));
+                                }
+                                [ tyargs ] in
+                            equal_at_tel ctx env
+                              (List.fold_right (fun a args -> CubeOf.find_top a :: args) xargs [])
+                              (List.fold_right (fun a args -> CubeOf.find_top a :: args) yargs [])
+                              argtys tyarg_args)))
+            | Some (Higher_dataconstr { args = Emp; _ }) -> (
+                match D.compare xn yn with
+                | Neq -> fatal (Dimension_mismatch ("equality of higher constrs", xn, yn))
+                | Eq -> (
+                    match D.compare xn (TubeOf.inst tyargs) with
+                    | Neq ->
+                        fatal
+                          (Dimension_mismatch
+                             ("equality of higher constrs", xn, TubeOf.inst tyargs))
+                    | Eq -> ok))
+            | Some (Higher_dataconstr _) ->
+                fatal (Anomaly "higher constructor with arguments is outside MVP")
+            | None -> fatal (Anomaly "constr not found in equality-check")))
         | Constr _, _ | _, Constr _ ->
             fail (Unequal.Terms (PNormal (ctx, { tm = x; ty }), PNormal (ctx, { tm = y; ty })))
         | _ -> equal_val ctx x y)
@@ -217,7 +241,8 @@ module Equal = struct
         match D.compare m n with
         | Eq -> return ()
         | _ -> None)
-    | Pi (name, dom1s, cod1s), Pi (_, dom2s, cod2s) -> (
+    | Pi (impl1, name, dom1s, cod1s), Pi (impl2, _, dom2s, cod2s)
+      when compare impl1 impl2 = 0 -> (
         (* If two pi-types have the same dimension, equal domains, and equal codomains, they are equal and have the same type (an instantiation of the universe of that dimension at pi-types formed from the lower-dimensional domains and codomains). *)
         let k = CubeOf.dim dom1s in
         match D.compare (CubeOf.dim dom2s) k with
@@ -249,7 +274,7 @@ module Equal = struct
     (* Iterating from left to right is important because it ensures that at the point of checking equality for any pair of arguments, we know that they have the same type, since they are valid arguments of equal functions with all previous arguments equal.  Thus each case *starts* with its recursive call. *)
     match (apps1, apps2) with
     | Emp, Emp -> return ()
-    | Arg (rest1, a1, i1), Arg (rest2, a2, i2) -> (
+    | Arg (impl1, rest1, a1, i1), Arg (impl2, rest2, a2, i2) when compare impl1 impl2 = 0 -> (
         let* () = equal_apps ctx rest1 rest2 in
         let To d1, To d2 = (deg_of_ins i1, deg_of_ins i2) in
         let* () = ErrOpt.of_opt (deg_equiv d1 d2) in

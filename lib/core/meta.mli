@@ -8,9 +8,12 @@ type ('a, 'b, 's) t
 
 val make_def : string -> string option -> 'a N.t -> 'b Dbwd.t -> 's energy -> ('a, 'b, 's) t
 val make_hole : 'a N.t -> 'b Dbwd.t -> 's energy -> ('a, 'b, 's) t
+val make_evar : 'a N.t -> 'b Dbwd.t -> 's energy -> ('a, 'b, 's) t
 val remake : (File.t -> File.t) -> ('a, 'b, 's) t -> ('a, 'b, 's) t
 val name : ('a, 'b, 's) t -> string
 val origin : ('a, 'b, 's) t -> Origin.t
+val is_hole : ('a, 'b, 's) t -> bool
+val is_evar : ('a, 'b, 's) t -> bool
 
 val compare :
   ('a1, 'b1, 's1) t -> ('a2, 'b2, 's2) t -> ('a1 * 'b1 * 's1, 'a2 * 'b2 * 's2) Eq.compare

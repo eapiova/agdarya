@@ -70,7 +70,10 @@ module F = struct
         if depth > 0 then
           fprintf ppf "Neu (%a, %a, %a)" head h apps a (dvalue (depth - 1)) (Lazy.force ty)
         else fprintf ppf "Neu (%a, %a, ?)" head h apps a
-    | Lam (x, body) -> fprintf ppf "Lam (?^%s, %a)" (string_of_dim (dim_variables x)) binder body
+    | Lam (impl, x, body) ->
+        fprintf ppf "Lam(%s, ?^%s, %a)"
+          (if impl = `Implicit then "implicit" else "explicit")
+          (string_of_dim (dim_variables x)) binder body
     | Struct { fields = f; ins; _ } ->
         let n = cod_left_ins ins in
         fprintf ppf "Struct %s (%a)" (string_of_dim n) (fields depth n) f
@@ -144,7 +147,10 @@ module F = struct
    fun ppf args ->
     match args with
     | Emp -> fprintf ppf "Emp"
-    | Arg (rest, xs, _) -> fprintf ppf "%a <: %a" apps rest (cubeof normal) xs
+    | Arg (impl, rest, xs, _) ->
+        fprintf ppf "%a <%s: %a" apps rest
+          (if impl = `Implicit then "implicit" else "explicit")
+          (cubeof normal) xs
     | Field (rest, fld, plus, ins) -> (
         (* 'ins' is an *outer* insertion, not the field insertion.  The field insertion has been pushed inside and become the 'plus'. *)
         apps ppf rest;
@@ -179,8 +185,9 @@ module F = struct
         let (To p) = deg_of_ins ins in
         fprintf ppf "Meta (%s, %a, %s)" (Meta.name meta) env e (string_of_deg p)
     | UU n -> fprintf ppf "UU %a" dim n
-    | Pi (x, doms, cods) ->
-        fprintf ppf "Pi^%s (%s, %a, (... %a))"
+    | Pi (impl, x, doms, cods) ->
+        fprintf ppf "Pi[%s]^%s (%s, %a, (... %a))"
+          (if impl = `Implicit then "implicit" else "explicit")
           (string_of_dim (CubeOf.dim doms))
           (Option.value ~default:"_" (top_variable x))
           (cubeof value) doms binder (BindCube.find_top cods)
@@ -194,7 +201,7 @@ module F = struct
     fprintf ppf "(%s, %a, (evdim=%s)%s, ?)"
       (match canonical with
       | UU _ -> "UU ?"
-      | Pi (_, _, _) -> "Pi ?"
+      | Pi (_, _, _, _) -> "Pi ?"
       | Data _ -> "Data ?"
       | Codata _ -> "Codata ?")
       (tubeof normal) tyargs
@@ -227,12 +234,20 @@ module F = struct
           (string_of_dim (dom_ins ins))
     | UU n -> fprintf ppf "UU %a" dim n
     | Inst (tm, args) -> fprintf ppf "Inst (%a, %a)" term tm (tubeof term) args
-    | Pi (x, doms, cods) ->
-        fprintf ppf "Pi^(%a) (%s, %a, (... %a))" dim (CubeOf.dim doms)
+    | Pi (impl, x, doms, cods) ->
+        fprintf ppf "Pi[%s]^(%a) (%s, %a, (... %a))"
+          (if impl = `Implicit then "implicit" else "explicit")
+          dim (CubeOf.dim doms)
           (Option.value (top_variable x) ~default:"_")
           (cubeof term) doms term (CodCube.find_top cods)
-    | App (fn, arg) -> fprintf ppf "App (%a, %a)" term fn (cubeof term) arg
-    | Lam (x, body) -> fprintf ppf "Lam^(%s) (?, %a)" (string_of_dim (dim_variables x)) term body
+    | App (impl, fn, arg) ->
+        fprintf ppf "App[%s] (%a, %a)"
+          (if impl = `Implicit then "implicit" else "explicit")
+          term fn (cubeof term) arg
+    | Lam (impl, x, body) ->
+        fprintf ppf "Lam[%s]^(%s) (?, %a)"
+          (if impl = `Implicit then "implicit" else "explicit")
+          (string_of_dim (dim_variables x)) term body
     | Constr (c, _, _) -> fprintf ppf "Constr (%s, ?, ?)" (Constr.to_string c)
     | Act (tm, s, _) -> fprintf ppf "Act (%a, %s)" term tm (string_of_deg s)
     | Let (_, _, _) -> fprintf ppf "Let ?"
@@ -265,7 +280,11 @@ module F = struct
                 fields))
 
   and dataconstr : type p i. formatter -> (p, i) Term.dataconstr -> unit =
-   fun ppf (Dataconstr { args; indices = _ }) -> fprintf ppf "%a : ?" tel args
+   fun ppf dc ->
+    match dc with
+    | Dataconstr { args; indices = _ } -> fprintf ppf "%a : ?" tel args
+    | Higher_dataconstr { args; indices = _; boundary } ->
+        fprintf ppf "%a .e : %a" tel args (tubeof term) boundary
 
   and tel : type a b ab. formatter -> (a, b, ab) Term.tel -> unit =
    fun ppf -> function
@@ -339,14 +358,15 @@ module F = struct
                 "." ^ f ^ ".." ^ String.concat "." (List.map string_of_int p)
               else "." ^ f ^ "." ^ String.concat "" (List.map string_of_int p)
           | `Int i -> "." ^ string_of_int i)
-    | Pi (_, _, _) -> fprintf ppf "Pi(?)"
+    | Pi (_, _, _, _) -> fprintf ppf "Pi(?)"
     | HigherPi (_, _, _) -> fprintf ppf "HigherPi(?)"
     | InstHigherPi (_, _, _) -> fprintf ppf "InstHigherPi(?)"
     | App (fn, { value = Some arg; _ }, _) -> fprintf ppf "App(%a, %a)" check fn.value check arg
     | App (fn, { value = None; _ }, _) -> fprintf ppf "App(%a, .)" check fn.value
     | Asc (tm, ty) -> fprintf ppf "Asc(%a, %a)" check tm.value check ty.value
-    | AscLam (x, dom, body) ->
-        fprintf ppf "AscLam(%s, %a, %a)"
+    | AscLam (impl, x, dom, body) ->
+        fprintf ppf "AscLam(%s, %s, %a, %a)"
+          (if impl = `Implicit then "implicit" else "explicit")
           (Option.value ~default:"_" x.value)
           check dom.value synth body.value
     | Let (_, _, _) -> fprintf ppf "Let(?)"

@@ -111,10 +111,23 @@ let dim_entry : type f n. (f, n) entry -> n D.t = function
 let app_entry : type f n any. any apps -> (f, n) entry -> noninst apps =
  fun apps e ->
   match e with
-  | Vis { bindings; _ } | Invis bindings ->
+  | Vis { bindings; _ } ->
       if all_free bindings then
         let n = CubeOf.dim bindings in
-        Arg (apps, CubeOf.mmap { map = (fun _ [ x ] -> Binding.value x) } [ bindings ], ins_zero n)
+        Arg
+          ( `Explicit,
+            apps,
+            CubeOf.mmap { map = (fun _ [ x ] -> Binding.value x) } [ bindings ],
+            ins_zero n )
+      else fatal (Anomaly "let-bound variable in Ctx.apps")
+  | Invis bindings ->
+      if all_free bindings then
+        let n = CubeOf.dim bindings in
+        Arg
+          ( `Implicit,
+            apps,
+            CubeOf.mmap { map = (fun _ [ x ] -> Binding.value x) } [ bindings ],
+            ins_zero n )
       else fatal (Anomaly "let-bound variable in Ctx.apps")
 
 module Ordered = struct
@@ -348,9 +361,9 @@ module Ordered = struct
     | Emp -> tree
     | Lock ctx -> lam ctx tree
     | Snoc (ctx, Vis { dim; plusdim; vars; bindings; fplus = Zero; _ }, _) when all_free bindings ->
-        lam ctx (Lam (Variables (dim, plusdim, vars), tree))
+        lam ctx (Lam (`Explicit, Variables (dim, plusdim, vars), tree))
     | Snoc (ctx, Invis bindings, _) when all_free bindings ->
-        lam ctx (Lam (singleton_variables (CubeOf.dim bindings) None, tree))
+        lam ctx (Lam (`Implicit, singleton_variables (CubeOf.dim bindings) None, tree))
     | _ -> fatal (Anomaly "let-bound variable in Ctx.lam")
 
   (* Delete some level variables from a context by making their bindings into "unknown".  This will cause readback to raise No_such_level if it encounters one of those variables, which can then be trapped as an occurs-check. *)

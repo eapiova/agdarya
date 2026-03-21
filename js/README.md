@@ -1,6 +1,6 @@
-# jsNarya: Running Narya in a browser
+# jsAgdarya: Running Agdarya in a browser
 
-To create a web page that will run Narya in a browser, you will need the JavaScript package manager `npm`.  Once you have this, run the following commands:
+To create a web page that will run Agdarya in a browser, you will need the JavaScript package manager `npm`.  Once you have this, run the following commands:
 ```
 opam install zarith_stubs_js
 cd narya

@@ -35,11 +35,26 @@ type 'a attribute = {
   wsrparen : Whitespace.t list;
 }
 
+type def_head =
+  | Head_name of Trie.path
+  | Head_notation :
+      {
+        fixity : ('left, 'tight, 'right) fixity;
+        wslparen : Whitespace.t list;
+        wstight : Whitespace.t list;
+        wsellipsis : Whitespace.t list;
+        wsrparen : Whitespace.t list;
+        wspatlparen : Whitespace.t list;
+        pattern : ('left, 'right) User.Pattern.t;
+      }
+      -> def_head
+
 type def = {
   wsdef : Whitespace.t list;
+  head : def_head;
   name : Trie.path;
   loc : Asai.Range.t option;
-  wsname : Whitespace.t list;
+  wshead : Whitespace.t list;
   parameters : Parameter.t list;
   ty : (Whitespace.t list * wrapped_parse) option;
   wscoloneq : Whitespace.t list;
@@ -155,6 +170,13 @@ module Parse = struct
   module C = Combinators (Command)
   open C.Basic
 
+  type parsed_def_head = {
+    head : def_head;
+    name : Trie.path;
+    loc : Asai.Range.t option;
+    wshead : Whitespace.t list;
+  }
+
   let token x = step "" (fun state _ (tok, w) -> if tok = x then Some (w, state) else None)
 
   let ident =
@@ -208,29 +230,6 @@ module Parse = struct
     let* wscolon = token Colon in
     let* ty = C.term [] in
     return (Command.Axiom { wsaxiom; nonparam; name; loc; wsname; parameters; wscolon; ty })
-
-  let def tok =
-    let* wsdef = token tok in
-    let* nameloc, (name, wsname) = located ident in
-    let loc = Some (Range.convert nameloc) in
-    if not (Lexer.valid_ident name) then fatal ?loc (Invalid_constant_name (name, None));
-    let* parameters = zero_or_more parameter in
-    let* ty, wscoloneq, tm =
-      (let* wscolon = token Colon in
-       let* ty = C.term [ Coloneq ] in
-       let* wscoloneq = token Coloneq in
-       let* tm = C.term [] in
-       return (Some (wscolon, ty), wscoloneq, tm))
-      </>
-      let* wscoloneq = token Coloneq in
-      let* tm = C.term [] in
-      return (None, wscoloneq, tm) in
-    return ({ wsdef; name; loc; wsname; parameters; ty; wscoloneq; tm } : def)
-
-  let def_and =
-    let* first = def Def in
-    let* rest = zero_or_more (def And) in
-    return (Command.Def (first :: rest))
 
   let integer =
     step "" (fun state _ (tok, ws) ->
@@ -413,6 +412,54 @@ module Parse = struct
             fatal (Unimplemented "internal ellipses in notation")
         | Snoc (_, `Ellipsis _) ->
             fatal (Invalid_notation_pattern "can't be both right and left associative"))
+
+  let def_name_of_pattern pattern = [ "«" ^ User.Pattern.to_string pattern ^ "»" ]
+
+  let def_head =
+    backtrack
+      (let* wslparen, tight, wstight, wsrparen = tightness in
+       let* patloc, (wspatlparen, pat, pattern, wshead) =
+         located
+           (let* wspatlparen = token LParen in
+            let* pat, pattern = one_or_more (pattern_token </> pattern_var </> pattern_ellipsis) in
+            let* wshead = token RParen in
+            return (wspatlparen, pat, pattern, wshead)) in
+       let pattern = pat :: pattern in
+       let Fix_pat (fixity, pattern), wsellipsis = fixity_of_pattern pattern tight in
+       let name = def_name_of_pattern pattern in
+       return
+         {
+           head =
+             Head_notation { fixity; wslparen; wstight; wsellipsis; wsrparen; wspatlparen; pattern };
+           name;
+           loc = Some (Range.convert patloc);
+           wshead;
+         })
+      ""
+    </> let* nameloc, (name, wshead) = located ident in
+        return { head = Head_name name; name; loc = Some (Range.convert nameloc); wshead }
+
+  let def tok =
+    let* wsdef = token tok in
+    let* { head; name; loc; wshead } = def_head in
+    if not (Lexer.valid_ident name) then fatal ?loc (Invalid_constant_name (name, None));
+    let* parameters = zero_or_more parameter in
+    let* ty, wscoloneq, tm =
+      (let* wscolon = token Colon in
+       let* ty = C.term [ Coloneq ] in
+       let* wscoloneq = token Coloneq in
+       let* tm = C.term [] in
+       return (Some (wscolon, ty), wscoloneq, tm))
+      </>
+      let* wscoloneq = token Coloneq in
+      let* tm = C.term [] in
+      return (None, wscoloneq, tm) in
+    return ({ wsdef; head; name; loc; wshead; parameters; ty; wscoloneq; tm } : def)
+
+  let def_and =
+    let* first = def Def in
+    let* rest = zero_or_more (def And) in
+    return (Command.Def (first :: rest))
 
   let notation_head =
     step "" (fun state _ (tok, ws) ->
@@ -783,6 +830,69 @@ let show_hole = function
   | Global.Found_hole { instant; meta; termctx; ty; vars; _ } ->
       emit (Hole (Meta.name meta, PHole (Instant instant, vars, termctx, ty)))
 
+let notation_name pattern = "«" ^ User.Pattern.to_string pattern ^ "»"
+
+let check_pattern_vars_unique : type left right. (left, right) User.Pattern.t -> unit =
+ fun pattern ->
+  let rec go : type left right. string list -> (left, right) User.Pattern.t -> unit =
+   fun seen pattern ->
+    match pattern with
+    | User.Pattern.Op_nil _ -> ()
+    | User.Pattern.Var_nil (_, (x, _)) ->
+        if List.mem x seen then fatal (Duplicate_notation_variable x)
+    | User.Pattern.Op (_, pattern) -> go seen pattern
+    | User.Pattern.Var ((x, _, _), pattern) ->
+        if List.mem x seen then fatal (Duplicate_notation_variable x);
+        go (x :: seen) pattern in
+  go [] pattern
+
+let check_notation_args : type left right.
+    (string * Whitespace.t list) list -> (left, right) User.Pattern.t -> unit =
+ fun args pattern ->
+  check_pattern_vars_unique pattern;
+  let rec go : type left right.
+      (string * Whitespace.t list) list ->
+      (left, right) User.Pattern.t ->
+      (string * Whitespace.t list) list =
+   fun args pattern ->
+    let check_var x =
+      let found, rest = List.partition (fun (y, _) -> x = y) args in
+      match found with
+      | [ _ ] -> rest
+      | [] -> fatal (Unused_notation_variable x)
+      | _ -> fatal (Notation_variable_used_twice x) in
+    match pattern with
+    | User.Pattern.Var ((x, _, _), pattern) -> go (check_var x) pattern
+    | User.Pattern.Op (_, pattern) -> go args pattern
+    | User.Pattern.Op_nil _ -> args
+    | User.Pattern.Var_nil (_, (x, _)) -> check_var x in
+  match go args pattern with
+  | [] -> ()
+  | _ :: _ as unbound -> fatal (Unbound_variable_in_notation (List.map fst unbound))
+
+let register_notation : type left tight right.
+    loc:Asai.Range.t option ->
+    name:string ->
+    fixity:(left, tight, right) fixity ->
+    pattern:(left, right) User.Pattern.t ->
+    key:User.key ->
+    val_vars:string list ->
+    unit =
+ fun ~loc ~name ~fixity ~pattern ~key ~val_vars ->
+  let notation_name = [ "notations"; name ] in
+  Scope.check_name notation_name loc;
+  let user = User { name; fixity; pattern; key; val_vars } in
+      let shadow = Scope.define_notation user ?loc notation_name in
+  List.iter
+    (fun key ->
+      let keyname =
+        match key with
+        | `Constr (c, _) -> Constr.to_string c ^ "."
+        | `Constant c -> String.concat "." (Scope.name_of c) in
+      emit (Head_already_has_notation keyname))
+    shadow;
+  emit (Notation_defined name)
+
 let to_string : Command.t -> string = function
   | Axiom _ -> "axiom"
   | Def _ -> "def"
@@ -851,15 +961,19 @@ let split_match_cases : type a b.
                   match D.compare_zero dim with
                   | Zero -> return ()
                   | Pos _ -> LS.lift (S.put true) in
-                let* c, Dataconstr { args; _ } = S.return (Bwd.to_list constrs) in
+                let* c, dc = S.return (Bwd.to_list constrs) in
                 let left_ok = No.le_refl No.plus_omega in
                 let right_ok = No.le_refl No.plus_omega in
                 let first =
-                  Term
-                    (List.fold_left
-                       (fun fn arg -> locate_opt None (App { fn; arg; left_ok; right_ok }))
-                       (locate_opt None (Constr (Constr.to_string c, [])))
-                       (do_args args)) in
+                  match dc with
+                  | Dataconstr { args; _ } ->
+                      Term
+                        (List.fold_left
+                           (fun fn arg -> locate_opt None (App { fn; arg; left_ok; right_ok }))
+                           (locate_opt None (Constr (Constr.to_string c, [], [])))
+                           (do_args args))
+                  | Higher_dataconstr _ -> fatal (Invalid_split (`Term, "higher inductive types"))
+                in
                 let* rest = go tms in
                 if List.length rest = 2 then return (first :: rest)
                 else return (first :: tok (Op ",") :: rest)
@@ -888,29 +1002,49 @@ let execute ~(action_taken : unit -> unit) ~(get_file : string -> Scope.trie) (c
       Core.Command.execute (Axiom { name = const; params; ty = process ctx ty; parametric })
   | Def defs ->
       Global.run_command ~holes_allowed:(Ok ()) @@ fun () ->
-      let cdefs =
-        List.map
-          (fun { name; loc; parameters; ty; tm = Wrap tm; _ } ->
+      let cdefs, notations =
+        List.fold_right
+          (fun ({ head; name; loc; parameters; ty; tm = Wrap tm; _ } as def) (cdefs, notations) ->
             (match name with
             | [ str ] ->
                 if Option.is_some (deg_of_name str) then
                   fatal (Invalid_constant_name (name, Some "that's a degeneracy name"))
             | _ -> ());
             Scope.check_name name loc;
-            ( lazy (Scope.define ?loc name),
-              lazy
-                (let (Processed_tel (params, ctx, _)) = process_tel Emp parameters in
-                 match ty with
-                 | Some (_, Wrap ty) ->
-                     let ty = process ctx ty in
-                     let tm = lazy (process ctx tm) in
-                     Core.Command.Def_check { params; ty; tm }
-                 | None -> (
-                     match process ctx tm with
-                     | { value = Synth tm; loc } -> Def_synth { params; tm = { value = tm; loc } }
-                     | _ -> fatal (Nonsynthesizing "body of def without specified type"))) ))
-          defs in
-      Core.Command.execute (Def cdefs)
+            let const = lazy (Scope.define ?loc name) in
+            let cdef =
+              ( const,
+                lazy
+                  (let (Processed_tel (params, ctx, _)) = process_tel Emp parameters in
+                   match ty with
+                   | Some (_, Wrap ty) ->
+                       let ty = process ctx ty in
+                       let tm = lazy (process ctx tm) in
+                       Core.Command.Def_check { params; ty; tm }
+                   | None -> (
+                       match process ctx tm with
+                       | { value = Synth tm; loc } ->
+                           Def_synth { params; tm = { value = tm; loc } }
+                       | _ -> fatal (Nonsynthesizing "body of def without specified type"))) ) in
+            let notations =
+              match head with
+              | Head_name _ -> notations
+              | Head_notation { pattern; _ } ->
+                  check_pattern_vars_unique pattern;
+                  (def, const) :: notations in
+            (cdef :: cdefs, notations))
+          defs ([], []) in
+      let result = Core.Command.execute (Def cdefs) in
+      List.iter
+        (fun ({ head; loc; _ }, const) ->
+          match head with
+          | Head_name _ -> ()
+          | Head_notation { fixity; pattern; _ } ->
+              let name = notation_name pattern in
+              register_notation ~loc ~name ~fixity ~pattern ~key:(`Constant (Lazy.force const))
+                ~val_vars:(User.Pattern.vars pattern))
+        notations;
+      result
   | Echo { tm = Wrap tm; eval; number; _ } -> (
       let module Scope_and_ctx = struct
         type t = Scope_and_ctx : (string option, 'a) Bwv.t * ('a, 'b) Ctx.t -> t
@@ -955,9 +1089,6 @@ let execute ~(action_taken : unit -> unit) ~(get_file : string -> Scope.trie) (c
       | _ -> fatal (Nonsynthesizing ("argument of " ^ if eval then "echo" else "synth")))
   | Notation { fixity; loc; pattern; head; args; _ } ->
       Global.run_command ~holes_allowed:(Error (to_string cmd)) @@ fun () ->
-      let name = "«" ^ User.Pattern.to_string pattern ^ "»" in
-      let notation_name = [ "notations"; name ] in
-      Scope.check_name notation_name loc;
       let key =
         match head with
         | `Constr c -> `Constr (Constr.intern c, List.length args)
@@ -965,41 +1096,10 @@ let execute ~(action_taken : unit -> unit) ~(get_file : string -> Scope.trie) (c
             match Scope.lookup c with
             | Some c -> `Constant c
             | None -> fatal (Invalid_notation_head (String.concat "." c))) in
-      (* Find the "unbound" variables, if any, in the notation definition. *)
-      let rec unbounds : type left right.
-          (string * Whitespace.t list) list ->
-          string list ->
-          (left, right) User.Pattern.t ->
-          (string * Whitespace.t list) list =
-       fun args seen pat ->
-        let check_var x =
-          if List.mem x seen then fatal (Duplicate_notation_variable x);
-          let found, rest = List.partition (fun (y, _) -> x = y) args in
-          match found with
-          | [ _ ] -> rest
-          | [] -> fatal (Unused_notation_variable x)
-          | _ -> fatal (Notation_variable_used_twice x) in
-        match pat with
-        | User.Pattern.Var ((x, _, _), pat) ->
-            let rest = check_var x in
-            unbounds rest (x :: seen) pat
-        | Op (_, pat) -> unbounds args seen pat
-        | Op_nil _ -> args
-        | Var_nil (_, (x, _)) -> check_var x in
-      (match unbounds args [] pattern with
-      | [] -> ()
-      | _ :: _ as unbound -> fatal (Unbound_variable_in_notation (List.map fst unbound)));
-      let user = User { name; fixity; pattern; key; val_vars = List.map fst args } in
-      let shadow = Scope.define_notation user ?loc notation_name in
-      List.iter
-        (fun key ->
-          let keyname =
-            match key with
-            | `Constr (c, _) -> Constr.to_string c ^ "."
-            | `Constant c -> String.concat "." (Scope.name_of c) in
-          emit (Head_already_has_notation keyname))
-        shadow;
-      (None, fun _ -> Some (Notation_defined name))
+      check_notation_args args pattern;
+      register_notation ~loc ~name:(notation_name pattern) ~fixity ~pattern ~key
+        ~val_vars:(List.map fst args);
+      (None, fun _ -> None)
   | Import { export; origin; op; _ } ->
       Global.run_command ~holes_allowed:(Error (to_string cmd)) @@ fun () ->
       let trie =
@@ -1060,7 +1160,7 @@ let execute ~(action_taken : unit -> unit) ~(get_file : string -> Scope.trie) (c
         | [ (_, Wrap { value = Placeholder _; _ }) ] -> (
             let ety = Norm.eval_term (Ctx.env ctx) ty in
             match View.view_type ety "split" with
-            | Canonical (_, Pi (_, doms, _), _, _) ->
+            | Canonical (_, Pi (_, _, doms, _), _, _) ->
                 let dim = CubeOf.dim doms in
                 let cube, mapsto, notn =
                   match D.compare_zero dim with
@@ -1152,6 +1252,8 @@ let execute ~(action_taken : unit -> unit) ~(get_file : string -> Scope.trie) (c
                 unparse_spine names (`Constr constr)
                   (Bwd.init nargs (fun _ -> { unparse = (fun li ri -> hole li ri) }))
                   No.Interval.entire No.Interval.entire
+            | Canonical (_, Data { constrs = Snoc (Emp, (_, Higher_dataconstr _)); _ }, _, _) ->
+                fatal (Invalid_split (`Goal, "higher inductive types"))
             | Canonical (_, Data { constrs = Emp; _ }, _, _) ->
                 fatal (Invalid_split (`Goal, "empty datatype"))
             | Canonical (_, Data { constrs = Snoc (Snoc (_, _), _); _ }, _, _) ->
@@ -1205,10 +1307,15 @@ let execute ~(action_taken : unit -> unit) ~(get_file : string -> Scope.trie) (c
                             | Zero -> return ()
                             | Pos _ ->
                                 NameBranches.stateless (Branches.lift (HigherBranch.put true)) in
-                          let* c, Dataconstr { args; _ } =
+                          let* c, dc =
                             NameBranches.stateless (HigherBranch.return (Bwd.to_list constrs)) in
                           let* (Wrap names) = NameBranches.get in
-                          let cargs, newnames = constr_args names dim args in
+                          let cargs, newnames =
+                            match dc with
+                            | Dataconstr { args; _ } -> constr_args names dim args
+                            | Higher_dataconstr _ ->
+                                fatal (Invalid_split (`Term, "higher inductive types"))
+                          in
                           let* () = NameBranches.put newnames in
                           let first =
                             Term
@@ -1323,6 +1430,39 @@ let rec pp_parameters : Whitespace.t list -> Parameter.t list -> PPrint.document
         ^^ pparams,
         wparams )
 
+let pp_def_head : def_head -> space * PPrint.document * Whitespace.t list =
+ fun head ->
+  let open PPrint in
+  match head with
+  | Head_name name -> (`Nobreak, utf8string (String.concat "." name), [])
+  | Head_notation { fixity; wslparen; wstight; wsellipsis; wsrparen; wspatlparen; pattern } ->
+      let ppat, wpat = User.pp_pattern pattern in
+      let ptight, ws =
+        match tightness_of_fixity fixity with
+        | Some str ->
+            ( Token.pp LParen
+              ^^ pp_ws `None wslparen
+              ^^ string str
+              ^^ pp_ws `None wstight
+              ^^ Token.pp RParen,
+              wsrparen )
+        | None -> (empty, []) in
+      ( (match tightness_of_fixity fixity with Some _ -> `None | None -> `Nobreak),
+        ptight
+        ^^ pp_ws `Break ws
+        ^^ Token.pp LParen
+        ^^ pp_ws `None wspatlparen
+        ^^ (match fixity with
+           | Infixl _ | Postfixl _ -> Token.pp Ellipsis ^^ pp_ws `Nobreak wsellipsis
+           | _ -> empty)
+        ^^ group (hang 2 ppat)
+        ^^ (match fixity with
+           | Infixr _ | Prefixr _ ->
+               pp_ws `Nobreak wpat ^^ Token.pp Ellipsis ^^ pp_ws `None wsellipsis
+           | _ -> pp_ws `None wpat)
+        ^^ Token.pp RParen,
+        [] )
+
 let rec pp_defs :
     Token.t ->
     Whitespace.t list option ->
@@ -1333,13 +1473,14 @@ let rec pp_defs :
   let open PPrint in
   match defs with
   | [] -> (accum, Option.fold ~some:(fun x -> x) ~none:[] prews)
-  | { wsdef; name; loc = _; wsname; parameters; ty; wscoloneq; tm = Wrap tm } :: defs ->
+  | { wsdef; head; name = _; loc = _; wshead; parameters; ty; wscoloneq; tm = Wrap tm } :: defs ->
       let prews =
         match tok with
         | And -> Option.fold ~some:(Whitespace.normalize 2) ~none:[ `Newlines 2 ] prews
         | _ -> Option.value ~default:[] prews in
       let accum_prews = accum ^^ pp_ws `None prews in
-      let pparams, wparams = pp_parameters wsname parameters in
+      let head_space, phead, whead = pp_def_head head in
+      let pparams, wparams = pp_parameters (whead @ wshead) parameters in
       (* The type is always displayed in term mode, with a wrapping break allowed before the colon. *)
       let gty, wty =
         match ty with
@@ -1351,8 +1492,8 @@ let rec pp_defs :
         group
           (hang 2
              (Token.pp tok
-             ^^ pp_ws `Nobreak wsdef
-             ^^ utf8string (String.concat "." name)
+             ^^ pp_ws head_space wsdef
+             ^^ phead
              ^^ group pparams
              ^^ gty)) in
       let coloneq = Token.pp Coloneq ^^ pp_ws `Nobreak wscoloneq in

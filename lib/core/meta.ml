@@ -9,7 +9,7 @@ open Origin
 (* Metavariables, such as holes and unification variables.  Local generative definitions are also reperesented as metavariables.  A metavariable is identified by its class, an autonumber that's specific to the class, and its origin (file or interactive instant).  Since the autonumbers are specific to the class, we store them as arguments of the class, even though every metavariable has one. *)
 
 module Identity = struct
-  type t = [ `Hole of int | `Def of int * string * string option ]
+  type t = [ `Hole of int | `Def of int * string * string option | `Evar of int ]
 
   let compare : t -> t -> int = compare
 end
@@ -40,12 +40,22 @@ let make_def : type a b s. string -> string option -> a N.t -> b Dbwd.t -> s ene
 (* We just use one global hole counter, so that a hole can be represented by a single number to communicate with the user and ProofGeneral.  But to make up for that, we have to remember the origin of each hole as a function of its global number.  And then, since the next number is just the length of this array, we don't need a separate counter for hole autonumbers.  Note that this dynarray never shrinks, so old holes that have gone away are still here.  There wouldn't be any easy way to do that, since solving an old hole can create new holes that have to be at the end of the array, so the origins don't appear here in order. *)
 let hole_origins : Origin.t Dynarray.t = Dynarray.create ()
 
+let evar_counters = Versioned.make ~default:(fun _ -> 0) ~inherit_values:false
+
 let make_hole : type a b s. a N.t -> b Dbwd.t -> s energy -> (a, b, s) t =
  fun raw len energy ->
   let origin = Origin.current () in
   let number = Dynarray.length hole_origins in
   Dynarray.add_last hole_origins origin;
   let identity = `Hole number in
+  { origin; identity; raw; len; energy }
+
+let make_evar : type a b s. a N.t -> b Dbwd.t -> s energy -> (a, b, s) t =
+ fun raw len energy ->
+  let origin = Origin.current () in
+  let number = Versioned.get evar_counters in
+  Versioned.set evar_counters (number + 1);
+  let identity = `Evar number in
   { origin; identity; raw; len; energy }
 
 (* Re-make (link) a metavariable when loading a compiled version from disk. *)
@@ -63,11 +73,24 @@ let name : type a b s. (a, b, s) t -> string =
   | `Hole number ->
       (* We don't need to include the origin here, since holes are sequentially numbered globally rather than by origin. *)
       Printf.sprintf "?%d" number
+  | `Evar number -> Printf.sprintf "_evar.%s.%d" (Origin.to_string x.origin) number
   | `Def (number, sort, None) -> Printf.sprintf "_%s.%s.%d" sort (Origin.to_string x.origin) number
   | `Def (number, sort, Some name) ->
       Printf.sprintf "_%s.%s.%d.%s" sort (Origin.to_string x.origin) number name
 
 let origin : type a b s. (a, b, s) t -> Origin.t = fun m -> m.origin
+
+let is_hole : type a b s. (a, b, s) t -> bool =
+ fun m ->
+  match m.identity with
+  | `Hole _ -> true
+  | `Def _ | `Evar _ -> false
+
+let is_evar : type a b s. (a, b, s) t -> bool =
+ fun m ->
+  match m.identity with
+  | `Evar _ -> true
+  | `Hole _ | `Def _ -> false
 
 (* Compare two metavariables for equality, returning equality of their lengths and energies. *)
 let compare : type a1 b1 s1 a2 b2 s2.

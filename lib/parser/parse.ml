@@ -145,8 +145,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
               (step (fun state _ (tok, w) ->
                    match tok with
                    | Ident x -> Some ((`Ident x, w), state)
-                   (* Constructor names have already been validated by the lexer.  No higher constructors are allowed yet. *)
-                   | Constr (x, []) -> Some ((`Constr x, w), state)
+                   | Constr (x, suffix) -> Some ((`Constr (x, suffix), w), state)
                    | Underscore -> Some ((`Placeholder, w), state)
                    | Hole { number; contents } ->
                        let open Monad.Ops (Monad.Maybe) in
@@ -161,7 +160,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                     (locate loc
                        (match tm with
                        | `Ident x -> Ident (x, w)
-                       | `Constr x -> Constr (x, w)
+                       | `Constr (x, suffix) -> Constr (x, suffix, w)
                        | `Placeholder -> Placeholder w
                        | `Hole (number, contents) ->
                            Hole { li = tight; ri; ws = w; num = ref number; contents })));
@@ -337,8 +336,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                        (step (fun state _ (tok, w) ->
                             match tok with
                             | Ident x -> Some ((`Ident x, w), state)
-                            (* Constructor and field names have already been validated by the lexer.  No higher constructors are allowed yet. *)
-                            | Constr (x, []) -> Some ((`Constr x, w), state)
+                            | Constr (x, suffix) -> Some ((`Constr (x, suffix), w), state)
                             | Underscore -> Some ((`Placeholder, w), state)
                             | Field (x, p) -> Some ((`Field (x, p), w), state)
                             | Hole { number; contents } ->
@@ -365,7 +363,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                                                (locate arg_loc
                                                   (match arg with
                                                   | `Ident x -> Ident (x, w)
-                                                  | `Constr x -> Constr (x, w)
+                                                  | `Constr (x, suffix) -> Constr (x, suffix, w)
                                                   | `Placeholder -> Placeholder w
                                                   | `Field (x, p) -> Field (x, p, w)
                                                   | `Hole (number, contents) ->

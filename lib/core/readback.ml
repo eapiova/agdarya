@@ -25,7 +25,7 @@ let rec sort_of_ty : type a z.
     ?isfunc:bool -> (z, a) Ctx.t -> View.view_type -> [ `Type | `Function | `Other ] =
  fun ?(isfunc = false) ctx -> function
   | Canonical (_, UU _, _, _) -> `Type
-  | Canonical (_, Pi (_, doms, cods), _, tyargs) -> (
+  | Canonical (_, Pi (_, _, doms, cods), _, tyargs) -> (
       match D.compare (TubeOf.inst tyargs) (CubeOf.dim doms) with
       | Neq -> fatal (Dimension_mismatch ("sort_of_ty", TubeOf.inst tyargs, CubeOf.dim doms))
       | Eq ->
@@ -49,7 +49,8 @@ and readback_at : type a z.
   let view = if Displaying.read () then view_term tm else tm in
   let vty = view_type ty "readback_at" in
   match (vty, view) with
-  | Canonical (_, Pi (_, doms, cods), ins, tyargs), Lam ((Variables (m, mn, xs) as x), body) -> (
+  | Canonical (_, Pi (impl, _, doms, cods), ins, tyargs), Lam (_, (Variables (m, mn, xs) as x), body)
+    -> (
       let Eq = eq_of_ins_zero ins in
       let k = CubeOf.dim doms in
       let l = dim_binder body in
@@ -62,15 +63,15 @@ and readback_at : type a z.
           let newctx = Ctx.vis ctx m mn xs newnfs af in
           let output = tyof_app cods tyargs args in
           let body = readback_at ~eta newctx (apply_term tm args) output in
-          Term.Lam (x, body))
+          Term.Lam (impl, x, body))
   (* If eta-expansion is enabled, we do an eta-expanding readback of any term. *)
-  | Canonical (_, Pi (name, doms, cods), ins, tyargs), tm when eta ->
+  | Canonical (_, Pi (impl, name, doms, cods), ins, tyargs), tm when eta ->
       let Eq = eq_of_ins_zero ins in
       let newargs, newnfs = dom_vars ctx doms in
       let (Any_ctx newctx) = Ctx.variables_vis ctx name newnfs in
       let output = tyof_app cods tyargs newargs in
       (* We carry through the eta-expansion flag so that iterated pi-types will eta-expand fully. *)
-      Term.Lam (name, readback_at ~eta newctx (apply_term tm newargs) output)
+      Term.Lam (impl, name, readback_at ~eta newctx (apply_term tm newargs) output)
   | ( Canonical
         (type mn m n)
         (( _,
@@ -153,29 +154,39 @@ and readback_at : type a z.
       | Noeta, _ -> readback_val_sorted ctx tm vty)
   | Canonical (_, Data { constrs; _ }, ins, tyargs), Constr (xconstr, xn, xargs) -> (
       let Eq = eq_of_ins_zero ins in
-      let (Dataconstr { env; args = argtys; indices = _ }) =
-        Abwd.find_opt xconstr constrs <|> Anomaly "constr not found in readback" in
-      match D.compare xn (TubeOf.inst tyargs) with
-      | Neq -> fatal (Dimension_mismatch ("reading back constrs", xn, TubeOf.inst tyargs))
-      | Eq ->
-          let tyarg_args =
-            TubeOf.mmap
-              {
-                map =
-                  (fun _ [ tm ] ->
-                    match view_term tm.tm with
-                    | Constr (tmname, _, tmargs) ->
-                        if tmname = xconstr then List.map (fun a -> CubeOf.find_top a) tmargs
-                        else fatal (Anomaly "inst arg wrong constr in readback at datatype")
-                    | _ -> fatal (Anomaly "inst arg not constr in readback at datatype"));
-              }
-              [ tyargs ] in
-          Constr
-            ( xconstr,
-              dim_env env,
-              readback_at_tel ctx env
-                (List.fold_right (fun a args -> CubeOf.find_top a :: args) xargs [])
-                argtys tyarg_args ))
+      match Abwd.find_opt xconstr constrs <|> Anomaly "constr not found in readback" with
+      | Dataconstr { args = Emp; indices = _; env = _ } -> (
+          match D.compare xn (TubeOf.inst tyargs) with
+          | Neq -> fatal (Dimension_mismatch ("reading back constrs", xn, TubeOf.inst tyargs))
+          | Eq -> Constr (xconstr, xn, []))
+      | Dataconstr { env; args = argtys; indices = _ } -> (
+          match D.compare xn (TubeOf.inst tyargs) with
+          | Neq -> fatal (Dimension_mismatch ("reading back constrs", xn, TubeOf.inst tyargs))
+          | Eq ->
+              let tyarg_args =
+                TubeOf.mmap
+                  {
+                    map =
+                      (fun _ [ tm ] ->
+                        match view_term tm.tm with
+                        | Constr (tmname, _, tmargs) ->
+                            if tmname = xconstr then List.map (fun a -> CubeOf.find_top a) tmargs
+                            else fatal (Anomaly "inst arg wrong constr in readback at datatype")
+                        | _ -> fatal (Anomaly "inst arg not constr in readback at datatype"));
+                  }
+                  [ tyargs ] in
+              Constr
+                ( xconstr,
+                  xn,
+                  readback_at_tel ctx env
+                    (List.fold_right (fun a args -> CubeOf.find_top a :: args) xargs [])
+                    argtys tyarg_args ))
+      | Higher_dataconstr { env = _; args = Emp; indices = _; boundary = _ } -> (
+          match D.compare xn (TubeOf.inst tyargs) with
+          | Neq -> fatal (Dimension_mismatch ("reading back higher constrs", xn, TubeOf.inst tyargs))
+          | Eq -> Constr (xconstr, xn, []))
+      | Higher_dataconstr _ ->
+          fatal (Anomaly "higher constructor with arguments is outside MVP"))
   | _ -> readback_val_sorted ctx tm vty
 
 and readback_val_sorted : type a z.
@@ -206,11 +217,12 @@ and readback_neu : type a z any.
  fun ?(sort = (`Other, `Other)) ctx head apps ->
   match (apps, head) with
   | Emp, _ -> readback_head ~sort ctx head
-  | Arg (apps, args, ins), _ ->
+  | Arg (impl, apps, args, ins), _ ->
       let (To p) = deg_of_ins ins in
       Term.Act
         ( App
-            ( readback_neu ~sort ctx head apps,
+            ( impl,
+              readback_neu ~sort ctx head apps,
               CubeOf.mmap { map = (fun _ [ tm ] -> readback_nf ctx tm) } [ args ] ),
           p,
           sort )
@@ -253,11 +265,12 @@ and readback_head : type c z.
           let (To perm) = deg_of_ins ins in
           Act (tm, perm, sort))
   | UU m -> UU m
-  | Pi (x, doms, cods) ->
+  | Pi (impl, x, doms, cods) ->
       let k = CubeOf.dim doms in
       let args, newnfs = dom_vars ctx doms in
       Pi
-        ( x,
+        ( impl,
+          x,
           CubeOf.mmap { map = (fun _ [ dom ] -> readback_val ~sort:`Type ctx dom) } [ doms ],
           CodCube.build k
             {

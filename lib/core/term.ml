@@ -65,9 +65,12 @@ module rec Term : sig
     | UU : 'n D.t -> ('a, kinetic) term
     | Inst : ('a, kinetic) term * ('m, 'n, 'mn, ('a, kinetic) term) TubeOf.t -> ('a, kinetic) term
     | Pi :
-        'n variables * ('n, ('a, kinetic) term) CubeOf.t * ('n, 'a) CodCube.t
+        [ `Implicit | `Explicit ] * 'n variables * ('n, ('a, kinetic) term) CubeOf.t
+        * ('n, 'a) CodCube.t
         -> ('a, kinetic) term
-    | App : ('a, kinetic) term * ('n, ('a, kinetic) term) CubeOf.t -> ('a, kinetic) term
+    | App :
+        [ `Implicit | `Explicit ] * ('a, kinetic) term * ('n, ('a, kinetic) term) CubeOf.t
+        -> ('a, kinetic) term
     | Constr : Constr.t * 'n D.t * ('n, ('a, kinetic) term) CubeOf.t list -> ('a, kinetic) term
     | Act :
         ('a, kinetic) term
@@ -75,7 +78,7 @@ module rec Term : sig
         * ([ `Type | `Function | `Other ] * [ `Canonical | `Other ])
         -> ('a, kinetic) term
     | Let : string option * ('a, kinetic) term * (('a, D.zero) snoc, 's) term -> ('a, 's) term
-    | Lam : 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
+    | Lam : [ `Implicit | `Explicit ] * 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
     | Struct : ('n, 'a, 's, 'et) struct_args -> ('a, 's) term
     | Match : {
         tm : ('a, kinetic) term;
@@ -140,6 +143,12 @@ module rec Term : sig
     | Dataconstr : {
         args : ('p, 'a, 'pa) tel;
         indices : (('pa, kinetic) term, 'i) Vec.t;
+      }
+        -> ('p, 'i) dataconstr
+    | Higher_dataconstr : {
+        args : ('p, 'a, 'pa) tel;
+        indices : (('pa, kinetic) term, 'i) Vec.t;
+        boundary : (D.zero, Hott.dim, Hott.dim, ('pa, kinetic) term) TubeOf.t;
       }
         -> ('p, 'i) dataconstr
 
@@ -234,9 +243,12 @@ end = struct
     | UU : 'n D.t -> ('a, kinetic) term
     | Inst : ('a, kinetic) term * ('m, 'n, 'mn, ('a, kinetic) term) TubeOf.t -> ('a, kinetic) term
     | Pi :
-        'n variables * ('n, ('a, kinetic) term) CubeOf.t * ('n, 'a) CodCube.t
+        [ `Implicit | `Explicit ] * 'n variables * ('n, ('a, kinetic) term) CubeOf.t
+        * ('n, 'a) CodCube.t
         -> ('a, kinetic) term
-    | App : ('a, kinetic) term * ('n, ('a, kinetic) term) CubeOf.t -> ('a, kinetic) term
+    | App :
+        [ `Implicit | `Explicit ] * ('a, kinetic) term * ('n, ('a, kinetic) term) CubeOf.t
+        -> ('a, kinetic) term
     | Constr : Constr.t * 'n D.t * ('n, ('a, kinetic) term) CubeOf.t list -> ('a, kinetic) term
     | Act :
         ('a, kinetic) term
@@ -246,7 +258,7 @@ end = struct
     (* The term being bound in a 'let' is always kinetic.  Thus, if the supplied bound term is potential, the "bound term" here must be the metavariable whose value is set to that term rather than to the (potential) term itself.  We don't need a term-level "letrec" since recursion is implemented in the typechecker by creating a new global metavariable. *)
     | Let : string option * ('a, kinetic) term * (('a, D.zero) snoc, 's) term -> ('a, 's) term
     (* Abstractions and structs can appear in any kind of term.  The dimension 'n is the substitution dimension of the type being checked against (function-type or codata/record).  *)
-    | Lam : 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
+    | Lam : [ `Implicit | `Explicit ] * 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
     | Struct : ('n, 'a, 's, 'et) struct_args -> ('a, 's) term
     (* Matches can only appear in non-kinetic terms.  The dimension 'n is the substitution dimension of the type of the variable being matched against. *)
     | Match : {
@@ -332,6 +344,12 @@ end = struct
         indices : (('pa, kinetic) term, 'i) Vec.t;
       }
         -> ('p, 'i) dataconstr
+    | Higher_dataconstr : {
+        args : ('p, 'a, 'pa) tel;
+        indices : (('pa, kinetic) term, 'i) Vec.t;
+        boundary : (D.zero, Hott.dim, Hott.dim, ('pa, kinetic) term) TubeOf.t;
+      }
+        -> ('p, 'i) dataconstr
 
   (* A telescope is a list of types, each dependent on the previous ones.  Note that 'a and 'ab are lists of dimensions, but 'b is just a forwards natural number counting the number of *zero-dimensional* variables added to 'a to get 'ab.  *)
   and ('a, 'b, 'ab) tel =
@@ -384,14 +402,14 @@ include Term
 let rec nth_var : type a b s. (a, s) term -> b Bwd.t -> any_variables option =
  fun tr args ->
   match tr with
-  | Lam (x, body) -> (
+  | Lam (_, x, body) -> (
       match args with
       | Emp -> Some (Any x)
       | Snoc (args, _) -> nth_var body args)
   | _ -> None
 
-let pi x dom cod = Pi (x, CubeOf.singleton dom, CodCube.singleton cod)
-let app fn arg = App (fn, CubeOf.singleton arg)
+let pi x dom cod = Pi (`Explicit, x, CubeOf.singleton dom, CodCube.singleton cod)
+let app fn arg = App (`Explicit, fn, CubeOf.singleton arg)
 let apps fn args = List.fold_left app fn args
 let constr name args = Constr (name, D.zero, List.map CubeOf.singleton args)
 let field tm f = Field (tm, f, ins_zero D.zero)
@@ -413,7 +431,7 @@ module Telescope = struct
    fun doms body ->
     match doms with
     | Emp -> body
-    | Ext (x, _, doms) -> Lam (singleton_variables D.zero x, lams doms body)
+    | Ext (x, _, doms) -> Lam (`Explicit, singleton_variables D.zero x, lams doms body)
 
   let rec snocs : type a b ab. (a, b, ab) t -> (a, b, D.zero, ab) Tbwd.snocs = function
     | Emp -> Zero

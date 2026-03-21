@@ -235,13 +235,13 @@ and eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
               [ used_tys ] in
           (* The types not in used_tys form a complete m+n tube, which will be the remaining instantiation arguments of the type of the result.  We don't need to worry about that here, it's taken care of in "inst". *)
           Val (inst newtm newargs))
-  | Lam (Variables (n, n_k, vars), body) ->
+  | Lam (impl, Variables (n, n_k, vars), body) ->
       let m = dim_env env in
       let (Plus m_nk) = D.plus (D.plus_out n n_k) in
       let (Plus m_n) = D.plus n in
       let mn_k = D.plus_assocl m_n n_k m_nk in
-      Val (Lam (Variables (D.plus_out m m_n, mn_k, vars), eval_binder env m_nk body))
-  | App (fn, args) ->
+      Val (Lam (impl, Variables (D.plus_out m m_n, mn_k, vars), eval_binder env m_nk body))
+  | App (_, fn, args) ->
       (* First we evaluate the function. *)
       let efn = eval_term env fn in
       (* The environment is m-dimensional and the original application is n-dimensional, so the *substituted* application is m+n dimensional.  Thus must therefore match the dimension of the function being applied. *)
@@ -271,7 +271,10 @@ and eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       let mn = D.plus_out m m_n in
       let eargs = List.map (eval_args env m_n mn) args in
       Val (Constr (constr, mn, eargs))
-  | Pi (type n) ((x, doms, cods) : n variables * (n, (b, kinetic) term) CubeOf.t * (n, b) CodCube.t)
+  | Pi (type n)
+      ((impl, x, doms, cods) :
+        [ `Implicit | `Explicit ] * n variables * (n, (b, kinetic) term) CubeOf.t
+        * (n, b) CodCube.t)
     ->
       (* We are starting with an n-dimensional pi-type and evaluating it in an m-dimensional environment, producing an (m+n)-dimensional result. *)
       let n = CubeOf.dim doms in
@@ -311,7 +314,7 @@ and eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                }) in
         let subdoms, subcods = (CubeOf.subcube fab doms, BindCube.subcube fab cods) in
         let subx = plus_variables (dom_sface fa) ab (sub_variables fb x) in
-        let head : head = Pi (subx, subdoms, subcods) in
+        let head : head = Pi (impl, subx, subdoms, subcods) in
         (* We don't need fibrancy fields for all the boundary types, since once something "is a type" we don't need it to be in Fib any more. *)
         let fields : (k * potential * no_eta) Value.StructfieldAbwd.t =
           match (is_id_sface fab, !Fibrancy.pi) with
@@ -322,14 +325,14 @@ and eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                 Ext
                   ( Ext (Emp mn, D.plus_zero mn, Ok doms),
                     D.plus_zero mn,
-                    Ok (lam_cube (plus_variables m m_n x) cods) ) in
+                    Ok (lam_cube impl (plus_variables m m_n x) cods) ) in
               eval_structfield_abwd pi_env mn (D.plus_zero mn) mn fields in
         let value =
           ready
             (Val
                (Canonical
                   {
-                    canonical = Pi (subx, subdoms, subcods);
+                    canonical = Pi (impl, subx, subdoms, subcods);
                     tyargs = TubeOf.empty kl;
                     ins = ins_zero kl;
                     fields;
@@ -435,7 +438,7 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
  fun fn arg ->
   match view_term fn with
   (* If the function is a lambda-abstraction, we check that it has the correct dimension and then beta-reduce, adding the arguments to the environment. *)
-  | Lam (_, body) -> (
+  | Lam (_, _, body) -> (
       let m = CubeOf.dim arg in
       match D.compare (dim_binder body) m with
       | Neq -> fatal (Dimension_mismatch ("applying a lambda", dim_binder body, m))
@@ -444,7 +447,7 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
   | Neu { head; args; value; ty = (lazy ty) } -> (
       (* ... we check that its type is fully instantiated... *)
       match view_type ty "apply" with
-      | Canonical (_, Pi (_, doms, cods), ins, tyargs) -> (
+      | Canonical (_, Pi (impl, _, doms, cods), ins, tyargs) -> (
           (* ... and that the pi-type and its instantiation have the correct dimension. *)
           let k = CubeOf.dim doms in
           let Eq = eq_of_ins_zero ins in
@@ -456,10 +459,10 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
               (* We compute the output type of the application. *)
               let newty = lazy (tyof_app cods tyargs arg) in
               (* We add the new argument to the existing application spine. *)
-              let args = Arg (args, newarg, ins_zero k) in
+              let args = Arg (impl, args, newarg, ins_zero k) in
               if GluedEval.read () then
                 (* We add the argument to the lazy value and return a glued neutral. *)
-                let value = apply_lazy value newarg in
+                let value = apply_lazy impl value newarg in
                 Val (Neu { head; args; value; ty = newty })
               else
                 (* We evaluate further with a case tree. *)
@@ -979,7 +982,10 @@ and eval_canonical : type m a. (m, a) env -> a Term.canonical -> potential evalu
       let tyfam = ref None in
       let constrs =
         Abwd.map
-          (fun (Term.Dataconstr { args; indices }) -> Value.Dataconstr { env; args; indices })
+          (function
+            | Term.Dataconstr { args; indices } -> Value.Dataconstr { env; args; indices }
+            | Term.Higher_dataconstr { args; indices; boundary } ->
+                Value.Higher_dataconstr { env; args; indices; boundary })
           constrs in
       let dim = dim_env env in
       let canonical = Data { dim; tyfam; indices = Fillvec.empty indices; constrs; discrete } in
@@ -1075,7 +1081,7 @@ and app_eval_apps : type s any. s evaluation -> any apps -> s evaluation =
  fun ev x ->
   match x with
   | Emp -> ev
-  | Arg (rest, xs, ins) -> (
+  | Arg (_, rest, xs, ins) -> (
       let (To p) = deg_of_ins ins in
       match app_eval_apps ev rest with
       | Val tm -> act_evaluation (apply tm (val_of_norm_cube xs)) p
@@ -1227,7 +1233,8 @@ and inst_fibrancy_fields : type m n mn.
                 match
                   app_eval_apps idfld
                     (Arg
-                       ( Arg (Emp, xcube, ins_zero (CubeOf.dim xcube)),
+                       ( `Explicit,
+                         Arg (`Explicit, Emp, xcube, ins_zero (CubeOf.dim xcube)),
                          ycube,
                          ins_zero (CubeOf.dim ycube) ))
                 with

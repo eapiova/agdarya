@@ -401,15 +401,12 @@ let canonicalize (loc : Asai.Range.t) (parts : [ `Dots of int | `Atom of string 
         | [ `Atom con; `Dots 1 ] when atomic_ident con -> Constr (con, [])
         (* Higher constructor with multiple suffixes *)
         | `Atom con :: `Dots 2 :: rest when atomic_ident con ->
-            let _ =
-              match get_higher_parts rest with
-              | Some (parts, true) -> Constr (con, parts)
-              | _ -> fatal ~loc Parse_error in
-            fatal ~loc (Unimplemented "higher constructors")
+            (match get_higher_parts rest with
+            | Some (parts, true) -> Constr (con, parts)
+            | _ -> fatal ~loc Parse_error)
         (* Higher constructor with single suffix *)
         | [ `Atom con; `Dots 1; `Atom pbij; `Dots 1 ] when atomic_ident con ->
-            let _ = Constr (con, String.fold_right (fun c s -> String.make 1 c :: s) pbij []) in
-            fatal ~loc (Unimplemented "higher constructors")
+            Constr (con, String.fold_right (fun c s -> String.make 1 c :: s) pbij [])
         (* Identifier *)
         | _ -> (
             match get_ident parts with

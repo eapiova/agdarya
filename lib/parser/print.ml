@@ -154,7 +154,7 @@ let rec pp_term : type lt ls rt rs.
       (group doc, ws <|> Anomaly "missing ws in pp_term")
   | Placeholder w -> (Token.pp Underscore, w)
   | Ident (x, w) -> (separate_map (char '.') utf8string x, w)
-  | Constr (c, w) -> (pp_constr c, w)
+  | Constr (c, suffix, w) -> (Token.pp (Token.Constr (c, suffix)), w)
   | Field (f, p, w) -> (pp_field f p, w)
   | Superscript (Some x, s, w) ->
       let px, wx = pp_term x in

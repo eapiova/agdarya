@@ -12,7 +12,7 @@ open Print
 open PPrint
 open Top
 
-let usage_msg = "narya [options] <file1> [<file2> ...]"
+let usage_msg = "agdarya [options] <file1> [<file2> ...]"
 let interactive = ref false
 let proofgeneral = ref false
 let show_version = ref false
@@ -112,7 +112,7 @@ let rec repl terminal history buf =
   let buf, prompt =
     match buf with
     | Some buf -> (buf, "")
-    | None -> (Buffer.create 70, "narya\n") in
+    | None -> (Buffer.create 70, "agdarya\n") in
   (* Read lines and accumulate their contents until we find a blank line, indicating that the command is over. *)
   let* command =
     Lwt.catch
@@ -151,7 +151,7 @@ let rec repl terminal history buf =
         repl terminal history (Some buf))
   | None -> repl terminal history None
 
-let history_file = Unix.getenv "HOME" ^ "/.narya_history"
+let history_file = Unix.getenv "HOME" ^ "/.agdarya_history"
 
 (* Initialize LTerm and Lwt for the interactive mode REPL. *)
 let interact () =
@@ -183,7 +183,7 @@ let rec print_error_locs (d : Reporter.Code.t Asai.Diagnostic.t) =
 
 (* In ProofGeneral interaction mode, the prompt is delimited by formfeeds, and commands are ended by a formfeed on a line by itself.  This prevents any possibility of collision with other input or output.  This doesn't require initialization. *)
 let rec interact_pg () : unit =
-  Format.printf "\x0C[narya]\x0C\n%!";
+  Format.printf "\x0C[agdarya]\x0C\n%!";
   try
     let buf = Buffer.create 20 in
     let atstart = ref true in

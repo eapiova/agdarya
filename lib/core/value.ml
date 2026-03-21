@@ -52,11 +52,16 @@ module rec Value : sig
       }
         -> head
     | UU : 'n D.t -> head
-    | Pi : 'k variables * ('k, kinetic value) CubeOf.t * ('k, unit) BindCube.t -> head
+    | Pi :
+        [ `Implicit | `Explicit ] * 'k variables * ('k, kinetic value) CubeOf.t
+        * ('k, unit) BindCube.t
+        -> head
 
   and _ apps =
     | Emp : noninst apps
-    | Arg : 'any apps * ('n, normal) CubeOf.t * ('nk, 'n, 'k) insertion -> noninst apps
+    | Arg :
+        [ `Implicit | `Explicit ] * 'any apps * ('n, normal) CubeOf.t * ('nk, 'n, 'k) insertion
+        -> noninst apps
     | Field : 'any apps * 'i Field.t * ('t, 'i, 'n) D.plus * ('tk, 't, 'k) insertion -> noninst apps
     | Inst : noninst apps * 'k D.pos * ('n, 'k, 'nk, normal) TubeOf.t -> inst apps
 
@@ -77,7 +82,7 @@ module rec Value : sig
       }
         -> kinetic value
     | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t list -> kinetic value
-    | Lam : 'k variables * ('k, 's) binder -> 's value
+    | Lam : [ `Implicit | `Explicit ] * 'k variables * ('k, 's) binder -> 's value
     | Struct : ('p, 'k, 'pk, 's, 'et) struct_args -> 's value
     | Canonical : ('m, 'k, 'mk, 'e, 'n) inst_canonical -> potential value
 
@@ -104,7 +109,8 @@ module rec Value : sig
   and (_, _) canonical =
     | UU : 'm D.t -> ('m, D.zero) canonical
     | Pi :
-        'm variables * ('m, kinetic value) CubeOf.t * ('m, unit) BindCube.t
+        [ `Implicit | `Explicit ] * 'm variables * ('m, kinetic value) CubeOf.t
+        * ('m, unit) BindCube.t
         -> ('m, D.zero) canonical
     | Data : ('m, 'j, 'ij) data_args -> ('m, D.zero) canonical
     | Codata : ('m, 'n, 'c, 'a, 'et) codata_args -> ('m, 'n) canonical
@@ -130,6 +136,13 @@ module rec Value : sig
         env : ('m, 'a) env;
         args : ('a, 'p, 'ap) Telescope.t;
         indices : (('ap, kinetic) term, 'ij) Vec.t;
+      }
+        -> ('m, 'ij) dataconstr
+    | Higher_dataconstr : {
+        env : ('m, 'a) env;
+        args : ('a, 'p, 'ap) Telescope.t;
+        indices : (('ap, kinetic) term, 'ij) Vec.t;
+        boundary : (D.zero, Hott.dim, Hott.dim, ('ap, kinetic) term) TubeOf.t;
       }
         -> ('m, 'ij) dataconstr
 
@@ -199,12 +212,17 @@ end = struct
     (* Universes are parametrized by a dimension *)
     | UU : 'n D.t -> head
     (* Pis must store not just the domain type but all its boundary types.  These domain and boundary types are not fully instantiated.  Note the codomains are stored in a cube of binders. *)
-    | Pi : 'k variables * ('k, kinetic value) CubeOf.t * ('k, unit) BindCube.t -> head
+    | Pi :
+        [ `Implicit | `Explicit ] * 'k variables * ('k, kinetic value) CubeOf.t
+        * ('k, unit) BindCube.t
+        -> head
 
   (* An application contains the data of an n-dimensional argument and its boundary, together with a neutral insertion applied outside that can't be pushed in.  This represents the *argument list* of a single application, not the function.  Thus, an application spine will be a head together with a list of apps. *)
   and _ apps =
     | Emp : noninst apps
-    | Arg : 'any apps * ('n, normal) CubeOf.t * ('nk, 'n, 'k) insertion -> noninst apps
+    | Arg :
+        [ `Implicit | `Explicit ] * 'any apps * ('n, normal) CubeOf.t * ('nk, 'n, 'k) insertion
+        -> noninst apps
     (* For a higher field with ('n, 't, 'i) insertion, the actual evaluation dimension is 'n, but the result dimension is only 't.  So the dimension of the arg is 't, since that's the output dimension that a degeneracy acting on could be pushed through.  However, since a degeneracy of dimension up to 'n can act on the inside, we can push in the whole insertion and store only a plus outside. *)
     | Field : 'any apps * 'i Field.t * ('t, 'i, 'n) D.plus * ('tk, 't, 'k) insertion -> noninst apps
     (* An (m+n)-dimensional type is "instantiated" by applying it a "boundary tube" to get an m-dimensional type.  This operation is supposed to be functorial in dimensions, so it should not be applied more than once in a row.  So the dummy parameter of 'apps' tracks whether the last application was an instantiation, and here we verify that it wasn't before instantiating.  We also allow only nontrivial instantiations, to avoid cluttering up application spines with lots of empty instantiations and simplify equality-checking. *)
@@ -230,7 +248,7 @@ end = struct
         -> kinetic value
     (* A constructor has a name, a dimension, and a list of arguments of that dimension.  It must always be applied to the correct number of arguments (otherwise it can be eta-expanded).  It doesn't have an outer insertion because a primitive datatype is always 0-dimensional (it has higher-dimensional versions, but degeneracies can always be pushed inside these).  *)
     | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t list -> kinetic value
-    | Lam : 'k variables * ('k, 's) binder -> 's value
+    | Lam : [ `Implicit | `Explicit ] * 'k variables * ('k, 's) binder -> 's value
     (* Structs have to store an insertion outside, like an application, to deal with higher-dimensional record types like Gel.  Here 'k is the Gel dimension, with 'p the substitution dimension and 'pk the total dimension. *)
     | Struct : ('p, 'k, 'pk, 's, 'et) struct_args -> 's value
     (* A canonical type is only a *potential* value, so it appears as the 'value' of a 'neu'.  It may also be instantiated, partially or fully. *)
@@ -266,7 +284,8 @@ end = struct
     (* At present, we never produce these except as the values of their corresponding heads.  But in principle, we could allow universes and pi-types as potential terms, so that constants could be defined to "behave like" universes or pi-types without reducing to them. *)
     | UU : 'm D.t -> ('m, D.zero) canonical
     | Pi :
-        'm variables * ('m, kinetic value) CubeOf.t * ('m, unit) BindCube.t
+        [ `Implicit | `Explicit ] * 'm variables * ('m, kinetic value) CubeOf.t
+        * ('m, unit) BindCube.t
         -> ('m, D.zero) canonical
     (* We define a named record type to encapsulate the arguments of Data and Codata, rather than using an inline one, so that we can bind their existential variables (https://discuss.ocaml.org/t/annotating-by-an-existential-type/14721).  See the definitions of these records below. *)
     | Data : ('m, 'j, 'ij) data_args -> ('m, D.zero) canonical
@@ -304,6 +323,13 @@ end = struct
         env : ('m, 'a) env;
         args : ('a, 'p, 'ap) Telescope.t;
         indices : (('ap, kinetic) term, 'ij) Vec.t;
+      }
+        -> ('m, 'ij) dataconstr
+    | Higher_dataconstr : {
+        env : ('m, 'a) env;
+        args : ('a, 'p, 'ap) Telescope.t;
+        indices : (('ap, kinetic) term, 'ij) Vec.t;
+        boundary : (D.zero, Hott.dim, Hott.dim, ('ap, kinetic) term) TubeOf.t;
       }
         -> ('m, 'ij) dataconstr
 
@@ -379,10 +405,12 @@ let rec length_env : type n b. (n, b) env -> b Dbwd.t = function
   | Unshift (env, mn, nb) -> Plusmap.input (D.plus_right mn) (length_env env) nb
 
 (* Abstract over a cube of binders to make a cube of lambdas.  TODO: This should morally be a Cube.map, but it goes from one instantiation of Cube to another one, and we didn't define a map like that, so for now we just make it a 'build'. *)
-let lam_cube : type n. n variables -> (n, unit) BindCube.t -> (n, kinetic value) CubeOf.t =
- fun x binders ->
+let lam_cube :
+    type n.
+    [ `Implicit | `Explicit ] -> n variables -> (n, unit) BindCube.t -> (n, kinetic value) CubeOf.t =
+ fun impl x binders ->
   CubeOf.build (BindCube.dim binders)
-    { build = (fun fa -> Lam (sub_variables fa x, BindCube.find binders fa)) }
+    { build = (fun fa -> Lam (impl, sub_variables fa x, BindCube.find binders fa)) }
 
 (* Smart constructor that composes actions and cancels identities *)
 let rec act_env : type m n b. (n, b) env -> (m, n) op -> (m, b) env =
@@ -403,13 +431,16 @@ let defer : type s. (unit -> s evaluation) -> s lazy_eval =
 
 let ready : type s. s evaluation -> s lazy_eval = fun ev -> ref (Ready ev)
 
-let apply_lazy : type n s. s lazy_eval -> (n, normal) CubeOf.t -> s lazy_eval =
- fun lev xs ->
+let apply_lazy :
+    type n s.
+    [ `Implicit | `Explicit ] -> s lazy_eval -> (n, normal) CubeOf.t -> s lazy_eval =
+ fun impl lev xs ->
   let xins = ins_zero (CubeOf.dim xs) in
   match !lev with
-  | Deferred_eval (env, tm, ins, apps) -> ref (Deferred_eval (env, tm, ins, Arg (apps, xs, xins)))
-  | Deferred (tm, ins, apps) -> ref (Deferred (tm, ins, Arg (apps, xs, xins)))
-  | Ready tm -> ref (Deferred ((fun () -> tm), id_deg D.zero, Arg (Emp, xs, xins)))
+  | Deferred_eval (env, tm, ins, apps) ->
+      ref (Deferred_eval (env, tm, ins, Arg (impl, apps, xs, xins)))
+  | Deferred (tm, ins, apps) -> ref (Deferred (tm, ins, Arg (impl, apps, xs, xins)))
+  | Ready tm -> ref (Deferred ((fun () -> tm), id_deg D.zero, Arg (impl, Emp, xs, xins)))
 
 (* We defer "field_lazy" to act.ml, since it requires pushing a permutation inside the apps. *)
 
@@ -647,13 +678,13 @@ let split_inst : type m.
 module Fwd_app = struct
   (* Make an apps without instantiations into a forwards list *)
   type t =
-    | Arg : ('n, normal) CubeOf.t * ('nk, 'n, 'k) insertion -> t
+    | Arg : [ `Implicit | `Explicit ] * ('n, normal) CubeOf.t * ('nk, 'n, 'k) insertion -> t
     | Field : 'i Field.t * ('t, 'i, 'n) D.plus * ('tk, 't, 'k) insertion -> t
 
   let snoc : type any. any apps -> t -> noninst apps =
    fun apps app ->
     match app with
-    | Arg (arg, ins) -> Arg (apps, arg, ins)
+    | Arg (impl, arg, ins) -> Arg (impl, apps, arg, ins)
     | Field (fld, plus, ins) -> Field (apps, fld, plus, ins)
 
   let of_apps apps =
@@ -661,7 +692,7 @@ module Fwd_app = struct
      fun apps fwds ->
       match apps with
       | Emp -> fwds
-      | Arg (apps, arg, ins) -> go apps (Arg (arg, ins) :: fwds)
+      | Arg (impl, apps, arg, ins) -> go apps (Arg (impl, arg, ins) :: fwds)
       | Field (apps, fld, plus, ins) -> go apps (Field (fld, plus, ins) :: fwds)
       | Inst _ -> fatal (Anomaly "instantiation in fwd_of_apps") in
     go apps []

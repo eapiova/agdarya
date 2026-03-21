@@ -81,14 +81,16 @@ module rec Make : functor (I : Indices) -> sig
     | Var : 'a index -> 'a synth
     | Const : Constant.t -> 'a synth
     | Field : 'a synth located * [ `Name of string * int list | `Int of int ] -> 'a synth
-    | Pi : I.name * 'a check located * 'a I.suc check located -> 'a synth
+    | Pi : [ `Implicit | `Explicit ] * I.name * 'a check located * 'a I.suc check located -> 'a synth
     | HigherPi : I.name * 'a synth located * 'a I.suc synth located -> 'a synth
     | InstHigherPi : 'n D.pos * ('a, 'n, unit, 'an) DomCube.t * 'an check located -> 'a synth
     | App :
         'a check located * 'a check option located * [ `Implicit | `Explicit ] located
         -> 'a synth
     | Asc : 'a check located * 'a check located -> 'a synth
-    | AscLam : I.name located * 'a check located * 'a I.suc synth located -> 'a synth
+    | AscLam :
+        [ `Implicit | `Explicit ] * I.name located * 'a check located * 'a I.suc synth located
+        -> 'a synth
     | UU : 'a synth
     | Let : I.name * 'a synth located * 'a I.suc check located -> 'a synth
     | Letrec : ('a, 'b, 'ab) tel * ('ab check located, 'b) Vec.t * 'ab check located -> 'a synth
@@ -155,7 +157,8 @@ module rec Make : functor (I : Indices) -> sig
         * 'ab check located
         -> 'a branch
 
-  and _ dataconstr = Dataconstr : ('a, 'b, 'ab) tel * 'ab check located option -> 'a dataconstr
+  and _ dataconstr =
+    Dataconstr : string list * ('a, 'b, 'ab) tel * 'ab check located option -> 'a dataconstr
   and _ codatafield = Codatafield : I.name * 'a I.suc check located -> 'a codatafield
   and 'a refutables = { refutables : 'b 'ab. ('a, 'b, 'ab) bplus -> 'ab synth located list }
 
@@ -238,7 +241,9 @@ functor
       | Const : Constant.t -> 'a synth
       (* A field projection from a possibly-higher-coinductive type comes with a suffix that is a string of integers, denoting a partial bijection between n and m that is total on n.  This is the same as an injection from n to m, or equivalently an insertion of n into m∖l to produce m, where l = image(n). *)
       | Field : 'a synth located * [ `Name of string * int list | `Int of int ] -> 'a synth
-      | Pi : I.name * 'a check located * 'a I.suc check located -> 'a synth
+      | Pi :
+          [ `Implicit | `Explicit ] * I.name * 'a check located * 'a I.suc check located
+          -> 'a synth
       | HigherPi : I.name * 'a synth located * 'a I.suc synth located -> 'a synth
       | InstHigherPi : 'n D.pos * ('a, 'n, unit, 'an) DomCube.t * 'an check located -> 'a synth
       (* The location of the implicitness flag is, in the implicit case, the location of the braces surrounding the implicit argument. *)
@@ -246,8 +251,10 @@ functor
           'a check located * 'a check option located * [ `Implicit | `Explicit ] located
           -> 'a synth
       | Asc : 'a check located * 'a check located -> 'a synth
-      (* Abstraction with ascribed variable.  Currently can't be a cube or implicit.  *)
-      | AscLam : I.name located * 'a check located * 'a I.suc synth located -> 'a synth
+      (* Abstraction with ascribed variable. *)
+      | AscLam :
+          [ `Implicit | `Explicit ] * I.name located * 'a check located * 'a I.suc synth located
+          -> 'a synth
       | UU : 'a synth
       (* A Let can either synthesize or (sometimes) check.  It synthesizes only if its body also synthesizes, but we wait until typechecking type to look for that, so that if it occurs in a checking context the body can also be checking.  Thus, we make it a "synthesizing term".  The term being bound must also synthesize; the shorthand notation "let x : A := M" is expanded during parsing to "let x := M : A". *)
       | Let : I.name * 'a synth located * 'a I.suc check located -> 'a synth
@@ -341,7 +348,8 @@ functor
           -> 'a branch
 
     (* *)
-    and _ dataconstr = Dataconstr : ('a, 'b, 'ab) tel * 'ab check located option -> 'a dataconstr
+    and _ dataconstr =
+      Dataconstr : string list * ('a, 'b, 'ab) tel * 'ab check located option -> 'a dataconstr
 
     (* A field of a codatatype has a self variable and a type.  At the raw level we don't need any more information about higher fields. *)
     and _ codatafield = Codatafield : I.name * 'a I.suc check located -> 'a codatafield
@@ -451,7 +459,8 @@ module Resolve (R : Resolver) = struct
           | Error e -> Fail e)
       | Const c -> Const c
       | Field (tm, fld) -> Field (synth ctx tm, fld)
-      | Pi (x, dom, cod) -> Pi (R.rename ctx x, check ctx dom, check (R.snoc ctx x) cod)
+      | Pi (impl, x, dom, cod) ->
+          Pi (impl, R.rename ctx x, check ctx dom, check (R.snoc ctx x) cod)
       | HigherPi (x, dom, cod) -> HigherPi (R.rename ctx x, synth ctx dom, synth (R.snoc ctx x) cod)
       | InstHigherPi (n, doms, cod) ->
           let (Gfolded (doms, ctx)) =
@@ -472,8 +481,8 @@ module Resolve (R : Resolver) = struct
             | None -> locate_opt arg.loc None in
           App (check ctx fn, arg, impl)
       | Asc (tm, ty) -> Asc (check ctx tm, check ctx ty)
-      | AscLam (x, dom, body) ->
-          AscLam (locate_map (R.rename ctx) x, check ctx dom, synth (R.snoc ctx x.value) body)
+      | AscLam (impl, x, dom, body) ->
+          AscLam (impl, locate_map (R.rename ctx) x, check ctx dom, synth (R.snoc ctx x.value) body)
       | UU -> UU
       | Let (x, tm, body) -> Let (R.rename ctx x, synth ctx tm, (check (R.snoc ctx x)) body)
       | Letrec (tys, tms, body) ->
@@ -571,10 +580,10 @@ module Resolve (R : Resolver) = struct
     Branch (locate_opt xs.loc xs2, cube, check ctx2 body)
 
   and dataconstr : type a1 a2. (a1, a2) R.scope -> a1 R.T1.dataconstr -> a2 R.T2.dataconstr =
-   fun ctx (Dataconstr (args, body)) ->
+   fun ctx (Dataconstr (suffix, args, body)) ->
     let (Bplus ab) = R.T2.bplus (R.T1.fwn_of_tel args) in
     let args2, ctx2 = tel ctx args ab in
-    Dataconstr (args2, Option.map (check ctx2) body)
+    Dataconstr (suffix, args2, Option.map (check ctx2) body)
 
   and refutables : type a1 a2. (a1, a2) R.scope -> a1 R.T1.refutables -> a2 R.T2.refutables =
    fun ctx { refutables } ->
@@ -619,10 +628,10 @@ let rec namevec_of_vec : type a b ab.
 let rec dataconstr_of_pi : type a. a check located -> a dataconstr =
  fun ty ->
   match ty.value with
-  | Synth (Pi (x, dom, cod)) ->
-      let (Dataconstr (tel, out)) = dataconstr_of_pi cod in
-      Dataconstr (Ext (x, dom, tel), out)
-  | _ -> Dataconstr (Emp, Some ty)
+  | Synth (Pi (_, x, dom, cod)) ->
+      let (Dataconstr (suffix, tel, out)) = dataconstr_of_pi cod in
+      Dataconstr (suffix, Ext (x, dom, tel), out)
+  | _ -> Dataconstr ([], Emp, Some ty)
 
 (* Produces only explicit lambdas. *)
 let rec lams : type a b ab.

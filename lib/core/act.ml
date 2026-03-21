@@ -87,9 +87,9 @@ module Act = struct
         (* And we "act" on the type with the other kind of action that permutes the instantiated arguments, and by the original s since it is the type of the entire application spine. *)
         let ty = lazy (act_ty v ty s) in
         Neu { head; args; value; ty }
-    | Lam (x, body) ->
+    | Lam (impl, x, body) ->
         let (Of fa) = deg_plus_to s (dim_binder body) ~on:"lambda" in
-        Lam (act_variables x fa, act_binder body fa)
+        Lam (impl, act_variables x fa, act_binder body fa)
     | Struct (type p k pk et) ({ fields; ins; energy; eta } : (p, k, pk, status, et) struct_args) ->
         let (Insfact_comp_ext
                (type q l ql j z)
@@ -244,9 +244,9 @@ module Act = struct
    fun tm fa ->
     match tm with
     | UU _ -> UU (dom_deg fa)
-    | Pi (x, doms, cods) ->
+    | Pi (impl, x, doms, cods) ->
         let doms', cods' = act_pi (doms, cods) fa in
-        Pi (act_variables x fa, doms', cods')
+        Pi (impl, act_variables x fa, doms', cods')
     | Data { dim = _; tyfam; indices; constrs; discrete } ->
         let tyfam = ref (Option.map (fun x -> lazy (act_normal (Lazy.force x) fa)) !tyfam) in
         let indices =
@@ -258,9 +258,14 @@ module Act = struct
         Codata { eta; opacity; env = act_env env (op_of_deg fa); termctx; fields }
 
   and act_dataconstr : type m n i. (n, i) dataconstr -> (m, n) deg -> (m, i) dataconstr =
-   fun (Dataconstr { env; args; indices }) s ->
-    let env = act_env env (op_of_deg s) in
-    Dataconstr { env; args; indices }
+   fun dc s ->
+    match dc with
+    | Dataconstr { env; args; indices } ->
+        let env = act_env env (op_of_deg s) in
+        Dataconstr { env; args; indices }
+    | Higher_dataconstr { env; args; indices; boundary } ->
+        let env = act_env env (op_of_deg s) in
+        Higher_dataconstr { env; args; indices; boundary }
 
   (* act_closure and act_binder assume that the degeneracy has exactly the correct codomain.  So if it doesn't, the caller should call deg_plus_to first. *)
   and act_closure : type mn m n a kn.
@@ -392,10 +397,10 @@ module Act = struct
     | UU nk ->
         let (Of fa) = deg_plus_to s nk ~on:"universe head" in
         UU (dom_deg fa)
-    | Pi (x, doms, cods) ->
+    | Pi (impl, x, doms, cods) ->
         let (Of fa) = deg_plus_to s (CubeOf.dim doms) ~on:"pi-type head" in
         let doms', cods' = act_pi (doms, cods) fa in
-        Pi (act_variables x fa, doms', cods')
+        Pi (impl, act_variables x fa, doms', cods')
 
   and act_pi : type m n.
       (n, kinetic value) CubeOf.t * (n, unit) BindCube.t ->
@@ -420,12 +425,12 @@ module Act = struct
     match apps with
     | Emp -> (Any_deg s, Emp)
     (* To act on an application, we compose the acting degeneracy with the delayed insertion, factor the result into a new insertion to leave outside and a smaller degeneracy to push in, and push the smaller degeneracy action into the application, acting on the function/struct. *)
-    | Arg (rest, args, ins) ->
+    | Arg (impl, rest, args, ins) ->
         let (Insfact_comp_ext (fa, new_ins, _, _)) = insfact_comp_ext ins s in
         (* In the function case, we also act on the arguments by factorization. *)
         let new_arg = act_cube { act = (fun x s -> act_normal x s) } args fa in
         let new_s, new_rest = act_apps rest fa in
-        (new_s, Arg (new_rest, new_arg, new_ins))
+        (new_s, Arg (impl, new_rest, new_arg, new_ins))
     | Field (rest, fld, fldplus, ins) ->
         let (Insfact_comp_ext (fa, new_ins, _, _)) = insfact_comp_ext ins s in
         (* Note that we don't need to change the degeneracy, since it can be extended on the right as needed. *)

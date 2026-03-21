@@ -26,7 +26,7 @@ and get_tree : type lt ls rt rs. (lt, ls, rt, rs) Notation.parse -> parse_tree =
   | App a -> App (get_tree a.fn.value, get_tree a.arg.value)
   | Placeholder _ -> Placeholder
   | Ident (x, _) -> Ident x
-  | Constr (x, _) -> Constr x
+  | Constr (x, _, _) -> Constr x
   | Field (x, b, _) -> Field (x, b)
   | Superscript (None, s, _) -> Superscript (None, s.value)
   | Superscript (Some x, s, _) -> Superscript (Some (get_tree x.value), s.value)

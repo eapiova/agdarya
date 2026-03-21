@@ -82,7 +82,7 @@ and (_, _, _, _) parse =
       -> ('lt, 'ls, 'rt, 'rs) parse
   | Placeholder : Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
   | Ident : string list * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
-  | Constr : string * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
+  | Constr : string * string list * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
   | Field : string * string list * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
   | Superscript :
       ('lt, 'ls, No.plus_omega, No.strict) parse located option * string located * Whitespace.t list

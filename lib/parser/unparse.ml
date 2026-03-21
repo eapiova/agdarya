@@ -199,11 +199,11 @@ let rec synths : type n. (n, kinetic) term -> bool = function
   | Field (_, _, _)
   | UU _
   | Inst (_, _)
-  | Pi (_, _, _)
-  | App (_, _)
+  | Pi (_, _, _, _)
+  | App (_, _, _)
   | Act (_, _, _)
   | Let (_, _, _) -> true
-  | Constr (_, _, _) | Lam (_, _) | Struct _ -> false
+  | Constr (_, _, _) | Lam (_, _, _) | Struct _ -> false
   | Unshift (_, _, tm) -> synths tm
   | Unact (_, tm) -> synths tm
   | Shift (_, _, tm) -> synths tm
@@ -229,24 +229,31 @@ let rec get_spine : type n.
     ] =
  fun tm ->
   match tm with
-  | App (fn, arg) -> (
+  | App (impl, fn, arg) -> (
       let module M = CubeOf.Monadic (Monad.State (struct
         type t = ((n, kinetic) term * [ `Implicit | `Explicit ]) Bwd.t
       end)) in
       (* To append the entries in a cube to a Bwd, we iterate through it with a Bwd state. *)
       let append_bwd args =
-        let all_args = not (synths (CubeOf.find_top arg)) in
-        snd
-          (M.miterM
-             {
-               it =
-                 (fun fa [ x ] s ->
-                   match (Display.function_boundaries (), is_id_sface fa, all_args) with
-                   | `Hide, None, false -> ((), s)
-                   | _, None, _ -> ((), Snoc (s, (x, `Implicit)))
-                   | _ -> ((), Snoc (s, (x, `Explicit))));
-             }
-             [ arg ] args) in
+        match D.compare_zero (CubeOf.dim arg) with
+        | Zero -> (
+            match (impl, Display.function_boundaries ()) with
+            | `Implicit, `Hide -> args
+            | _ -> Snoc (args, (CubeOf.find_top arg, impl)))
+        | Pos _ ->
+            let all_args = not (synths (CubeOf.find_top arg)) in
+            snd
+              (M.miterM
+                 {
+                   it =
+                     (fun fa [ x ] s ->
+                       match (Display.function_boundaries (), is_id_sface fa, all_args) with
+                       | `Hide, None, false -> ((), s)
+                       | _, None, _ -> ((), Snoc (s, (x, `Implicit)))
+                       | _ -> ((), Snoc (s, (x, `Explicit))));
+                 }
+                 [ arg ] args)
+      in
       match get_spine fn with
       | `App (head, args) -> `App (head, append_bwd args)
       | `Field (head, fld, ins, args) -> `Field (head, fld, ins, append_bwd args))
@@ -290,7 +297,7 @@ let rec unparse : type n lt ls rt rs s.
         }
         (deg_zero n) li ri
   | Inst (ty, tyargs) -> unparse_inst vars ty vars tyargs li ri
-  | Pi (_, doms, _) ->
+  | Pi (_, _, doms, _) ->
       let dim, notn =
         match D.compare_zero (CubeOf.dim doms) with
         | Zero -> (`Arrow, arrow)
@@ -330,7 +337,7 @@ let rec unparse : type n lt ls rt rs s.
                     (Multiple
                        (wstok Let, Emp <: Term (unparse_var x) <: mktok Coloneq <: Term tm, wstok In))
                   ~last:body ~right_ok)))
-  | Lam (Variables (m, _, _), _) ->
+  | Lam (_, Variables (m, _, _), _) ->
       let cube =
         match D.compare m D.zero with
         | Eq -> `Normal
@@ -434,7 +441,7 @@ and unparse_spine : type n lt ls rt rs.
       | Emp -> (
           match head with
           | `Term tm -> unparse vars tm li ri
-          | `Constr c -> unlocated (Constr (Constr.to_string c, []))
+          | `Constr c -> unlocated (Constr (Constr.to_string c, [], []))
           | `Field (tm, fld, ins) -> unparse_field vars tm fld ins li ri
           | `Degen s -> unlocated (Ident ([ s ], []))
           | `Unparser tm -> tm.unparse li ri)
@@ -514,7 +521,7 @@ and unparse_lam : type n lt ls rt rs s.
     (lt, ls, rt, rs) parse located =
  fun cube vars xs body li ri ->
   match body with
-  | Lam ((Variables (m, _, _) as boundvars), inner) -> (
+  | Lam (impl, (Variables (m, _, _) as boundvars), inner) -> (
       match (cube, D.compare m D.zero) with
       | `Normal, Eq | `Cube, Neq ->
           let Variables (_, _, x), vars = Names.add vars boundvars in
@@ -528,10 +535,14 @@ and unparse_lam : type n lt ls rt rs s.
               (left, k, string option) NFamOf.t ->
               (left, k, unit) NFamOf.t * (string option * [ `Explicit | `Implicit ]) Bwd.t =
            fun s acc (NFamOf x) ->
-            let implicit =
-              match is_id_sface s with
-              | None -> `Implicit
-              | Some _ -> `Explicit in
+           let implicit =
+              match D.compare m D.zero with
+              | Eq -> impl
+              | Neq -> (
+                  match is_id_sface s with
+                  | None -> `Implicit
+                  | Some _ -> `Explicit)
+            in
             (NFamOf (), Snoc (acc, (x, implicit))) in
           unparse_lam cube vars
             (snd (Fold.fold_map_left { foldmap = (fun s acc x -> folder s acc x) } xs x))
@@ -624,7 +635,7 @@ and unparse_inst : type n n' lt ls rt rs m k mk.
  fun vars ty argvars tyargs li ri ->
   match (D.compare_zero (TubeOf.uninst tyargs), D.compare_zero (TubeOf.inst tyargs), ty) with
   (* A fully instantiated higher pi-type we can unparse prettily. *)
-  | Zero, Pos _, Pi (x, doms, cods) -> (
+  | Zero, Pos _, Pi (_, x, doms, cods) -> (
       match D.compare (TubeOf.inst tyargs) (CubeOf.dim doms) with
       | Eq ->
           let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus (TubeOf.inst tyargs)) in
@@ -688,7 +699,7 @@ and unparse_pis : type n lt ls rt rs.
     (lt, ls, rt, rs) parse located =
  fun dim notn vars accum tm li ri ->
   match tm with
-  | Pi (x, doms, cods) -> (
+  | Pi (impl, x, doms, cods) -> (
       match (D.compare_zero (CubeOf.dim doms), dim) with
       | Zero, `Arrow | Pos _, `DblArrow -> (
           match top_variable x with
@@ -703,6 +714,7 @@ and unparse_pis : type n lt ls rt rs.
                        unparse =
                          (fun _ _ ->
                            unparse_pi_dom
+                             ~implicit:(impl = `Implicit)
                              (NICubeOf.find_top x <|> Anomaly "missing top in unparse_pis")
                              (unparse vars (CubeOf.find_top doms) (interval_right asc)
                                 No.Interval.entire));
@@ -841,24 +853,24 @@ and unparse_higher_pi : type a lt ls rt rs n.
       let lam_xs = sub_variables (sface_of_tface s) xs in
       let _, lamvars = Names.add lamvars lam_xs in
       match lam with
-      | Lam (ys, body) -> (
+      | Lam (_, ys, body) -> (
           match D.compare (dim_variables ys) k with
           | Eq -> Named (lamvars, body)
           | Neq -> fatal (Dimension_mismatch ("unparse_higher_pi lam", dim_variables ys, k)))
       | nonlam ->
           (* This case happens when we are recursively working with the domains of another higher pi-type. *)
           let lamargs = CubeOf.build k { build = (fun s -> Var (Index (Now, s))) } in
-          Named (lamvars, App (Weaken nonlam, lamargs)) in
+          Named (lamvars, App (`Explicit, Weaken nonlam, lamargs)) in
     TubeOf.mmap { map = (fun s [ lam ] -> map s lam) } [ tyargs ] in
   (* We only need the top codomain. *)
   match CodCube.find_top cods with
-  | Pi (newxs, newdoms, newcods) -> (
+  | Pi (_, newxs, newdoms, newcods) -> (
       (* If it's another pi-type, it must be of the same dimension since it is an (uninstantiated!) n-dimensional type, and we continue recursively. *)
       match D.compare (CubeOf.dim newdoms) n with
       | Eq -> unparse_higher_pi newvars accum newxs newdoms newcods tyargs li ri
       | Neq -> fatal (Dimension_mismatch ("unparse_higher_pi recursion", CubeOf.dim newdoms, n)))
   (* It might also be a *partially* instantiated *higher* dimensional pi-type, in which case we combine the instantiation arguments to make it fully instantiated.  We don't continue accumulating domains as in the previous case, though, because in this case the codomain has different dimension, and hence needs its own arrow. *)
-  | Inst (Pi (newxs, newdoms, newcods), newtyargs) -> (
+  | Inst (Pi (_, newxs, newdoms, newcods), newtyargs) -> (
       match
         ( D.compare (TubeOf.out newtyargs) (CubeOf.dim newdoms),
           D.compare (TubeOf.uninst newtyargs) (TubeOf.inst tyargs) )

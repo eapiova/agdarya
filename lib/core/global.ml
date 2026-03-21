@@ -167,9 +167,9 @@ let unsolved_holes () =
   Metatable.fold
     {
       fold =
-        (fun _ v count ->
-          match v with
-          | Ok { tm = `Undefined; _ } -> count + 1
+        (fun m v count ->
+          match (Meta.is_hole m, v) with
+          | true, Ok { tm = `Undefined; _ } -> count + 1
           | _ -> count);
     }
     metas 0
@@ -179,9 +179,9 @@ let current_unsolved_holes () =
   Metatable.fold_current
     {
       fold =
-        (fun _ v count ->
-          match v with
-          | Ok { tm = `Undefined; _ } -> count + 1
+        (fun m v count ->
+          match (Meta.is_hole m, v) with
+          | true, Ok { tm = `Undefined; _ } -> count + 1
           | _ -> count);
     }
     metas 0
@@ -196,9 +196,12 @@ let notify_holes () =
 module Command_state = struct
   type hole = { meta : Meta.wrapped; printable : printable; startpos : int; endpos : int }
 
+  type evar = { meta : Meta.wrapped; printable : printable; loc : Asai.Range.t option }
+
   type t = {
     holes_allowed : (unit, string) Result.t;
     current_holes : hole Bwd.t;
+    current_evars : evar Bwd.t;
     parametric : [ `Must_be_parametric | `Maybe_parametric | `Nonparametric ];
   }
 end
@@ -233,9 +236,28 @@ let get_parametric () =
   | `Nonparametric -> `Nonparametric
   | `Must_be_parametric | `Maybe_parametric -> `Parametric
 
+let add_evar ?loc m ~termctx ~ty ~printable ~energy =
+  Metatable.add m (Ok { tm = `Undefined; termctx; ty; energy }) metas;
+  let cmd = Current_command.get () in
+  Current_command.set
+    {
+      cmd with
+      current_evars = Snoc (cmd.current_evars, { meta = Wrap m; printable; loc });
+    }
+
 (* At successful completion of a command, notify the user of generated holes.  Use make_msg to show the number of holes, and also emit the holes separately to be shown in the goals buffer.  This is a subroutine of run_command and friends, below. *)
 let end_command (offset, make_msg) =
   let d = Current_command.get () in
+  let unresolved_evars =
+    d.current_evars
+    |> Bwd_extra.to_list_map (fun x -> x)
+    |> List.filter_map (fun ({ meta = Wrap meta; printable; loc } : Command_state.evar) ->
+           match Metatable.find_opt meta metas with
+           | Some (Ok { tm = `Undefined; _ }) ->
+               Some (diagnostic ?loc (Unresolved_evar (Meta.name meta, printable)))
+           | _ -> None) in
+  if unresolved_evars <> [] then
+    fatal (Accumulated ("unresolved evars", Bwd_extra.of_list_map (fun x -> x) unresolved_evars));
   (* If the command ended up being parametric, we must retroactively label all the holes as parametric, so that they can only be filled using parametric constants, and oppositely. *)
   let update_parametric : type a b s. (a, b, s) Metadef.hole -> (a, b, s) Metadef.hole =
    fun h ->
@@ -252,7 +274,6 @@ let end_command (offset, make_msg) =
       emit (Hole (Meta.name m, printable));
       Holetable.update m (Option.map update_parametric) holes)
     [ d.current_holes ];
-  (* Current_command.modify (fun d -> { d with current_holes = Emp; parametric = `Maybe_parametric }) *)
   ( offset,
     Bwd_extra.to_list_map
       (fun ({ meta = Wrap meta; startpos; endpos; _ } : Command_state.hole) ->
@@ -263,12 +284,14 @@ let end_command (offset, make_msg) =
 
 let run_command ~holes_allowed f =
   Origin.do_command @@ fun () ->
-  Current_command.run ~init:{ holes_allowed; current_holes = Emp; parametric = `Maybe_parametric }
+  Current_command.run
+    ~init:{ holes_allowed; current_holes = Emp; current_evars = Emp; parametric = `Maybe_parametric }
   @@ fun () -> end_command (f ())
 
 let run_command_then_undo ~holes_allowed f =
   Origin.do_command_then_undo @@ fun () ->
-  Current_command.run ~init:{ holes_allowed; current_holes = Emp; parametric = `Maybe_parametric }
+  Current_command.run
+    ~init:{ holes_allowed; current_holes = Emp; current_evars = Emp; parametric = `Maybe_parametric }
   @@ fun () -> end_command (f ())
 
 (* In the rewind cases, we have to restore the parametric-ness information from the past also. *)
@@ -278,7 +301,8 @@ let rewind_command ~parametric ~holes_allowed instant f =
     | `Parametric -> `Must_be_parametric
     | `Nonparametric -> `Nonparametric in
   Origin.rewind_command instant @@ fun () ->
-  Current_command.run ~init:{ holes_allowed; current_holes = Emp; parametric } @@ fun () ->
+  Current_command.run ~init:{ holes_allowed; current_holes = Emp; current_evars = Emp; parametric }
+  @@ fun () ->
   end_command (f ())
 
 let rewind_command_then_undo ~parametric ~holes_allowed instant f =
@@ -287,13 +311,20 @@ let rewind_command_then_undo ~parametric ~holes_allowed instant f =
     | `Parametric -> `Must_be_parametric
     | `Nonparametric -> `Nonparametric in
   Origin.rewind_command_then_undo instant @@ fun () ->
-  Current_command.run ~init:{ holes_allowed; current_holes = Emp; parametric } @@ fun () ->
+  Current_command.run ~init:{ holes_allowed; current_holes = Emp; current_evars = Emp; parametric }
+  @@ fun () ->
   end_command (f ())
 
 (* For white box testing *)
 let run f =
   Current_command.run
-    ~init:{ holes_allowed = Error "run"; current_holes = Emp; parametric = `Maybe_parametric }
+    ~init:
+      {
+        holes_allowed = Error "run";
+        current_holes = Emp;
+        current_evars = Emp;
+        parametric = `Maybe_parametric;
+      }
     f
 
 (* Add a new hole. *)

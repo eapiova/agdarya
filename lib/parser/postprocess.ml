@@ -102,7 +102,8 @@ let rec process : type n lt ls rt rs.
               let explanation = locate_opt explanation.loc (Reporter.Code.default_text message) in
               fatal_diagnostic { severity; message; backtrace; extra_remarks; explanation }
           | _ -> fatal_diagnostic d)
-  | Constr (ident, _) -> { value = Raw.Constr ({ value = Constr.intern ident; loc }, []); loc }
+  | Constr (ident, [], _) -> { value = Raw.Constr ({ value = Constr.intern ident; loc }, []); loc }
+  | Constr (_, _, _) -> fatal ?loc (Unimplemented "higher constructors in terms")
   | Field _ ->
       (* This can happen if the user tries to project a field from a constructor. *)
       fatal Parse_error
@@ -164,7 +165,8 @@ and process_head : type n lt ls rt rs.
     [ `Deg of string located * any_deg | `Constr of Constr.t | `Fn of n check located ] =
  fun ctx tm ->
   match tm.value with
-  | Constr (ident, _) -> `Constr (Constr.intern ident)
+  | Constr (ident, [], _) -> `Constr (Constr.intern ident)
+  | Constr (_, _, _) -> fatal ?loc:tm.loc (Unimplemented "higher constructors in terms")
   | Ident ([ str ], _) -> (
       match deg_of_name str with
       | Some s -> `Deg (locate_opt tm.loc str, s)
@@ -265,7 +267,9 @@ let get_pattern : type lt1 ls1 rt1 rs1. (lt1, ls1, rt1, rs1) parse located -> Ma
         match pats.value with
         | [] -> Var (locate_opt pat.loc None)
         | _ -> fatal ?loc:pat.loc Parse_error)
-    | Constr (c, _) -> Constr (locate_opt pat.loc (Constr.intern c), pats.value)
+    | Constr (c, [], _) -> Constr (locate_opt pat.loc (Constr.intern c), pats.value)
+    | Constr (_, _, _) ->
+        fatal ?loc:pat.loc (Unimplemented "higher constructors in match patterns")
     | App { fn; arg; _ } ->
         go fn
           (locate_opt pats.loc

@@ -232,7 +232,7 @@ let rec raw_lam : type a b ab.
         match (dom, body) with
         | None, _ -> Lam { name; cube; implicit; dom = None; body }
         | Some (Wrap dom), { value = Synth body; loc } ->
-            Synth (AscLam (name, process ctx dom, locate_opt loc body))
+            Synth (AscLam (implicit, name, process ctx dom, locate_opt loc body))
         | Some (Wrap dom), _ ->
             let dom = Some (process ctx dom) in
             Lam { name; cube; implicit; dom; body } in
@@ -804,7 +804,7 @@ let rec process_pi : type n lt ls rt rs.
       let cod = process_pi ctx higher doms cod in
       let loc = Range.merge_opt cdom.loc cod.loc in
       match (higher, cdom.value, cod.value) with
-      | `Lower, _, _ -> { value = Synth (Pi (None, cdom, cod)); loc }
+      | `Lower, _, _ -> { value = Synth (Pi (`Explicit, None, cdom, cod)); loc }
       | `Higher, Synth sdom, Synth scod ->
           {
             value = Synth (HigherPi (None, locate_opt cdom.loc sdom, locate_opt cod.loc scod));
@@ -813,20 +813,19 @@ let rec process_pi : type n lt ls rt rs.
       | `Higher, Synth _, _ ->
           fatal ?loc:cod.loc (Nonsynthesizing "codomain of higher function type")
       | `Higher, _, _ -> fatal ?loc:cdom.loc (Nonsynthesizing "domain of higher function type"))
-  | Dep ({ vars = (x, _) :: xs; ty = Wrap dom; loc; implicit = `Explicit; _ } as data) :: doms -> (
+  | Dep ({ vars = (x, _) :: xs; ty = Wrap dom; loc; implicit; _ } as data) :: doms -> (
       let cdom = process ctx dom in
       let ctx = Bwv.snoc ctx x in
       let cod = process_pi ctx higher (Dep { data with vars = xs } :: doms) cod in
       let loc = Range.merge_opt loc cod.loc in
       match (higher, cdom.value, cod.value) with
-      | `Lower, _, _ -> { value = Synth (Pi (x, cdom, cod)); loc }
+      | `Lower, _, _ -> { value = Synth (Pi (implicit, x, cdom, cod)); loc }
       | `Higher, Synth sdom, Synth scod ->
           { value = Synth (HigherPi (x, locate_opt cdom.loc sdom, locate_opt cod.loc scod)); loc }
       | `Higher, Synth _, _ ->
           fatal ?loc:cod.loc (Nonsynthesizing "codomain of higher function type")
       | `Higher, _, _ -> fatal ?loc:cdom.loc (Nonsynthesizing "domain of higher function type"))
-  | Dep { vars = []; implicit = `Explicit; _ } :: doms -> process_pi ctx higher doms cod
-  | Dep { implicit = `Implicit; _ } :: _ -> fatal (Unimplemented "general implicit function-types")
+  | Dep { vars = []; _ } :: doms -> process_pi ctx higher doms cod
 
 let rec process_inst_higher_pi : type n lt ls rt rs m.
     (string option, n) Bwv.t ->
@@ -2306,11 +2305,11 @@ let rec data_constrs bar_ok =
 let rec constr_tel :
     observation ->
     (string option list * wrapped_parse) list ->
-    Constr.t located * (string option list * wrapped_parse) list =
+    Constr.t located * string list * (string option list * wrapped_parse) list =
  fun tel accum ->
   match tel with
   (* Found all the arguments and reached the constructor. *)
-  | Term { value = Constr (c, _); loc } -> ({ value = Constr.intern c; loc }, accum)
+  | Term { value = Constr (c, suffix, _); loc } -> ({ value = Constr.intern c; loc }, suffix, accum)
   (* Each argument set is given with its type in parentheses. *)
   | Term { value = App { fn; arg = { value = Notn ((Parens, _), n); loc = _ }; _ }; loc = _ } -> (
       match args n with
@@ -2323,30 +2322,36 @@ let rec constr_tel :
 
 let rec process_dataconstr : type n.
     (string option, n) Bwv.t ->
+    string list ->
     (string option list * wrapped_parse) list ->
     wrapped_parse option ->
     n Raw.dataconstr =
- fun ctx tel_args ty ->
+ fun ctx suffix tel_args ty ->
   match (tel_args, ty) with
-  | (vars, argty) :: tel_args, _ -> process_dataconstr_vars ctx vars argty tel_args ty
-  | [], Some (Wrap ty) -> dataconstr_of_pi (process ctx ty)
-  | [], None -> Dataconstr (Emp, None)
+  | (vars, argty) :: tel_args, _ -> process_dataconstr_vars ctx suffix vars argty tel_args ty
+  | [], Some (Wrap ty) ->
+      let (Dataconstr (_, tel, out)) = dataconstr_of_pi (process ctx ty) in
+      Dataconstr (suffix, tel, out)
+  | [], None -> Dataconstr (suffix, Emp, None)
 
 and process_dataconstr_vars : type n.
     (string option, n) Bwv.t ->
+    string list ->
     string option list ->
     wrapped_parse ->
     (string option list * wrapped_parse) list ->
     wrapped_parse option ->
     n Raw.dataconstr =
- fun ctx vars (Wrap argty) tel_args ty ->
+ fun ctx suffix vars (Wrap argty) tel_args ty ->
   match vars with
-  | [] -> process_dataconstr ctx tel_args ty
+  | [] -> process_dataconstr ctx suffix tel_args ty
   | x :: xs ->
       let newctx = Bwv.snoc ctx x in
-      let (Dataconstr (args, body)) = process_dataconstr_vars newctx xs (Wrap argty) tel_args ty in
+      let (Dataconstr (suffix, args, body)) =
+        process_dataconstr_vars newctx suffix xs (Wrap argty) tel_args ty
+      in
       let arg = process ctx argty in
-      Dataconstr (Ext (x, arg, args), body)
+      Dataconstr (suffix, Ext (x, arg, args), body)
 
 let rec process_data : type n.
     (Constr.t, n Raw.dataconstr located) Abwd.t ->
@@ -2368,11 +2373,11 @@ let rec process_data : type n.
             | [ Term tel; Token (Colon, _); Term ty ] -> (Wrap tel, Some (Wrap ty))
             | _ -> invalid "data")
         | _ -> (Wrap tel, None) in
-      let c, tel_args = constr_tel (Term tel) [] in
+      let c, suffix, tel_args = constr_tel (Term tel) [] in
       match Abwd.find_opt c.value constrs with
       | Some _ -> fatal ?loc:c.loc (Duplicate_constructor_in_data c.value)
       | None ->
-          let dc = process_dataconstr ctx tel_args ty in
+          let dc = process_dataconstr ctx suffix tel_args ty in
           process_data
             (Abwd.add c.value ({ value = dc; loc = tel.loc } : n dataconstr located) constrs)
             ctx obs loc)

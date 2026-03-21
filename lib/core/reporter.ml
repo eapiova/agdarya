@@ -213,6 +213,17 @@ module Code = struct
     | Wrong_boundary_of_record : int -> t
     | Invalid_constructor_type : Constr.t * (string, Unequal.t) Either.t -> t
     | Missing_constructor_type : Constr.t -> t
+    | Invalid_higher_constructor_type : Constr.t * string -> t
+    | Higher_constructor_missing_output : Constr.t -> t
+    | Higher_constructor_endpoint_mismatch : {
+        constr : Constr.t;
+        declared : printable;
+        actual : printable;
+        why : Unequal.t;
+      }
+        -> t
+    | Missing_higher_branch_in_match : Constr.t -> t
+    | Higher_constructor_in_nondep_match : printable -> t
     | Locked_variable : t
     | Locked_constant : printable -> t
     | Axiom_in_parametric_definition : printable -> t
@@ -220,6 +231,7 @@ module Code = struct
     | No_open_holes : t
     | Open_holes : int -> t
     | Open_holes_remaining : [ `File of string | `String | `Stdin ] -> t
+    | Unresolved_evar : string * printable -> t
     | Quit : string option -> t
     | Synthesizing_recursion : printable -> t
     | Invalid_synthesized_type : string * printable -> t
@@ -340,8 +352,10 @@ module Code = struct
     | Wrong_number_of_arguments_to_motive _ -> Error
     | No_such_constructor_in_match _ -> Error
     | Duplicate_constructor_in_match _ -> Error
+    | Missing_higher_branch_in_match _ -> Error
     | Duplicate_constructor_in_data _ -> Error
     | Matching_on_nondatatype _ -> Error
+    | Higher_constructor_in_nondep_match _ -> Error
     | Matching_wont_refine _ -> Hint
     | Dimension_mismatch _ -> Bug (* Sometimes Error? *)
     | Anomaly _ -> Bug
@@ -369,6 +383,9 @@ module Code = struct
     | Wrong_boundary_of_record _ -> Error
     | Invalid_constructor_type _ -> Error
     | Missing_constructor_type _ -> Error
+    | Invalid_higher_constructor_type _ -> Error
+    | Higher_constructor_missing_output _ -> Error
+    | Higher_constructor_endpoint_mismatch _ -> Error
     | Locked_variable -> Error
     | Locked_constant _ -> Error
     | Axiom_in_parametric_definition _ -> Error
@@ -376,6 +393,7 @@ module Code = struct
     | No_open_holes -> Info
     | Open_holes _ -> Warning
     | Open_holes_remaining _ -> Error
+    | Unresolved_evar _ -> Error
     | Quit _ -> Info
     | Synthesizing_recursion _ -> Error
     | Invalid_synthesized_type _ -> Error
@@ -509,6 +527,7 @@ module Code = struct
     (* - Match type *)
     | Matching_on_nondatatype _ -> "E1200"
     | Matching_datatype_has_degeneracy _ -> "E1201"
+    | Higher_constructor_in_nondep_match _ -> "E1202"
     (* - Match branches *)
     | Missing_constructor_in_match _ -> "E1300"
     | No_such_constructor_in_match _ -> "E1301"
@@ -520,6 +539,7 @@ module Code = struct
     | Overlapping_patterns -> "E1307"
     | No_remaining_patterns -> "E1308"
     | Invalid_refutation -> "E1309"
+    | Missing_higher_branch_in_match _ -> "E1310"
     (* - Match motive *)
     | Wrong_number_of_arguments_to_motive _ -> "E1400"
     (* Comatches *)
@@ -537,6 +557,9 @@ module Code = struct
     | Wrong_boundary_of_record _ -> "E1504"
     | Invalid_constructor_type _ -> "E1505"
     | Missing_constructor_type _ -> "E1506"
+    | Invalid_higher_constructor_type _ -> "E1507"
+    | Higher_constructor_missing_output _ -> "E1508"
+    | Higher_constructor_endpoint_mismatch _ -> "E1509"
     (* Tactics *)
     | Choice_mismatch _ -> "E1600"
     | Calc_error _ -> "E1601"
@@ -585,6 +608,7 @@ module Code = struct
     | Hole _ -> "I3003"
     | No_open_holes -> "I3004"
     | Invalid_split _ -> "I3005"
+    | Unresolved_evar _ -> "E3006"
     (* Command progress and success *)
     | Constant_defined _ -> "I0000"
     | Constant_assumed _ -> "I0001"
@@ -945,6 +969,20 @@ module Code = struct
                 (Constr.to_string c) str pp_printed (print p1) pp_printed (print p2))
       | Missing_constructor_type c ->
           textf "missing type for constructor %s of indexed datatype" (Constr.to_string c)
+      | Invalid_higher_constructor_type (c, why) ->
+          textf "invalid higher constructor %s: %s" (Constr.to_string c) why
+      | Higher_constructor_missing_output c ->
+          textf "higher constructor %s must have an explicit output type" (Constr.to_string c)
+      | Higher_constructor_endpoint_mismatch { constr; declared; actual; why } ->
+          let str, _, _ = Unequal.printables why in
+          textf
+            "boundary mismatch while checking higher constructor %s:@ declared endpoint %a@ does not equal actual endpoint %a (%s)"
+            (Constr.to_string constr) pp_printed (print declared) pp_printed (print actual) str
+      | Missing_higher_branch_in_match c ->
+          textf "missing branch for higher constructor %s in dependent match" (Constr.to_string c)
+      | Higher_constructor_in_nondep_match ty ->
+          textf "@[<hv 0>non-dependent match on HIT is not supported in MVP:@;<1 2>%a@]"
+            pp_printed (print ty)
       | Locked_variable -> text "variable not available inside external degeneracy"
       | Locked_constant a ->
           textf
@@ -963,6 +1001,9 @@ module Code = struct
           | `File name -> textf "file %s contains open holes" name
           | `Stdin -> textf "stdin contains open holes"
           | `String -> textf "command-line exec string contains open holes")
+      | Unresolved_evar (name, ty) ->
+          textf "@[<hv 0>unresolved implicit metavariable %s:@;<1 2>%a@]" name pp_printed
+            (print ~sort:`Type ty)
       | Quit (Some src) -> textf "execution of %s terminated by quit" src
       | Quit None -> text "execution terminated by quit"
       | Synthesizing_recursion c ->

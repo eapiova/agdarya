@@ -15,18 +15,20 @@ let rec term : type a s. (File.t -> File.t) -> (a, s) term -> (a, s) term =
   | Field (tm, fld, fldins) -> Field (term f tm, fld, fldins)
   | UU n -> UU n
   | Inst (tm, args) -> Inst (term f tm, TubeOf.mmap { map = (fun _ [ x ] -> term f x) } [ args ])
-  | Pi (x, doms, cods) ->
+  | Pi (impl, x, doms, cods) ->
       Pi
-        ( x,
+        ( impl,
+          x,
           CubeOf.mmap { map = (fun _ [ x ] -> term f x) } [ doms ],
           CodCube.mmap { map = (fun _ [ x ] -> term f x) } [ cods ] )
-  | App (fn, args) -> App (term f fn, CubeOf.mmap { map = (fun _ [ x ] -> term f x) } [ args ])
+  | App (impl, fn, args) ->
+      App (impl, term f fn, CubeOf.mmap { map = (fun _ [ x ] -> term f x) } [ args ])
   | Constr (c, n, args) ->
       Constr
         (c, n, List.map (fun arg -> CubeOf.mmap { map = (fun _ [ x ] -> term f x) } [ arg ]) args)
   | Act (tm, s, sort) -> Act (term f tm, s, sort)
   | Let (x, v, body) -> Let (x, term f v, term f body)
-  | Lam (x, body) -> Lam (x, term f body)
+  | Lam (impl, x, body) -> Lam (impl, x, term f body)
   | Struct { eta; dim; fields = flds; energy } ->
       Struct
         {
@@ -118,8 +120,17 @@ and codatafield : type a n i et.
   | Higher (ka, tm) -> Higher (ka, term f tm)
 
 and dataconstr : type p i. (File.t -> File.t) -> (p, i) dataconstr -> (p, i) dataconstr =
- fun f (Dataconstr { args; indices }) ->
-  Dataconstr { args = tel f args; indices = Vec.mmap (fun [ x ] -> term f x) [ indices ] }
+ fun f dc ->
+  match dc with
+  | Dataconstr { args; indices } ->
+      Dataconstr { args = tel f args; indices = Vec.mmap (fun [ x ] -> term f x) [ indices ] }
+  | Higher_dataconstr { args; indices; boundary } ->
+      Higher_dataconstr
+        {
+          args = tel f args;
+          indices = Vec.mmap (fun [ x ] -> term f x) [ indices ];
+          boundary = TubeOf.mmap { map = (fun _ [ x ] -> term f x) } [ boundary ];
+        }
 
 and tel : type a b ab. (File.t -> File.t) -> (a, b, ab) tel -> (a, b, ab) tel =
  fun f t ->
