@@ -1,4 +1,4 @@
-  $ narya -v matchterm.ny
+  $ agdarya -v matchterm.ny
    ￫ info[I0000]
    ￮ constant ℕ defined
   
@@ -11,19 +11,19 @@
    ￫ info[I0000]
    ￮ constant plus_is_1 defined
   
-  true.
+  true
     : bool
   
-  false.
+  false
     : bool
   
-  true.
+  true
     : bool
   
-  false.
+  false
     : bool
   
-  false.
+  false
     : bool
   
    ￫ info[I0000]
@@ -34,8 +34,8 @@
   
    ￫ hint[E1101]
    ￭ $TESTCASE_ROOT/matchterm.ny
-   12 | def doublematch (n : ℕ) : bool ≔ match n [ zero. ↦ false. | suc. k ↦ match n [ zero. ↦ true. | suc. _ ↦ false. ]]
-      ^ match will not refine the goal or context (discriminee is let-bound): n
+   1 | doublematch n = match n [ zero ↦ false | suc k ↦ match n [ zero ↦ true | suc _ ↦ false ]]
+     ^ match will not refine the goal or context (discriminee is let-bound): n
   
    ￫ info[I0000]
    ￮ constant doublematch defined
@@ -65,7 +65,7 @@
    ￮ constant idvec_nil_or_cons defined
   
 
-  $ narya -v -parametric multi.ny
+  $ agdarya -v -parametric multi.ny
    ￫ info[I0000]
    ￮ constant bool defined
   
@@ -75,10 +75,10 @@
    ￫ info[I0000]
    ￮ constant bool.and defined
   
-  true.
+  true
     : bool
   
-  false.
+  false
     : bool
   
    ￫ info[I0000]
@@ -114,13 +114,13 @@
    ￫ info[I0000]
    ￮ constant bothzero defined
   
-  false.
+  false
     : bool
   
-  false.
+  false
     : bool
   
-  true.
+  true
     : bool
   
    ￫ info[I0000]
@@ -140,8 +140,8 @@
   
    ￫ hint[H0403]
    ￭ $TESTCASE_ROOT/multi.ny
-   75 | def ⊤eq⊥ : Id Type ⊤ ⊥ ≔ Gel ⊤ ⊥ [ ]
-      ^ matching lambda encountered outside case tree, wrapping in implicit let-binding
+   1 | ⊤eq⊥ = Gel ⊤ ⊥ (λ { })
+     ^ matching lambda encountered outside case tree, wrapping in implicit let-binding
   
    ￫ info[I0000]
    ￮ constant ⊤eq⊥ defined
@@ -168,10 +168,10 @@
    ￮ constant sum⊥' defined
   
    ￫ info[I0001]
-   ￮ axiom oops assumed
+   ￮ postulate oops assumed
   
-  sum⊥' Type (inr. oops)
-    : Type
+  sum⊥' Set (inr oops)
+    : Set
   
    ￫ info[I0000]
    ￮ constant sum⊥'' defined
@@ -211,47 +211,47 @@
   
 
 
-  $ narya -e 'def bool : Type ≔ data [ true. | false. ]' -e 'def bool.and (x y : bool) : bool ≔ match x,y [ true. , true. ↦ true. | true. , false. ↦ false. | _ , false. ↦ false. ]'
+  $ agdarya -e 'data bool : Set where { true : bool ; false : bool }' -e 'bool.and : bool → bool → bool' -e 'bool.and x y = match x,y [ true , true ↦ true | true , false ↦ false | _ , false ↦ false ]'
    ￫ error[E1307]
    ￭ command-line exec string
-   1 | def bool.and (x y : bool) : bool ≔ match x,y [ true. , true. ↦ true. | true. , false. ↦ false. | _ , false. ↦ false. ]
+   1 | bool.and x y = match x,y [ true , true ↦ true | true , false ↦ false | _ , false ↦ false ]
      ^ overlapping patterns in match
   
   [1]
 
-  $ narya -e 'axiom A : Type axiom B : Type def AB : Type ≔ data [ left. (_:A) | right. (_:B) ]' -e 'def foo (x y : AB) : AB ≔ match x,y [ left. a, right. b ↦ left. a | left. a, left. b ↦ left. b | left. a, right. b ↦ left. a | right. b, _ ↦ right. b ]'
+  $ agdarya -e 'postulate A : Set' -e 'postulate B : Set' -e 'data AB : Set where { left : A → AB ; right : B → AB }' -e 'foo : AB → AB → AB' -e 'foo x y = match x,y [ left a, right b ↦ left a | left a, left b ↦ left b | left a, right b ↦ left a | right b, _ ↦ right b ]'
    ￫ error[E1302]
    ￭ command-line exec string
-   1 | def foo (x y : AB) : AB ≔ match x,y [ left. a, right. b ↦ left. a | left. a, left. b ↦ left. b | left. a, right. b ↦ left. a | right. b, _ ↦ right. b ]
+   1 | foo x y = match x,y [ left a, right b ↦ left a | left a, left b ↦ left b | left a, right b ↦ left a | right b, _ ↦ right b ]
      ^ constructor right appears twice in match
   
   [1]
 
-  $ narya -e 'def bool : Type ≔ data [ true. | false. ]' -e 'def test (x y : bool) : bool ≔ match x,y [ true. , true. ↦ true. | false. ↦ false. ]'
+  $ agdarya -e 'data bool : Set where { true : bool ; false : bool }' -e 'test : bool → bool → bool' -e 'test x y = match x,y [ true , true ↦ true | false ↦ false ]'
    ￫ error[E1305]
    ￭ command-line exec string
-   1 | def test (x y : bool) : bool ≔ match x,y [ true. , true. ↦ true. | false. ↦ false. ]
+   1 | test x y = match x,y [ true , true ↦ true | false ↦ false ]
      ^ wrong number of patterns for match
   
   [1]
 
-  $ narya -e 'def bool : Type ≔ data [ true. | false. ]' -e 'def test (x y : bool) : bool ≔ match x,y [ true. , true. ↦ true. | true., false., false. ↦ false. ]'
+  $ agdarya -e 'data bool : Set where { true : bool ; false : bool }' -e 'test : bool → bool → bool' -e 'test x y = match x,y [ true , true ↦ true | true, false, false ↦ false ]'
    ￫ error[E0200]
    ￭ command-line exec string
-   1 | def test (x y : bool) : bool ≔ match x,y [ true. , true. ↦ true. | true., false., false. ↦ false. ]
+   1 | test x y = match x,y [ true , true ↦ true | true, false, false ↦ false ]
      ^ parse error
   
   [1]
 
-  $ narya -e 'def bool : Type ≔ data [ true. | false. ]' -e 'def neg (x : bool) : bool ≔ match x [ true. ↦ false. | false. ↦ . ]'
+  $ agdarya -e 'data bool : Set where { true : bool ; false : bool }' -e 'neg : bool → bool' -e 'neg x = match x [ true ↦ false | false ↦ . ]'
    ￫ error[E1309]
    ￭ command-line exec string
-   1 | def neg (x : bool) : bool ≔ match x [ true. ↦ false. | false. ↦ . ]
+   1 | neg x = match x [ true ↦ false | false ↦ . ]
      ^ invalid refutation: no discriminee has an empty type
   
   [1]
 
-  $ narya -v -e 'def bool : Type ≔ data [ true. | false. ]' -e 'def ⊥ : Type ≔ data [ ]' -e 'def foo (x : ⊥) (y : bool) : ⊥ ≔ match x, y [ ]' -e 'def foo2 (x : ⊥) (y : bool) : ⊥ ≔ match y, x [ ]' -e 'def unit : Type := data [ star. ]' -e 'def foo3 (x : bool) (y : unit) : ⊥ ≔ match x, y [ ]'
+  $ agdarya -v -e 'data bool : Set where { true : bool ; false : bool }' -e 'data ⊥ : Set where { }' -e 'foo : ⊥ → bool → ⊥' -e 'foo x y = match x, y [ ]' -e 'foo2 : ⊥ → bool → ⊥' -e 'foo2 x y = match y, x [ ]' -e 'data unit : Set where { star : unit }' -e 'foo3 : bool → unit → ⊥' -e 'foo3 x y = match x, y [ ]'
    ￫ info[I0000]
    ￮ constant bool defined
   
@@ -269,104 +269,104 @@
   
    ￫ error[E1300]
    ￭ command-line exec string
-   1 | def foo3 (x : bool) (y : unit) : ⊥ ≔ match x, y [ ]
+   1 | foo3 x y = match x, y [ ]
      ^ missing match clause for constructor true
   
   [1]
 
-  $ narya -e 'def bool : Type ≔ data [ true. | false. ]' -e 'def foo (x : bool) : bool ≔ match x [ true. ↦ false. | false. y ↦ true. ]'
+  $ agdarya -e 'data bool : Set where { true : bool ; false : bool }' -e 'foo : bool → bool' -e 'foo x = match x [ true ↦ false | false y ↦ true ]'
    ￫ error[E1303]
    ￭ command-line exec string
-   1 | def foo (x : bool) : bool ≔ match x [ true. ↦ false. | false. y ↦ true. ]
+   1 | foo x = match x [ true ↦ false | false y ↦ true ]
      ^ too many arguments to constructor false in match pattern (1 extra)
   
   [1]
 
 
-  $ narya -e 'def bool : Type ≔ data [ true. | false. ]' -e 'def foo (x : bool) : bool ≔ match x [ true. ↦ false. | true. y ↦ true. ]'
+  $ agdarya -e 'data bool : Set where { true : bool ; false : bool }' -e 'foo : bool → bool' -e 'foo x = match x [ true ↦ false | true y ↦ true ]'
    ￫ error[E1306]
    ￭ command-line exec string
-   1 | def foo (x : bool) : bool ≔ match x [ true. ↦ false. | true. y ↦ true. ]
+   1 | foo x = match x [ true ↦ false | true y ↦ true ]
      ^ inconsistent patterns in match
   
   [1]
-  $ narya -e 'def prod (A B : Type) : Type ≔ data [ pair. (_:A) (_:B) ]' -e 'def proj1 (A B C : Type) (u : prod (prod A B) C) : C ≔ match u [ pair. (pair. x x) x ↦ x ]'
+  $ agdarya -e 'data prod (A B : Set) : Set where { pair : A → B → prod A B }' -e 'proj1 : (A B C : Set) → prod (prod A B) C → C' -e 'proj1 A B C u = match u [ pair (pair x x) x ↦ x ]'
    ￫ error[E1304]
    ￭ command-line exec string
-   1 | def proj1 (A B C : Type) (u : prod (prod A B) C) : C ≔ match u [ pair. (pair. x x) x ↦ x ]
+   1 | proj1 A B C u = match u [ pair (pair x x) x ↦ x ]
      ^ variable name 'x' used more than once in match patterns
   
   [1]
 
-  $ narya -e 'def prod (A B : Type) : Type ≔ data [ pair. (_:A) (_:B) ]' -e 'def proj1 (A B : Type) (u : prod A B) : A ≔ match u return _ ↦ A [ pair. x x ↦ x ]'
+  $ agdarya -e 'data prod (A B : Set) : Set where { pair : A → B → prod A B }' -e 'proj1 : (A B : Set) → prod A B → A' -e 'proj1 A B u = match u return _ ↦ A [ pair x x ↦ x ]'
    ￫ error[E1304]
    ￭ command-line exec string
-   1 | def proj1 (A B : Type) (u : prod A B) : A ≔ match u return _ ↦ A [ pair. x x ↦ x ]
+   1 | proj1 A B u = match u return _ ↦ A [ pair x x ↦ x ]
      ^ variable name 'x' used more than once in match patterns
   
   [1]
 
-  $ narya -e 'def bool : Type ≔ data [ true. | false. ]' -e 'def foo : bool → bool → bool ≔ [ ]'
+  $ agdarya -e 'data bool : Set where { true : bool ; false : bool }' -e 'foo : bool → bool → bool' -e 'foo = λ { }'
    ￫ error[E1300]
    ￭ command-line exec string
-   1 | def foo : bool → bool → bool ≔ [ ]
+   1 | foo = λ { }
      ^ missing match clause for constructor true
   
   [1]
 
-  $ narya -e 'def bool : Type ≔ data [ true. | false. ]' -e 'def foo : Type → bool → bool ≔ [ ]'
+  $ agdarya -e 'data bool : Set where { true : bool ; false : bool }' -e 'foo : Set → bool → bool' -e 'foo = λ { }'
    ￫ error[E1200]
    ￭ command-line exec string
-   1 | def foo : Type → bool → bool ≔ [ ]
-     ^ can't match on variable belonging to non-datatype Type
+   1 | foo = λ { }
+     ^ can't match on variable belonging to non-datatype Set
   
   [1]
 
-  $ narya -v -parametric -e 'def bool : Type ≔ data [ true. | false. ] def bool.not (x : bool) : bool ≔ match x [ true. ⤇ false. | false. ⤇ true.]'
+  $ agdarya -v -parametric -e 'data bool : Set where { true : bool ; false : bool }' -e 'bool.not : bool → bool' -e 'bool.not x = match x [ true ⤇ false | false ⤇ true]'
    ￫ info[I0000]
    ￮ constant bool defined
   
    ￫ error[E0508]
    ￭ command-line exec string
-   1 | def bool : Type ≔ data [ true. | false. ] def bool.not (x : bool) : bool ≔ match x [ true. ⤇ false. | false. ⤇ true.]
+   1 | bool.not x = match x [ true ⤇ false | false ⤇ true]
      ^ cube abstraction not allowed for zero-dimensional match
   
   [1]
 
-  $ narya -v -parametric -e 'def bool : Type ≔ data [ true. | false. ] def bool.and (x y : bool) : bool ≔ match x, y [ true., true. ⤇ true. | true., false. ⤇ false. | false., true. ⤇ false. | false., false. ⤇ false.]'
+  $ agdarya -v -parametric -e 'data bool : Set where { true : bool ; false : bool }' -e 'bool.and : bool → bool → bool' -e 'bool.and x y = match x, y [ true, true ⤇ true | true, false ⤇ false | false, true ⤇ false | false, false ⤇ false]'
    ￫ info[I0000]
    ￮ constant bool defined
   
    ￫ error[E0508]
    ￭ command-line exec string
-   1 | def bool : Type ≔ data [ true. | false. ] def bool.and (x y : bool) : bool ≔ match x, y [ true., true. ⤇ true. | true., false. ⤇ false. | false., true. ⤇ false. | false., false. ⤇ false.]
+   1 | bool.and x y = match x, y [ true, true ⤇ true | true, false ⤇ false | false, true ⤇ false | false, false ⤇ false]
      ^ cube abstraction not allowed for zero-dimensional match
   
   [1]
 
-  $ narya -v -parametric -e 'def ℕ : Type ≔ data [ zero. | suc. (_ : ℕ) ] def bar (y0 y1 : ℕ) (y2 : Id ℕ y0 y1) : Type ≔ match y2 [ zero. ↦ ℕ | suc. n ↦ bar n.0 n.1 n.2 ]'
+  $ agdarya -v -parametric -e 'data ℕ : Set where { zero : ℕ ; suc : ℕ → ℕ }' -e 'bar : (y0 y1 : ℕ) → Id ℕ y0 y1 → Set' -e 'bar y0 y1 y2 = match y2 [ zero ↦ ℕ | suc n ↦ bar n⟨0⟩ n⟨1⟩ n⟨2⟩ ]'
    ￫ info[I0000]
    ￮ constant ℕ defined
   
    ￫ error[E0510]
    ￭ command-line exec string
-   1 | def ℕ : Type ≔ data [ zero. | suc. (_ : ℕ) ] def bar (y0 y1 : ℕ) (y2 : Id ℕ y0 y1) : Type ≔ match y2 [ zero. ↦ ℕ | suc. n ↦ bar n.0 n.1 n.2 ]
+   1 | bar y0 y1 y2 = match y2 [ zero ↦ ℕ | suc n ↦ bar n⟨0⟩ n⟨1⟩ n⟨2⟩ ]
      ^ e-dimensional match requires cube abstraction
   
   [1]
 
-  $ narya -v -parametric -e 'def ℕ : Type ≔ data [ zero. | suc. (_ : ℕ) ] def bar (x : ℕ) (y0 y1 : ℕ) (y2 : Id ℕ y0 y1) : Type ≔ match x, y2 [ zero., zero. ↦ ℕ | zero., suc. n ↦ bar x n.0 n.1 n.2 | suc. _, zero. ↦ ℕ | suc. _, suc. n ↦ bar x n.0 n.1 n.2 ]'
+  $ agdarya -v -parametric -e 'data ℕ : Set where { zero : ℕ ; suc : ℕ → ℕ }' -e 'bar : (x : ℕ) → (y0 y1 : ℕ) → Id ℕ y0 y1 → Set' -e 'bar x y0 y1 y2 = match x, y2 [ zero, zero ↦ ℕ | zero, suc n ↦ bar x n⟨0⟩ n⟨1⟩ n⟨2⟩ | suc _, zero ↦ ℕ | suc _, suc n ↦ bar x n⟨0⟩ n⟨1⟩ n⟨2⟩ ]'
    ￫ info[I0000]
    ￮ constant ℕ defined
   
    ￫ error[E0510]
    ￭ command-line exec string
-   1 | def ℕ : Type ≔ data [ zero. | suc. (_ : ℕ) ] def bar (x : ℕ) (y0 y1 : ℕ) (y2 : Id ℕ y0 y1) : Type ≔ match x, y2 [ zero., zero. ↦ ℕ | zero., suc. n ↦ bar x n.0 n.1 n.2 | suc. _, zero. ↦ ℕ | suc. _, suc. n ↦ bar x n.0 n.1 n.2 ]
+   1 | bar x y0 y1 y2 = match x, y2 [ zero, zero ↦ ℕ | zero, suc n ↦ bar x n⟨0⟩ n⟨1⟩ n⟨2⟩ | suc _, zero ↦ ℕ | suc _, suc n ↦ bar x n⟨0⟩ n⟨1⟩ n⟨2⟩ ]
      ^ e-dimensional match requires cube abstraction
   
    ￫ error[E0510]
    ￭ command-line exec string
-   1 | def ℕ : Type ≔ data [ zero. | suc. (_ : ℕ) ] def bar (x : ℕ) (y0 y1 : ℕ) (y2 : Id ℕ y0 y1) : Type ≔ match x, y2 [ zero., zero. ↦ ℕ | zero., suc. n ↦ bar x n.0 n.1 n.2 | suc. _, zero. ↦ ℕ | suc. _, suc. n ↦ bar x n.0 n.1 n.2 ]
+   1 | bar x y0 y1 y2 = match x, y2 [ zero, zero ↦ ℕ | zero, suc n ↦ bar x n⟨0⟩ n⟨1⟩ n⟨2⟩ | suc _, zero ↦ ℕ | suc _, suc n ↦ bar x n⟨0⟩ n⟨1⟩ n⟨2⟩ ]
      ^ e-dimensional match requires cube abstraction
   
   [1]

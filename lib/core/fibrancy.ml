@@ -17,7 +17,7 @@ let ([ ftrr; fliftr; ftrl; fliftl; fid ] : (Hott.dim Field.t, Fwn.five) Vec.t) =
 
 (* The types of the user-accessible, non-corecursive, fibrancy fields *)
 
-(* We will later get these fields by typechecking the definition of "isFibrant" in parametric Narya.  That definition has a (non-fibrant) type as a parameter, so together with the self variable all of its fields are in a context of length two; and since the extension by the self variable is accounted for in the definition of Codatafield, what we get here is a context of length one.  However, in HOTT mode we consider (fibrant) types as *themselves* having fields, so the type itself should now act like the "self variable"; we will deal with this at the point of use by evaluating it in an environment with the fibrant type itself appearing for both the type parameter and the element of isFibrant.  The D.zero says that isFibrant is an ordinary (non-Gel) codatatype. *)
+(* We will later get these fields by typechecking the definition of "isFibrant" in parametric Agdarya.  That definition has a (non-fibrant) type as a parameter, so together with the self variable all of its fields are in a context of length two; and since the extension by the self variable is accounted for in the definition of Codatafield, what we get here is a context of length one.  However, in HOTT mode we consider (fibrant) types as *themselves* having fields, so the type itself should now act like the "self variable"; we will deal with this at the point of use by evaluating it in an environment with the fibrant type itself appearing for both the type parameter and the element of isFibrant.  The D.zero says that isFibrant is an ordinary (non-Gel) codatatype. *)
 
 let fields : ((emp, D.zero) snoc * D.zero * no_eta) CodatafieldAbwd.t option ref = ref None
 
@@ -27,7 +27,7 @@ let fields : ((emp, D.zero) snoc * D.zero * no_eta) CodatafieldAbwd.t option ref
 
 (* Pi-types *)
 
-(* In the case of pi-types, we can literally write the definition in Narya, typecheck it, and insert it here.  That makes it easier to get correct.  Thus, for now we leave this empty; it will be filled in after the parser is loaded. *)
+(* In the case of pi-types, we can literally write the definition in Agdarya, typecheck it, and insert it here.  That makes it easier to get correct.  Thus, for now we leave this empty; it will be filled in after the parser is loaded. *)
 
 let pi :
     (D.zero * ((emp, D.zero) snoc, D.zero) snoc * potential * no_eta) StructfieldAbwd.t option ref =

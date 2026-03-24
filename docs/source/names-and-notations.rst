@@ -4,7 +4,24 @@ Names and notations
 Mixfix notations
 ----------------
 
-When a constant is declared with the ``def`` command, it is always a function that must be applied to all its arguments in the usual way.  For instance, if we define ``ℕ.plus : ℕ → ℕ → ℕ``, then to add two natural numbers we must write ``ℕ.plus 3 5``.  Of course we would prefer to write ``3 + 5``; we can make this possible by associating a *notation* to the constant ``ℕ.plus``.  (Narya's behavior here is like that of Rocq and Lean: we must *first* define a constant, giving it an ordinary name, and *then* additionally associate it to a notation, in contrast to Agda where the notation for a constant *is* its name.)  For instance, here is a command that associates the "infix" notation ``+`` to ``ℕ.plus``:
+Agdarya supports both Agda-style underscore names with fixity declarations and the more explicit ``notation`` command.  The preferred user-facing workflow for operators is to give the constant or constructor an underscore name and then declare its fixity:
+
+.. code-block:: none
+
+   postulate _+_ : ℕ → ℕ → ℕ
+   infixl 6 _+_
+
+Likewise, prefix and longer mixfix names can be declared as ordinary constants:
+
+.. code-block:: none
+
+   postulate -_ : ℤ → ℤ
+   infixr 8 -_
+
+   postulate if_then_else_ : Bool → A → A → A
+   infix 0 if_then_else_
+
+The ``notation`` command remains supported as an expert API.  It is still the right tool for outfix notations and for arbitrary patterns that are not representable by underscore slots.  For instance, if a constant already has an ordinary name such as ``ℕ.plus : ℕ → ℕ → ℕ``, we can associate a *notation* to it with a ``notation`` command:
 
 .. code-block:: none
 
@@ -12,7 +29,33 @@ When a constant is declared with the ``def`` command, it is always a function th
 
 The two central parts of a ``notation`` command are the *pattern*, which in this case is ``m "+" n``, and the *meaning*, which in this case is ``ℕ.plus m n``.  The pattern, on the left-hand side of the ``≔``, describes what the notation looks like when you use it.  It consists of a sequence of interspersed *variables* (here ``m`` and ``n``) and double-quoted *symbols* (here ``"+"``).  When the notation is used, the variables are substituted by arbitrary terms, whereas the symbols appear verbatim (without the double quotes).
 
-The meaning, on the right-hand side of the ``≔``, tells Narya how to interpret the notation when it is used.  In this case, we say that the two terms replacing ``m`` and ``n`` in the notation should be supplied as arguments to the constant ``ℕ.plus``.  Thus, for instance, ``3 + 5`` is interpreted as ``ℕ.plus 3 5``, as we intended.
+The meaning, on the right-hand side of the ``≔``, tells Agdarya how to interpret the notation when it is used.  In this case, we say that the two terms replacing ``m`` and ``n`` in the notation should be supplied as arguments to the constant ``ℕ.plus``.  Thus, for instance, ``3 + 5`` is interpreted as ``ℕ.plus 3 5``, as we intended.
+
+For new definitions, the preferred form is a notation-headed ``def``:
+
+.. code-block:: none
+
+   def(1) (m "+" n) : ℕ → ℕ → ℕ ≔ m n ↦ ...
+
+This defines the constant using the internal name ``«_ + _»`` and then immediately registers the notation for printing and parsing.  Standalone ``notation`` commands remain supported, and are still the right tool when you want to attach notation to an existing named constant or constructor.
+
+Binder notations are declared by marking one or more variables on the left-hand side with brackets.  For instance,
+
+.. code-block:: none
+
+   notation(0) "∀" [x] ":" A "," B ≔ All A B
+
+declares a binder-aware notation whose use sites parse a typed telescope instead of a single term placeholder.  Thus ``∀ x y : A, B`` is treated as repeated use of the single-slot notation, and ``∀ x : A, y : Fam x, B`` is also accepted.
+
+Multiple binder slots are also supported, as long as the notation is prefix and each slot has the shape ``[x] ":" A`` followed by fixed notation symbols and a final body placeholder.  For example,
+
+.. code-block:: none
+
+   notation(0) "Σ" [x] ":" A "," [y] ":" B "," C ≔ Sigma A B C
+
+can be used as ``Σ x : A, y : B x, C x y``.  The second domain may depend on variables bound in the first slot, and the final body may depend on all earlier slots.  When printing, Agdarya uses the same comma-telescope form, grouping consecutive names within a slot when they share a domain, such as ``x y : A``.
+
+Binder-aware notations are currently limited to prefix term/type notations with explicit binders.  They are not available in pattern notations, and constructor heads are rejected.
 
 In general, the pattern can be any sequence of distinct variables and double-quoted symbols.  It can start with either a variable or a symbol, and end with either a variable or a symbol; two or more symbols can appear next to each other, but two variables cannot appear next to each other with no symbols in between; and there must be at least one symbol.
 
@@ -21,7 +64,7 @@ In general, the pattern can be any sequence of distinct variables and double-quo
 - A pattern that starts with a variable and ends with a symbol is called *postfix*, such as factorial ``n "!"``.
 - A pattern that both starts and ends with symbols is called *outfix* (or sometimes "closed"), such as the absolute value ``"|" x "|"``.
 
-The general class of notations that includes infix, prefix, postfix, and outfix notations is known as *mixfix*.  Some examples of notations with more than one symbol are the relation of modular congruence, ``a "≡" b "mod" n``, the typing relation ``Γ "⊢" x "⦂" A``, and the if-then-else test operation on booleans, ``"if" a "then" b "else" c``.  (We cannot use the C-style ``a "?" b ":" c`` since both ``?`` and ``:`` have special meaning to Narya.)  These examples make clear that "symbols" do not have to be symbols in the colloqiual sense, but can also be words; in general a symbol can be any *token* (see :ref:`Tokens`).
+The general class of notations that includes infix, prefix, postfix, and outfix notations is known as *mixfix*.  Some examples of notations with more than one symbol are the relation of modular congruence, ``a "≡" b "mod" n``, the typing relation ``Γ "⊢" x "⦂" A``, and the if-then-else test operation on booleans, ``"if" a "then" b "else" c``.  (We cannot use the C-style ``a "?" b ":" c`` since both ``?`` and ``:`` have special meaning to Agdarya.)  These examples make clear that "symbols" do not have to be symbols in the colloqiual sense, but can also be words; in general a symbol can be any *token* (see :ref:`Tokens`).
 
 The number ``(1)`` in parentheses after the ``notation`` keyword is the *tightness* of the notation.  This governs how it interacts with other notations.  For instance, if ``m "+" n`` is associated to ``ℕ.plus`` and ``m "*" n`` is associated to ``ℕ.times``, then how should we interpret ``m + n * p``?  We are used to the fact that multiplication *binds more tightly* than addition and so this should mean ``m + (n * p)``: this is specified by giving multiplication a higher tightness than addition.  Often tightness is known as *precedence*, but we prefer the word "tightness" to emphasize that higher numbers bind more tightly.
 
@@ -35,7 +78,7 @@ The general form of the ``notation`` command is therefore:
 
    notation [(TIGHTNESS)] […] PATTERN […] ≔ HEAD ARGUMENTS
 
-We require the meaning (on the right side of the ``≔``) to have a special form: it must be a *head*, which is either a defined constant or a datatype constructor (see :ref:`Inductive datatypes and matching`), followed by a list of *exactly the same variables* that appear in the pattern, though perhaps in a different order.  This requirement enables Narya to *print* applications of the head by using the notation, in addition to *parsing* uses of the notation as applications of the head.  A constant can be associated to only one notation for printing it; if additional notations are declared later, they will all remain usable for parsing, but it is unpredictable which of them will be used for printing.  A constructor can be associated to one printing notation for each number of arguments it could be applied to, since the same constructor name could be used at different datatypes with different numbers of arguments.
+We require the meaning (on the right side of the ``≔``) to have a special form: it must be a *head*, which is either a defined constant or a datatype constructor (see :ref:`Inductive datatypes and matching`), followed by a list of *exactly the same variables* that appear in the pattern, though perhaps in a different order.  This requirement enables Agdarya to *print* applications of the head by using the notation, in addition to *parsing* uses of the notation as applications of the head.  A constant can be associated to only one notation for printing it; if additional notations are declared later, they will all remain usable for parsing, but it is unpredictable which of them will be used for printing.  A constructor can be associated to one printing notation for each number of arguments it could be applied to, since the same constructor name could be used at different datatypes with different numbers of arguments.
 
 Every notation is automatically also assigned a *name*, which is obtained from its pattern by replacing the variables with ``_``, concatenating them and the symbols (unquoted) separated by spaces, and surrounding it with guillemets ``«»`` so that it becomes an atomic identifier.  The notation is then associated to this name in the namespace ``notations`` (see :ref:`Importing notations`).
 
@@ -52,17 +95,17 @@ Comments and strings
 
 There are two kinds of comments.  A line comment starts with a backquote ````` and extends to the end of the line.  A block comment starts with ``{``` and ends with ```}``.  Block comments can be nested and can contain line comments, but cannot start inside a line comment.
 
-String literals are surrounded by double quotes, as in ``"hello, world"``.  Currently, double-quoted strings appear in the syntax of some commands, such as ``notation`` and ``import``, but do not exist internally in the language of Narya.
+String literals are surrounded by double quotes, as in ``"hello, world"``.  Currently, double-quoted strings appear in the syntax of some commands, such as ``notation`` and ``import``, but do not exist internally in the language of Agdarya.
 
 
 Tokens
 ------
 
-A Narya source file is expected to be UTF-8 encoded and can contain arbitrary Unicode.  As usual, the code is first *lexed* by separating it into "tokens", and then the sequence of tokens is *parsed* into an abstract syntax tree of notations.  Both identifiers (variable and constant names) and the symbols in a mixfix notation are tokens.  Whitespace (including comments) always creates a token boundary.  And since notation symbols can be made of the same characters that might be in an identifier, whitespace is sometimes necessary to separate identifiers from symbols.  For instance, if ``⋆`` is defined as a binary operator, we cannot write ``x⋆y`` (or even ``1⋆1``) since that would be lexed as a single token.
+An Agdarya source file is expected to be UTF-8 encoded and can contain arbitrary Unicode.  As usual, the code is first *lexed* by separating it into "tokens", and then the sequence of tokens is *parsed* into an abstract syntax tree of notations.  Both identifiers (variable and constant names) and the symbols in a mixfix notation are tokens.  Whitespace (including comments) always creates a token boundary.  And since notation symbols can be made of the same characters that might be in an identifier, whitespace is sometimes necessary to separate identifiers from symbols.  For instance, if ``⋆`` is defined as a binary operator, we cannot write ``x⋆y`` (or even ``1⋆1``) since that would be lexed as a single token.
 
 However, there are the following exceptions to this, where whitespace is not needed to separate tokens:
 
-- The characters ``( ) [ ] { } → ↦ ⤇ ≔ ⩴ ⩲ … ? ! ⁇ ¿ ʔ``, which either have built-in meaning or are reserved for future built-in meanings, are always treated as single tokens.  Thus, they do not need to be surrounded by whitespace.  This is the case for parentheses and braces in most languages, but in Narya you can also write, e.g., ``A→B`` without spaces.  Many of the non-ASCII characters in this group have ASCII-sequence substitutes that are completely interchangeable: ``-> |-> |=> := ::= += ...``.  Additional characters may be added to this list in the future.
+- The characters ``( ) [ ] { } → ↦ ⤇ ≔ ⩴ ⩲ … ? ! ⁇ ¿ ʔ``, which either have built-in meaning or are reserved for future built-in meanings, are always treated as single tokens.  Thus, they do not need to be surrounded by whitespace.  This is the case for parentheses and braces in most languages, but in Agdarya you can also write, e.g., ``A→B`` without spaces.  Many of the non-ASCII characters in this group have ASCII-sequence substitutes that are completely interchangeable: ``-> |-> |=> := ::= += ...``.  Additional characters may be added to this list in the future.
 
 - A nonempty string consisting of the characters ``~ @ # $ % & * / = + | , < > : ; - ^`` is always treated as a single token, and does not need to be surrounded by whitespace.  Moreover, such tokens may only be notation symbols, not identifiers.  Note that this is most of the non-alphanumeric characters that appear on a standard US keyboard except for those that already have another meaning (parentheses, backquote, double quote, curly braces) or are allowed in identifiers (period, underscore, and single quote).  In particular:
 
@@ -83,12 +126,13 @@ However, there are the following exceptions to this, where whitespace is not nee
 Identifiers
 -----------
 
-An *atomic identifier* can be any string of non-whitespace characters, other than those mentioned above as special, not containing any periods, not starting with an underscore, does not consist entirely of digits, and is not a reserved word.  Currently the reserved words are
+An *atomic identifier* can be any string of non-whitespace characters, other than those mentioned above as special, not containing any periods, not consisting entirely of digits, and not being a reserved word.  Underscores are allowed inside atomic identifiers and can also occur at the ends of a name, which is what enables Agda-style mixfix names such as ``_+_`` and ``if_then_else_``.  Currently the reserved words are
 
 .. code-block:: none
    
-   and axiom codata data def display echo end export import chdir in let match
-   notation option quit rec return section show sig solve synth undo
+   and postulate codata data def display echo end export import infix infixl infixr
+   chdir in let match notation option quit rec return section show sig solve synth
+   undo
 
 An *identifier* consists of one or more atomic identifiers joined by periods.  Variable names must be atomic identifiers, while constant names must be identifiers (internal periods denote :ref:`namespaces<Namespaces and sections>`).  In particular, (atomic) identifiers may *start* with a digit, such as for instance ``2Cat`` or ``2−Cat`` for the type of 2-categories.
 
@@ -97,9 +141,9 @@ In addition, enclosing guillemets ``«`` and ``»`` can be used to make an atomi
 Default names
 -------------
 
-Sometimes, when printing terms, Narya needs to generate a name for variables that the user has left unnamed.  For instance, this happens when displaying the context of a :ref:`hole<Holes>` inside an unnamed abstraction such as ``_ ↦ ?``.  It also happens when printing the :ref:`higher-dimensional version<Id of function types>` of a non-dependent function type such as ``Id (A → B) f g``.
+Sometimes, when printing terms, Agdarya needs to generate a name for variables that the user has left unnamed.  For instance, this happens when displaying the context of a :ref:`hole<Holes>` inside an unnamed abstraction such as ``_ ↦ ?``.  It also happens when printing the :ref:`higher-dimensional version<Id of function types>` of a non-dependent function type such as ``Id (A → B) f g``.
 
-To deal with cases like this, Narya maintains a list of "default variable names", and whenever it needs such a name it looks through that list until it finds one that hasn't been used in the current context.  If all of them have been used, it goes back to the beginning and tries them all with a single prime ``′``, and so on through ``″``, ``‴``, and so on.  The default list of default variable names is
+To deal with cases like this, Agdarya maintains a list of "default variable names", and whenever it needs such a name it looks through that list until it finds one that hasn't been used in the current context.  If all of them have been used, it goes back to the beginning and tries them all with a single prime ``′``, and so on through ``″``, ``‴``, and so on.  The default list of default variable names is
 
 .. code-block:: none
 

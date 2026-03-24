@@ -1,4 +1,4 @@
-  $ narya -v natarith.ny
+  $ agdarya -v natarith.ny
    ￫ info[I0000]
    ￮ constant ℕ defined
   
@@ -110,10 +110,10 @@
    ￫ info[I0000]
    ￮ constant two_times_two_eq_four defined
   
-  $ narya natarith.ny -e "def id01 : Id ℕ zero. (suc. zero.) := zero."
+  $ agdarya natarith.ny -e "id01 : Id ℕ zero (suc zero)" -e "id01 = ℕ.zero"
    ￫ error[E1002]
    ￭ command-line exec string
-   1 | def id01 : Id ℕ zero. (suc. zero.) := zero.
+   1 | id01 = ℕ.zero
      ^ instantiation arguments of datatype must be matching constructors:
        expected
          zero
@@ -121,10 +121,10 @@
          suc
   
   [1]
-  $ narya natarith.ny -e "def one_plus_one_eq_one : Id ℕ (plus one one) one := refl one"
+  $ agdarya natarith.ny -e "one_plus_one_eq_one : Id ℕ (plus one one) one" -e "one_plus_one_eq_one = refl one"
    ￫ error[E0401]
    ￭ command-line exec string
-   1 | def one_plus_one_eq_one : Id ℕ (plus one one) one := refl one
+   1 | one_plus_one_eq_one = refl one
      ^ term synthesized type
          ℕ⁽ᵉ⁾ 1 1
        but is being checked against type
@@ -135,10 +135,10 @@
          suc
   
   [1]
-  $ narya natarith.ny -e "def one_plus_one_eq_three : Id ℕ (plus one one) three := refl three"
+  $ agdarya natarith.ny -e "one_plus_one_eq_three : Id ℕ (plus one one) three" -e "one_plus_one_eq_three = refl three"
    ￫ error[E0401]
    ￭ command-line exec string
-   1 | def one_plus_one_eq_three : Id ℕ (plus one one) three := refl three
+   1 | one_plus_one_eq_three = refl three
      ^ term synthesized type
          ℕ⁽ᵉ⁾ 3 3
        but is being checked against type
@@ -149,10 +149,10 @@
          zero
   
   [1]
-  $ narya natarith.ny -e "def one_plus_two_eq_one : Id ℕ (plus one two) one := refl one"
+  $ agdarya natarith.ny -e "one_plus_two_eq_one : Id ℕ (plus one two) one" -e "one_plus_two_eq_one = refl one"
    ￫ error[E0401]
    ￭ command-line exec string
-   1 | def one_plus_two_eq_one : Id ℕ (plus one two) one := refl one
+   1 | one_plus_two_eq_one = refl one
      ^ term synthesized type
          ℕ⁽ᵉ⁾ 1 1
        but is being checked against type
@@ -163,10 +163,10 @@
          suc
   
   [1]
-  $ narya natarith.ny -e "def one_plus_one_eq_one' : Id ℕ (rplus one one) one := refl one"
+  $ agdarya natarith.ny -e "one_plus_one_eq_one' : Id ℕ (rplus one one) one" -e "one_plus_one_eq_one' = refl one"
    ￫ error[E0401]
    ￭ command-line exec string
-   1 | def one_plus_one_eq_one' : Id ℕ (rplus one one) one := refl one
+   1 | one_plus_one_eq_one' = refl one
      ^ term synthesized type
          ℕ⁽ᵉ⁾ 1 1
        but is being checked against type
@@ -177,10 +177,10 @@
          suc
   
   [1]
-  $ narya natarith.ny -e "def one_plus_one_eq_three' : Id ℕ (rplus one one) three := refl three"
+  $ agdarya natarith.ny -e "one_plus_one_eq_three' : Id ℕ (rplus one one) three" -e "one_plus_one_eq_three' = refl three"
    ￫ error[E0401]
    ￭ command-line exec string
-   1 | def one_plus_one_eq_three' : Id ℕ (rplus one one) three := refl three
+   1 | one_plus_one_eq_three' = refl three
      ^ term synthesized type
          ℕ⁽ᵉ⁾ 3 3
        but is being checked against type
@@ -191,10 +191,10 @@
          zero
   
   [1]
-  $ narya natarith.ny -e "def one_plus_two_eq_one' : Id ℕ (rplus one two) one := refl one"
+  $ agdarya natarith.ny -e "one_plus_two_eq_one' : Id ℕ (rplus one two) one" -e "one_plus_two_eq_one' = refl one"
    ￫ error[E0401]
    ￭ command-line exec string
-   1 | def one_plus_two_eq_one' : Id ℕ (rplus one two) one := refl one
+   1 | one_plus_two_eq_one' = refl one
      ^ term synthesized type
          ℕ⁽ᵉ⁾ 1 1
        but is being checked against type

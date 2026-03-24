@@ -1,20 +1,21 @@
-{` Transport and lifting compute on product types `}
+{- Transport and lifting compute on product types -}
 
-def prod (A : Type) (B : Type) : Type ≔ sig ( fst : A, snd : B )
+prod : (A : Set) → (B : Set) → Set
+prod A B = sig ( fst : A, snd : B )
 
-axiom A₀ : Type
-axiom A₁ : Type
-axiom A₂ : Id Type A₀ A₁
-axiom B₀ : Type
-axiom B₁ : Type
-axiom B₂ : Id Type B₀ B₁
+postulate A₀ : Set
+postulate A₁ : Set
+postulate A₂ : Id Set A₀ A₁
+postulate B₀ : Set
+postulate B₁ : Set
+postulate B₂ : Id Set B₀ B₁
 
-axiom u₀ : prod A₀ B₀
+postulate u₀ : prod A₀ B₀
 
-echo refl prod A₂ B₂ .trr u₀
-echo refl prod A₂ B₂ .trr u₀ .fst
-echo refl prod A₂ B₂ .trr u₀ .snd
+echo refl prod A₂ B₂ trr u₀
+echo refl prod A₂ B₂ trr u₀ fst
+echo refl prod A₂ B₂ trr u₀ snd
 
-echo refl prod A₂ B₂ .liftr u₀
-echo refl prod A₂ B₂ .liftr u₀ .fst
-echo refl prod A₂ B₂ .liftr u₀ .snd
+echo refl prod A₂ B₂ liftr u₀
+echo refl prod A₂ B₂ liftr u₀ fst
+echo refl prod A₂ B₂ liftr u₀ snd

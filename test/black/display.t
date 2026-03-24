@@ -1,24 +1,24 @@
   $ cat - >display.ny <<EOF
-  > echo Type -> Type
+  > echo Set -> Set
   > display chars ≔ ascii
-  > echo Type -> Type
+  > echo Set -> Set
   > display chars ≔ unicode
-  > echo Type -> Type
+  > echo Set -> Set
   > EOF
 
-  $ narya -fake-interact=display.ny
-  Type → Type
-    : Type
+  $ agdarya -fake-interact=display.ny
+  Set → Set
+    : Set
   
    ￫ info[I0101]
    ￮ display set chars to ASCII
   
-  Type -> Type
-    : Type
+  Set -> Set
+    : Set
   
    ￫ info[I0101]
    ￮ display set chars to unicode
   
-  Type → Type
-    : Type
+  Set → Set
+    : Set
   

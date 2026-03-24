@@ -1,31 +1,32 @@
   $ cat >multierr.ny <<EOF
-  > axiom A:Type
-  > axiom B:Type
-  > axiom C:Type
-  > axiom a:A
-  > def prod (X Y : Type) : Type := sig (fst:X, snd:Y)
-  > def foo : prod B C := (a,a)
+  > postulate A:Set
+  > postulate B:Set
+  > postulate C:Set
+  > postulate a:A
+  > record prod (X Y : Set) : Set where { field fst : X ; snd : Y }
+  > foo : prod B C
+  > foo = (a,a)
   > EOF
 
-  $ narya -v multierr.ny
+  $ agdarya -v multierr.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom B assumed
+   ￮ postulate B assumed
   
    ￫ info[I0001]
-   ￮ axiom C assumed
+   ￮ postulate C assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ info[I0000]
    ￮ constant prod defined
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   6 | def foo : prod B C := (a,a)
+   1 | foo = (a,a)
      ^ term synthesized type
          A
        but is being checked against type
@@ -37,7 +38,7 @@
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   6 | def foo : prod B C := (a,a)
+   1 | foo = (a,a)
      ^ term synthesized type
          A
        but is being checked against type
@@ -50,37 +51,38 @@
   [1]
 
   $ cat >multierr.ny <<EOF
-  > axiom A:Type
-  > axiom B:Type
-  > axiom C:Type
-  > axiom a:A
-  > axiom c:C
-  > def prod (X Y : Type) : Type := sig (fst:X, snd:Y)
-  > def foo : prod B C := (a,c)
+  > postulate A:Set
+  > postulate B:Set
+  > postulate C:Set
+  > postulate a:A
+  > postulate c:C
+  > record prod (X Y : Set) : Set where { field fst : X ; snd : Y }
+  > foo : prod B C
+  > foo = (a,c)
   > EOF
 
-  $ narya -v multierr.ny
+  $ agdarya -v multierr.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom B assumed
+   ￮ postulate B assumed
   
    ￫ info[I0001]
-   ￮ axiom C assumed
+   ￮ postulate C assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ info[I0001]
-   ￮ axiom c assumed
+   ￮ postulate c assumed
   
    ￫ info[I0000]
    ￮ constant prod defined
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   7 | def foo : prod B C := (a,c)
+   1 | foo = (a,c)
      ^ term synthesized type
          A
        but is being checked against type
@@ -94,33 +96,34 @@
 
 
   $ cat >multierr.ny <<EOF
-  > axiom A:Type
-  > axiom B:Type
-  > axiom C:Type
-  > axiom a:A
-  > def prod (X Y : Type) : Type := sig (fst:X, snd:Y)
-  > def foo : prod (prod B C) (prod C B) := ((a,a),(a,a))
+  > postulate A:Set
+  > postulate B:Set
+  > postulate C:Set
+  > postulate a:A
+  > record prod (X Y : Set) : Set where { field fst : X ; snd : Y }
+  > foo : prod (prod B C) (prod C B)
+  > foo = ((a,a),(a,a))
   > EOF
 
-  $ narya -v multierr.ny
+  $ agdarya -v multierr.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom B assumed
+   ￮ postulate B assumed
   
    ￫ info[I0001]
-   ￮ axiom C assumed
+   ￮ postulate C assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ info[I0000]
    ￮ constant prod defined
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   6 | def foo : prod (prod B C) (prod C B) := ((a,a),(a,a))
+   1 | foo = ((a,a),(a,a))
      ^ term synthesized type
          A
        but is being checked against type
@@ -132,7 +135,7 @@
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   6 | def foo : prod (prod B C) (prod C B) := ((a,a),(a,a))
+   1 | foo = ((a,a),(a,a))
      ^ term synthesized type
          A
        but is being checked against type
@@ -144,7 +147,7 @@
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   6 | def foo : prod (prod B C) (prod C B) := ((a,a),(a,a))
+   1 | foo = ((a,a),(a,a))
      ^ term synthesized type
          A
        but is being checked against type
@@ -156,7 +159,7 @@
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   6 | def foo : prod (prod B C) (prod C B) := ((a,a),(a,a))
+   1 | foo = ((a,a),(a,a))
      ^ term synthesized type
          A
        but is being checked against type
@@ -169,33 +172,34 @@
   [1]
 
   $ cat >multierr.ny <<EOF
-  > axiom A:Type
-  > axiom B:Type
-  > axiom P:B->Type
-  > axiom a:A
-  > def Sigma (X : Type) (Y : X -> Type) : Type := sig (fst:X, snd:Y fst)
-  > def foo : Sigma B P := (a,a)
+  > postulate A:Set
+  > postulate B:Set
+  > postulate P:B->Set
+  > postulate a:A
+  > record Sigma (X : Set) (Y : X -> Set) : Set where { field fst : X ; snd : Y fst }
+  > foo : Sigma B P
+  > foo = (a,a)
   > EOF
 
-  $ narya -v multierr.ny
+  $ agdarya -v multierr.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom B assumed
+   ￮ postulate B assumed
   
    ￫ info[I0001]
-   ￮ axiom P assumed
+   ￮ postulate P assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ info[I0000]
    ￮ constant Sigma defined
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   6 | def foo : Sigma B P := (a,a)
+   1 | foo = (a,a)
      ^ term synthesized type
          A
        but is being checked against type
@@ -208,24 +212,26 @@
   [1]
 
   $ cat >multierr.ny <<EOF
-  > axiom A:Type
-  > axiom B:Type
-  > axiom a:A
-  > def bool : Type := data [ true. | false. ]
-  > def P : bool -> Type := [ true. |-> A | false. |-> B ]
-  > def Sigma (X : Type) (Y : X -> Type) : Type := sig (fst:X, snd:Y fst)
-  > def foo : Sigma bool P := (a, a)
+  > postulate A:Set
+  > postulate B:Set
+  > postulate a:A
+  > data bool : Set where { true : bool ; false : bool }
+  > P : bool -> Set
+  > P = λ { true → A ; false → B }
+  > record Sigma (X : Set) (Y : X -> Set) : Set where { field fst : X ; snd : Y fst }
+  > foo : Sigma bool P
+  > foo = (a, a)
   > EOF
 
-  $ narya -v multierr.ny
+  $ agdarya -v multierr.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom B assumed
+   ￮ postulate B assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ info[I0000]
    ￮ constant bool defined
@@ -238,7 +244,7 @@
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   7 | def foo : Sigma bool P := (a, a)
+   1 | foo = (a, a)
      ^ term synthesized type
          A
        but is being checked against type
@@ -253,29 +259,30 @@
 Even trivial dependency blocks going on, as long as there is the potential for dependency.  Avoiding this would probably involve more laziness in function arguments.
 
   $ cat >multierr.ny <<EOF
-  > axiom A:Type
-  > axiom B:Type
-  > axiom a:A
-  > def Sigma (X : Type) (Y : X -> Type) : Type := sig (fst:X, snd:Y fst)
-  > def foo : Sigma B (_ ↦ B) := (a, a)
+  > postulate A:Set
+  > postulate B:Set
+  > postulate a:A
+  > record Sigma (X : Set) (Y : X -> Set) : Set where { field fst : X ; snd : Y fst }
+  > foo : Sigma B (λ _ → B)
+  > foo = (a, a)
   > EOF
 
-  $ narya -v multierr.ny
+  $ agdarya -v multierr.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom B assumed
+   ￮ postulate B assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ info[I0000]
    ￮ constant Sigma defined
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   5 | def foo : Sigma B (_ ↦ B) := (a, a)
+   1 | foo = (a, a)
      ^ term synthesized type
          A
        but is being checked against type
@@ -289,29 +296,31 @@ Even trivial dependency blocks going on, as long as there is the potential for d
 
 
   $ cat >multierr.ny <<EOF
-  > axiom A:Type
-  > axiom B:Type
-  > axiom a:A
-  > def streamB : Type := codata [ x .head : B | x .tail : streamB ]
-  > def foo : streamB := [ .head ↦ a | .tail ↦ a ]
+  > postulate A:Set
+  > postulate B:Set
+  > postulate a:A
+  > streamB : Set
+  > streamB = codata [ head x : B | tail x : streamB ]
+  > foo : streamB
+  > foo = record { head = a ; tail = a }
   > EOF
 
-  $ narya -v multierr.ny
+  $ agdarya -v multierr.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom B assumed
+   ￮ postulate B assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ info[I0000]
    ￮ constant streamB defined
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   5 | def foo : streamB := [ .head ↦ a | .tail ↦ a ]
+   1 | foo = record { head = a ; tail = a }
      ^ term synthesized type
          A
        but is being checked against type
@@ -323,7 +332,7 @@ Even trivial dependency blocks going on, as long as there is the potential for d
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   5 | def foo : streamB := [ .head ↦ a | .tail ↦ a ]
+   1 | foo = record { head = a ; tail = a }
      ^ term synthesized type
          A
        but is being checked against type
@@ -336,29 +345,31 @@ Even trivial dependency blocks going on, as long as there is the potential for d
   [1]
 
   $ cat >multierr.ny <<EOF
-  > axiom A:Type
-  > axiom B:Type
-  > axiom a:A
-  > def streamB : Type := codata [ x .head : B | x .tail : streamB ]
-  > def foo : B := let x : streamB := [ .head ↦ a | .tail ↦ a ] in x .head
+  > postulate A:Set
+  > postulate B:Set
+  > postulate a:A
+  > streamB : Set
+  > streamB = codata [ head x : B | tail x : streamB ]
+  > foo : B
+  > foo = let x : streamB = record { head = a ; tail = a } in x head
   > EOF
 
-  $ narya -v multierr.ny
+  $ agdarya -v multierr.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom B assumed
+   ￮ postulate B assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ info[I0000]
    ￮ constant streamB defined
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   5 | def foo : B := let x : streamB := [ .head ↦ a | .tail ↦ a ] in x .head
+   1 | foo = let x : streamB = record { head = a ; tail = a } in x head
      ^ term synthesized type
          A
        but is being checked against type
@@ -370,7 +381,7 @@ Even trivial dependency blocks going on, as long as there is the potential for d
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   5 | def foo : B := let x : streamB := [ .head ↦ a | .tail ↦ a ] in x .head
+   1 | foo = let x : streamB = record { head = a ; tail = a } in x head
      ^ term synthesized type
          A
        but is being checked against type
@@ -383,29 +394,30 @@ Even trivial dependency blocks going on, as long as there is the potential for d
   [1]
 
   $ cat >multierr.ny <<EOF
-  > axiom A:Type
-  > axiom B:Type
-  > axiom a:A
-  > def bool : Type := data [ true. | false. ]
-  > def foo (x : bool) : B := match x [ true. ↦ a | false. ↦ a ]
+  > postulate A:Set
+  > postulate B:Set
+  > postulate a:A
+  > data bool : Set where { true : bool ; false : bool }
+  > foo : bool -> B
+  > foo x = match x [ true ↦ a | false ↦ a ]
   > EOF
 
-  $ narya -v multierr.ny
+  $ agdarya -v multierr.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom B assumed
+   ￮ postulate B assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ info[I0000]
    ￮ constant bool defined
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   5 | def foo (x : bool) : B := match x [ true. ↦ a | false. ↦ a ]
+   1 | foo x = match x [ true ↦ a | false ↦ a ]
      ^ term synthesized type
          A
        but is being checked against type
@@ -417,7 +429,7 @@ Even trivial dependency blocks going on, as long as there is the potential for d
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   5 | def foo (x : bool) : B := match x [ true. ↦ a | false. ↦ a ]
+   1 | foo x = match x [ true ↦ a | false ↦ a ]
      ^ term synthesized type
          A
        but is being checked against type
@@ -430,249 +442,232 @@ Even trivial dependency blocks going on, as long as there is the potential for d
   [1]
 
   $ cat >multierr.ny <<EOF
-  > axiom A:Type
-  > axiom a:A
-  > def foo : Type := data [ true. (_ : a) | false. (_ : a) ]
+  > postulate A:Set
+  > postulate a:A
+  > data foo : Set where { true : a → foo ; false : a → foo }
   > EOF
 
-  $ narya -v multierr.ny
+  $ agdarya -v multierr.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   3 | def foo : Type := data [ true. (_ : a) | false. (_ : a) ]
+   1 | data foo : Set where { true : a → foo ; false : a → foo }
      ^ term synthesized type
          A
        but is being checked against type
-         Type
+         Set
        unequal head terms:
          A
        does not equal
-         Type
+         Set
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   3 | def foo : Type := data [ true. (_ : a) | false. (_ : a) ]
+   1 | data foo : Set where { true : a → foo ; false : a → foo }
      ^ term synthesized type
          A
        but is being checked against type
-         Type
+         Set
        unequal head terms:
          A
        does not equal
-         Type
+         Set
   
   [1]
 
   $ cat >multierr.ny <<EOF
-  > axiom A:Type
-  > axiom a:A
-  > def foo : Type := sig (fst : a, snd : a)
+  > postulate A:Set
+  > postulate a:A
+  > record foo : Set where { field fst : a ; snd : a }
   > EOF
 
-  $ narya -v multierr.ny
+  $ agdarya -v multierr.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   3 | def foo : Type := sig (fst : a, snd : a)
+   1 | record foo : Set where { field fst : a ; snd : a }
      ^ term synthesized type
          A
        but is being checked against type
-         Type
+         Set
        unequal head terms:
          A
        does not equal
-         Type
+         Set
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   3 | def foo : Type := sig (fst : a, snd : a)
+   1 | record foo : Set where { field fst : a ; snd : a }
      ^ term synthesized type
          A
        but is being checked against type
-         Type
+         Set
        unequal head terms:
          A
        does not equal
-         Type
+         Set
   
   [1]
 
   $ cat >multierr.ny <<EOF
-  > axiom A:Type
-  > axiom a:A
-  > axiom B : A -> Type
-  > def foo : Type := sig (fst : a, snd : B fst)
+  > postulate A:Set
+  > postulate a:A
+  > postulate B : A -> Set
+  > record foo : Set where { field fst : a ; snd : B fst }
   > EOF
 
-  $ narya -v multierr.ny
+  $ agdarya -v multierr.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ info[I0001]
-   ￮ axiom B assumed
+   ￮ postulate B assumed
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   4 | def foo : Type := sig (fst : a, snd : B fst)
+   1 | record foo : Set where { field fst : a ; snd : B fst }
      ^ term synthesized type
          A
        but is being checked against type
-         Type
+         Set
        unequal head terms:
          A
        does not equal
-         Type
+         Set
   
   [1]
 
   $ cat >multierr.ny <<EOF
-  > axiom A:Type
-  > axiom a:A
-  > def foo : Type := codata [ x .fst : a | x .snd : a ]
+  > postulate A:Set
+  > postulate a:A
+  > foo : Set
+  > foo = codata [ fst x : a | snd x : a ]
   > EOF
 
-  $ narya -v multierr.ny
+  $ agdarya -v multierr.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   3 | def foo : Type := codata [ x .fst : a | x .snd : a ]
+   1 | foo = codata [ fst x : a | snd x : a ]
      ^ term synthesized type
          A
        but is being checked against type
-         Type
+         Set
        unequal head terms:
          A
        does not equal
-         Type
+         Set
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   3 | def foo : Type := codata [ x .fst : a | x .snd : a ]
+   1 | foo = codata [ fst x : a | snd x : a ]
      ^ term synthesized type
          A
        but is being checked against type
-         Type
+         Set
        unequal head terms:
          A
        does not equal
-         Type
+         Set
   
   [1]
 
   $ cat >multierr.ny <<EOF
-  > def Nat : Type := data [ zero. | suc. (_ : Nat) ]
-  > axiom f : Nat -> Nat
-  > def pred (x : Nat) : Nat := match x [ zero. |-> Nat | suc. y |-> f (pred y) ]
+  > data Nat : Set where { zero : Nat ; suc : Nat → Nat }
+  > postulate f : Nat -> Nat
+  > pred : Nat -> Nat
+  > pred x = match x [ zero |-> Nat | suc y |-> f (pred y) ]
   > EOF
 
-  $ narya -v multierr.ny
+  $ agdarya -v multierr.ny
    ￫ info[I0000]
    ￮ constant Nat defined
   
    ￫ info[I0001]
-   ￮ axiom f assumed
+   ￮ postulate f assumed
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   3 | def pred (x : Nat) : Nat := match x [ zero. |-> Nat | suc. y |-> f (pred y) ]
+   1 | pred x = match x [ zero |-> Nat | suc y |-> f (pred y) ]
      ^ term synthesized type
-         Type
+         Set
        but is being checked against type
          Nat
        unequal head terms:
-         Type
+         Set
        does not equal
          Nat
   
   [1]
 
   $ cat >multierr.ny <<EOF
-  > def color : Type ≔ data [ red. | green. | blue. ]
-  > axiom A:Type
-  > axiom a:A
-  > def foo (x:color) ≔ match x [ red. ↦ (a,a a) | green. ↦ a | blue. ↦ A ]
+  > data color : Set where { red : color ; green : color ; blue : color }
+  > postulate A:Set
+  > postulate a:A
+  > foo x = match x [ red ↦ (a,a a) | green ↦ a | blue ↦ A ]
   > EOF
 
-  $ narya -v multierr.ny
+  $ agdarya -v multierr.ny
    ￫ info[I0000]
    ￮ constant color defined
   
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
-   ￫ hint[E1101]
-   ￭ $TESTCASE_ROOT/multierr.ny
-   4 | def foo (x:color) ≔ match x [ red. ↦ (a,a a) | green. ↦ a | blue. ↦ A ]
-     ^ match will not refine the goal or context (match in synthesizing position)
-  
-   ￫ error[E0401]
-   ￭ $TESTCASE_ROOT/multierr.ny
-   4 | def foo (x:color) ≔ match x [ red. ↦ (a,a a) | green. ↦ a | blue. ↦ A ]
-     ^ term synthesized type
-         Type
-       but is being checked against type
-         A
-       unequal head terms:
-         Type
-       does not equal
-         A
-  
-   ￫ error[E0900]
-   ￭ $TESTCASE_ROOT/multierr.ny
-   4 | def foo (x:color) ≔ match x [ red. ↦ (a,a a) | green. ↦ a | blue. ↦ A ]
-     ^ checking tuple against non-record type A
+   ￫ error[E0400]
+   ￮ non-synthesizing term in synthesizing position (body of def without specified type)
   
   [1]
 
   $ cat >multierr.ny <<EOF
-  > axiom A:Type
-  > axiom a:A
+  > postulate A:Set
+  > postulate a:A
   > echo a a : a
   > EOF
 
-  $ narya -v multierr.ny
+  $ agdarya -v multierr.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   3 | echo a a : a
+   1 | echo a a : a
      ^ term synthesized type
          A
        but is being checked against type
-         Type
+         Set
        unequal head terms:
          A
        does not equal
-         Type
+         Set
   
    ￫ error[E0701]
    ￭ $TESTCASE_ROOT/multierr.ny
-   3 | echo a a : a
+   1 | echo a a : a
      ^ attempt to apply/instantiate
          a
        of type
@@ -682,33 +677,34 @@ Even trivial dependency blocks going on, as long as there is the potential for d
   [1]
 
   $ cat >multierr.ny <<EOF
-  > axiom A:Type
-  > axiom a:A
-  > def foo : A ≔ (a, a) : a
+  > postulate A:Set
+  > postulate a:A
+  > foo : A
+  > foo = (a, a) : a
   > EOF
 
-  $ narya -v multierr.ny
+  $ agdarya -v multierr.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   3 | def foo : A ≔ (a, a) : a
+   1 | foo = (a, a) : a
      ^ term synthesized type
          A
        but is being checked against type
-         Type
+         Set
        unequal head terms:
          A
        does not equal
-         Type
+         Set
   
    ￫ error[E0900]
    ￭ $TESTCASE_ROOT/multierr.ny
-   3 | def foo : A ≔ (a, a) : a
+   1 | foo = (a, a) : a
      ^ checking tuple against non-record type A
   
   [1]

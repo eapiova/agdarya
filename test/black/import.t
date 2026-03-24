@@ -1,80 +1,80 @@
 Import files
 
   $ cat >one.ny <<EOF
-  > axiom A : Type
+  > postulate A : Set
   > EOF
 
   $ cat >two.ny <<EOF
   > import "one"
-  > axiom a0 : A
+  > postulate a0 : A
   > EOF
 
-  $ narya -source-only -v two.ny
+  $ agdarya -source-only -v two.ny
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/one.ny
   
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
   
    ￫ info[I0001]
-   ￮ axiom a0 assumed
+   ￮ postulate a0 assumed
   
 
 Command-line strings see namespaces from explicitly loaded files only
 
-  $ narya -source-only -v two.ny -e 'axiom a1 : A'
+  $ agdarya -source-only -v two.ny -e 'postulate a1 : A'
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/one.ny
   
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
   
    ￫ info[I0001]
-   ￮ axiom a0 assumed
+   ￮ postulate a0 assumed
   
    ￫ error[E0300]
    ￭ command-line exec string
-   1 | axiom a1 : A
+   1 | postulate a1 : A
      ^ unbound variable: A
   
   [1]
 
-  $ narya -source-only -v one.ny -e 'axiom a1 : A'
+  $ agdarya -source-only -v one.ny -e 'postulate a1 : A'
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom a1 assumed
+   ￮ postulate a1 assumed
   
 
 Unless we explicitly export them:
 
   $ cat >etwo.ny <<EOF
   > export "one"
-  > axiom a0 : A
+  > postulate a0 : A
   > EOF
 
-  $ narya -source-only -v etwo.ny -e 'axiom a1 : A'
+  $ agdarya -source-only -v etwo.ny -e 'postulate a1 : A'
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/one.ny
   
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
   
    ￫ info[I0001]
-   ￮ axiom a0 assumed
+   ￮ postulate a0 assumed
   
    ￫ info[I0001]
-   ￮ axiom a1 assumed
+   ￮ postulate a1 assumed
   
 
 
@@ -82,16 +82,16 @@ Requiring a file multiple times
 
   $ cat >three.ny <<EOF
   > import "one"
-  > axiom a1 : A
+  > postulate a1 : A
   > EOF
 
   $ cat >twothree.ny <<EOF
   > import "two"
   > import "three"
-  > axiom a2 : Id A a0 a1
+  > postulate a2 : Id A a0 a1
   > EOF
 
-  $ narya -source-only -v twothree.ny
+  $ agdarya -source-only -v twothree.ny
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/two.ny
   
@@ -99,13 +99,13 @@ Requiring a file multiple times
    ￮ loading file: $TESTCASE_ROOT/one.ny
   
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
   
    ￫ info[I0001]
-   ￮ axiom a0 assumed
+   ￮ postulate a0 assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/two.ny (source)
@@ -114,14 +114,14 @@ Requiring a file multiple times
    ￮ loading file: $TESTCASE_ROOT/three.ny
   
    ￫ info[I0001]
-   ￮ axiom a1 assumed
+   ￮ postulate a1 assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/three.ny (source)
   
    ￫ error[E0300]
    ￭ $TESTCASE_ROOT/twothree.ny
-   3 | axiom a2 : Id A a0 a1
+   1 | postulate a2 : Id A a0 a1
      ^ unbound variable: A
   
   [1]
@@ -130,15 +130,15 @@ Requiring a file multiple times
   > import "one"
   > import "two"
   > import "three"
-  > axiom a2 : Id A a0 a1
+  > postulate a2 : Id A a0 a1
   > EOF
 
-  $ narya -source-only -v four.ny
+  $ agdarya -source-only -v four.ny
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/one.ny
   
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
@@ -147,7 +147,7 @@ Requiring a file multiple times
    ￮ loading file: $TESTCASE_ROOT/two.ny
   
    ￫ info[I0001]
-   ￮ axiom a0 assumed
+   ￮ postulate a0 assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/two.ny (source)
@@ -156,13 +156,13 @@ Requiring a file multiple times
    ￮ loading file: $TESTCASE_ROOT/three.ny
   
    ￫ info[I0001]
-   ￮ axiom a1 assumed
+   ￮ postulate a1 assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/three.ny (source)
   
    ￫ info[I0001]
-   ￮ axiom a2 assumed
+   ￮ postulate a2 assumed
   
 
 Circular dependency
@@ -175,7 +175,7 @@ Circular dependency
   > import "foo"
   > EOF
 
-  $ narya -source-only foo.ny
+  $ agdarya -source-only foo.ny
    ￫ error[E2300]
    ￮ circular imports:
      $TESTCASE_ROOT/foo.ny
@@ -189,15 +189,15 @@ Import is relative to the file's directory
   $ mkdir subdir
 
   $ cat >subdir/one.ny <<EOF
-  > axiom A:Type
+  > postulate A:Set
   > EOF
 
   $ cat >subdir/two.ny <<EOF
   > import "one"
-  > axiom a : A
+  > postulate a : A
   > EOF
 
-  $ narya -source-only -v -e 'import "subdir/two"'
+  $ agdarya -source-only -v -e 'import "subdir/two"'
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/subdir/two.ny
   
@@ -205,13 +205,13 @@ Import is relative to the file's directory
    ￮ loading file: $TESTCASE_ROOT/subdir/one.ny
   
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/subdir/one.ny (source)
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/subdir/two.ny (source)
@@ -219,15 +219,15 @@ Import is relative to the file's directory
 
 A file isn't loaded twice even if referred to in different ways
 
-  $ narya -source-only -v subdir/one.ny -e 'import "subdir/two"'
+  $ agdarya -source-only -v subdir/one.ny -e 'import "subdir/two"'
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/subdir/two.ny
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/subdir/two.ny (source)
@@ -236,9 +236,9 @@ A file isn't loaded twice even if referred to in different ways
 Notations are used from explicitly imported files, but not transitively.
 
   $ cat >n1.ny <<EOF
-  > axiom A:Type
-  > axiom f : A -> A -> A
-  > axiom a:A
+  > postulate A:Set
+  > postulate f : A -> A -> A
+  > postulate a:A
   > EOF
 
   $ cat >n2.ny <<EOF
@@ -252,7 +252,7 @@ Notations are used from explicitly imported files, but not transitively.
   > notation(0) x "%" y := f x y
   > EOF
 
-  $ narya -source-only n1.ny n3.ny -e 'echo a % a'
+  $ agdarya -source-only n1.ny n3.ny -e 'echo a % a'
    ￫ warning[E2209]
    ￮ replacing printing notation for f (previous notation will still be parseable)
   
@@ -260,12 +260,9 @@ Notations are used from explicitly imported files, but not transitively.
     : A
   
 
-  $ narya -source-only n1.ny n3.ny -e 'echo a & a'
+  $ agdarya -source-only n1.ny n3.ny -e 'echo a & a'
    ￫ warning[E2209]
    ￮ replacing printing notation for f (previous notation will still be parseable)
-  
-  a
-    : A
   
    ￫ error[E0200]
    ￭ command-line exec string
@@ -280,7 +277,7 @@ Notations are used from explicitly imported files, but not transitively.
   > echo a % a
   > EOF
 
-  $ narya -source-only n4.ny
+  $ agdarya -source-only n4.ny
    ￫ warning[E2209]
    ￮ replacing printing notation for f (previous notation will still be parseable)
   
@@ -291,22 +288,22 @@ Notations are used from explicitly imported files, but not transitively.
 Quitting in imports quits only that file
 
   $ cat >qone.ny <<EOF
-  > axiom A : Type
+  > postulate A : Set
   > quit
-  > axiom B : Type
+  > postulate B : Set
   > EOF
 
   $ cat >qtwo.ny <<EOF
   > import "qone"
-  > axiom a0 : A
+  > postulate a0 : A
   > EOF
 
-  $ narya -source-only -v qtwo.ny
+  $ agdarya -source-only -v qtwo.ny
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/qone.ny
   
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0200]
    ￮ execution of $TESTCASE_ROOT/qone.ny terminated by quit
@@ -315,26 +312,27 @@ Quitting in imports quits only that file
    ￮ file loaded: $TESTCASE_ROOT/qone.ny (source)
   
    ￫ info[I0001]
-   ￮ axiom a0 assumed
+   ￮ postulate a0 assumed
   
 
 Definitions are linked
 
   $ cat >lone.ny <<EOF
-  > def Nat : Type := data [ zero. | suc. (_:Nat) ]
+  > data Nat : Set where { zero : Nat; suc : Nat → Nat }
   > EOF
 
   $ cat >ltwo.ny <<EOF
   > import "lone"
-  > def foo (n : Nat) : Type := match n [ zero. ↦ Nat | suc. n ↦ Nat ]
+  > foo : (n : Nat) → Set
+  > foo n = match n [ zero ↦ Nat | suc n ↦ Nat ]
   > EOF
 
-  $ narya -v lone.ny
+  $ agdarya -v lone.ny
    ￫ info[I0000]
    ￮ constant Nat defined
   
 
-  $ narya -v ltwo.ny
+  $ agdarya -v ltwo.ny
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/lone.ny (compiled)
   
@@ -348,10 +346,10 @@ Undoing and redoing an import
   > import "one"
   > undo 1
   > import "one"
-  > axiom a:A
+  > postulate a:A
   > EOF
 
-  $ narya -fake-interact undoimport.ny
+  $ agdarya -fake-interact undoimport.ny
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/one.ny (compiled)
   
@@ -359,19 +357,21 @@ Undoing and redoing an import
    ￮ 1 command undone
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
 Importing after creating a hole
 
   $ rm one.nyo
 
   $ cat >importhole.ny <<EOF
-  > def Z : Type := ?
+  > Z : Set
+  > Z = ?
   > import "one"
-  > def W : Type := Z
+  > W : Set
+  > W = Z
   > EOF
 
-  $ narya -v importhole.ny
+  $ agdarya -v importhole.ny
    ￫ info[I0000]
    ￮ constant Z defined, containing 1 hole
   
@@ -379,13 +379,13 @@ Importing after creating a hole
    ￮ hole ?0:
      
      ----------------------------------------------------------------------
-     Type
+     Set
   
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/one.ny
   
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/one.ny (source)

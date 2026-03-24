@@ -2,15 +2,21 @@ open Core
 open Reporter
 
 type t =
-  (* A Field is an identifier starting with a period, broken into a list of components by internal periods, and with the first component stored separately.  The later components are only used to indicate the partial bijection identifying an instance of a "higher" field of a higher codatatype.  Thus for a record or ordinary codatatype the list is empty.  *)
+  (* A Field is the remaining positional field syntax .1, .2, ... *)
   | Field of string * string list (* Starting with . *)
-  | Constr of string * string list (* Ending with . *)
+  | Constr of string * string list (* Higher constructor syntax, still ending with . *)
   | LParen (* ( *)
   | RParen (* ) *)
   | LBracket (* [ *)
   | RBracket (* ] *)
+  | LAngle (* ⟨ *)
+  | RAngle (* ⟩ *)
   | LBrace (* { *)
   | RBrace (* } *)
+  | PragmaOpen (* {-# *)
+  | PragmaClose (* #-} *)
+  | Set
+  | Lambda
   | Hole of {
       number : string option; (* Prefix label ⁇n, if present *)
       contents : string option; (* None means ?, Some means ¿ ... ʔ with delimiters included *)
@@ -33,20 +39,28 @@ type t =
   | Axiom
   | Codata
   | Data
+  | Case
   | Def
   | Display
   | Echo
   | End
   | Export
+  | Field_kw
   | Import
+  | Infix
+  | Infixl
+  | Infixr
+  | Bind
   | Chdir
+  | Do
   | In
   | Let
   | Match
   | Notation
-  | Option
+  | Of
   | Quit
   | Rec
+  | Record
   | Return
   | Section
   | Fmt
@@ -55,6 +69,8 @@ type t =
   | Solve
   | Split
   | Synth
+  | Where
+  | Constructor_kw
   | Undo
   | Op of string (* Sequence of common ASCII symbols, other than : := ::= += -> |-> |=> etc. *)
   (* Alphanumeric/unicode other than common ASCII symbols and above single-token characters, with dots and underscores occuring only internally, and each dot-separated piece being nonempty.  Those not containing any dots could be local variable names (with one dot, they could be a face of a cube variable), and those consisting entirely of digits could be numerals.  We can't separate these out at lexing time into those that are parts of mixfix notations and those that are potential identifiers, since the mixfix notations in scope change as we go through a file. *)
@@ -148,14 +164,17 @@ let of_super (s : string) : string =
       else fatal Encoding_error in
   of_super 0
 
+let all_digits = String.for_all (function '0' .. '9' -> true | _ -> false)
+
 let to_string = function
   | Field (f, strs) ->
-      if List.is_empty strs then "." ^ f
+      if List.is_empty strs then
+        if all_digits f then "." ^ f else f
       else if List.fold_right (fun s m -> max (String.length s) m) strs 0 > 1 then
         "." ^ f ^ ".." ^ String.concat "." strs
       else "." ^ f ^ "." ^ String.concat "" strs
   | Constr (c, strs) ->
-      if List.is_empty strs then c ^ "."
+      if List.is_empty strs then c
       else if List.fold_right (fun s m -> max (String.length s) m) strs 0 > 1 then
         c ^ ".." ^ String.concat "." strs ^ "."
       else c ^ "." ^ String.concat "" strs ^ "."
@@ -163,8 +182,14 @@ let to_string = function
   | RParen -> ")"
   | LBracket -> "["
   | RBracket -> "]"
+  | LAngle -> "⟨"
+  | RAngle -> "⟩"
   | LBrace -> "{"
   | RBrace -> "}"
+  | PragmaOpen -> "{-#"
+  | PragmaClose -> "#-}"
+  | Set -> "Set"
+  | Lambda -> Display.alt_char "λ" "\\"
   | Hole { number; contents } ->
       Option.fold ~some:(fun n -> "⁇" ^ n) ~none:"" number ^ Option.value ~default:"?" contents
   | GeldedQuery -> "ʔ"
@@ -181,26 +206,36 @@ let to_string = function
   | Ellipsis -> Display.alt_char "…" "..."
   | String s -> "\"" ^ s ^ "\""
   | Underscore -> "_"
-  | Axiom -> "axiom"
+  | Axiom -> "postulate"
   | Def -> "def"
   | And -> "and"
   | Echo -> "echo"
   | Synth -> "synth"
   | Quit -> "quit"
   | Match -> "match"
+  | Case -> "case"
   | Return -> "return"
   | Sig -> "sig"
   | Data -> "data"
+  | Record -> "record"
+  | Where -> "where"
+  | Of -> "of"
+  | Field_kw -> "field"
+  | Constructor_kw -> "constructor"
   | Codata -> "codata"
   | Notation -> "notation"
+  | Infix -> "infix"
+  | Infixl -> "infixl"
+  | Infixr -> "infixr"
+  | Bind -> Display.alt_char "←" "<-"
   | Import -> "import"
   | Chdir -> "chdir"
+  | Do -> "do"
   | Export -> "export"
   | Solve -> "solve"
   | Split -> "split"
   | Show -> "show"
   | Display -> "display"
-  | Option -> "option"
   | Undo -> "undo"
   | Section -> "section"
   | Fmt -> "fmt"

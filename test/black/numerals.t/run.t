@@ -1,4 +1,4 @@
-  $ narya -v numerals.ny
+  $ agdarya -v numerals.ny
    ￫ info[I0000]
    ￮ constant ℕ defined
   
@@ -94,4 +94,7 @@
   
    ￫ info[I0008]
    ￮ section ℚ closed
+  
+   ￫ warning[W2305]
+   ￮ can't write compiled file: $TESTCASE_ROOT/numerals.nyo
   

@@ -1,6 +1,6 @@
-  $ narya -v constrs.ny
+  $ agdarya -v constrs.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0000]
    ￮ constant twos defined
@@ -15,7 +15,7 @@
    ￮ notation «_ * _ * _» defined
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ info[I0000]
    ￮ constant a2 defined
@@ -29,26 +29,46 @@
   a * a * a
     : threes
   
-  $ narya minus.ny
+
+  $ agdarya -v def-notation.ny
+   ￫ info[I0001]
+   ￮ postulate A assumed
+  
+   ￫ info[I0000]
+   ￮ constant twos defined
+  
+   ￫ info[I0000]
+   ￮ constant _+_ defined
+  
+   ￫ info[I0002]
+   ￮ notation «_ + _» defined
+  
+   ￫ info[I0001]
+   ￮ postulate a assumed
+  
+  a + a
+    : twos
+  
+  $ agdarya minus.ny
   2
     : ℤ
   
-  negsuc. 1
+  negsuc 1
     : ℤ
   
   2
     : ℤ
   
-  negsuc. 1
+  negsuc 1
     : ℤ
   
-  negsuc. 1
+  negsuc 1
     : ℤ
   
   2
     : ℤ
   
-  negsuc. 1
+  negsuc 1
     : ℤ
   
   2
@@ -57,7 +77,7 @@
   4
     : ℤ
   
-  negsuc. 3
+  negsuc 3
     : ℤ
   
   0
@@ -67,7 +87,7 @@
     : ℤ
   
 
-  $ narya -v subminusminus.ny
+  $ agdarya -v subminusminus.ny
    ￫ warning[W2400]
    ￮ not re-executing echo/synth/show commands when loading compiled file $TESTCASE_ROOT/minus.nyo
   
@@ -83,16 +103,16 @@
   2
     : ℤ
   
-  negsuc. 1
+  negsuc 1
     : ℤ
   
   2
     : ℤ
   
-  negsuc. 1
+  negsuc 1
     : ℤ
   
-  negsuc. 1
+  negsuc 1
     : ℤ
   
   2
@@ -106,10 +126,9 @@
   
    ￫ warning[E2100]
    ￭ $TESTCASE_ROOT/subminusminus.ny
-    5 | notation(0) "-" x ≔ ℤ.minus x
-      ^ previous definition
-   16 | notation(0) "-" x ≔ ℤ.minus x
-      ^ redefining constant: notations.«- _»
+   1 | notation(0) "-" x ≔ ℤ.minus x
+     ^ redefining constant: notations.«- _»
+     ^ previous definition
   
    ￫ warning[E2209]
    ￮ replacing printing notation for ℤ.minus (previous notation will still be parseable)
@@ -127,7 +146,7 @@
   
   [1]
 
-  $ narya -v minussubminus.ny
+  $ agdarya -v minussubminus.ny
    ￫ warning[W2400]
    ￮ not re-executing echo/synth/show commands when loading compiled file $TESTCASE_ROOT/minus.nyo
   
@@ -143,16 +162,16 @@
   2
     : ℤ
   
-  negsuc. 1
+  negsuc 1
     : ℤ
   
   2
     : ℤ
   
-  negsuc. 1
+  negsuc 1
     : ℤ
   
-  negsuc. 1
+  negsuc 1
     : ℤ
   
   2
@@ -166,10 +185,9 @@
   
    ￫ warning[E2100]
    ￭ $TESTCASE_ROOT/minussubminus.ny
-    3 | notation(0) "-" x ≔ ℤ.minus x
-      ^ previous definition
-   16 | notation(0) "-" x ≔ ℤ.minus x
-      ^ redefining constant: notations.«- _»
+   1 | notation(0) "-" x ≔ ℤ.minus x
+     ^ redefining constant: notations.«- _»
+     ^ previous definition
   
    ￫ warning[E2209]
    ￮ replacing printing notation for ℤ.minus (previous notation will still be parseable)
@@ -187,7 +205,7 @@
   
   [1]
 
-  $ narya -v minusminussub.ny
+  $ agdarya -v minusminussub.ny
    ￫ warning[W2400]
    ￮ not re-executing echo/synth/show commands when loading compiled file $TESTCASE_ROOT/minus.nyo
   
@@ -199,10 +217,9 @@
   
    ￫ warning[E2100]
    ￭ $TESTCASE_ROOT/minusminussub.ny
-   3 | notation(0) "-" x ≔ ℤ.minus x
-     ^ previous definition
-   4 | notation(0) "-" x ≔ ℤ.minus x
+   1 | notation(0) "-" x ≔ ℤ.minus x
      ^ redefining constant: notations.«- _»
+     ^ previous definition
   
    ￫ warning[E2209]
    ￮ replacing printing notation for ℤ.minus (previous notation will still be parseable)
@@ -216,13 +233,13 @@
   2
     : ℤ
   
-  negsuc. 1
+  negsuc 1
     : ℤ
   
   2
     : ℤ
   
-  negsuc. 1
+  negsuc 1
     : ℤ
   
    ￫ error[E0201]
@@ -232,7 +249,7 @@
   
   [1]
 
-  $ narya negtight.ny
+  $ agdarya negtight.ny
   b * c
     : A
   

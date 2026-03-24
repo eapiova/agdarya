@@ -10,8 +10,8 @@
 
 (executable
   (libraries core parser top hott react lwt lambda-term)
-  (name narya)
-  (public_name narya)
+  (name agdarya)
+  (public_name agdarya)
   (preprocess (pps ppx_blob))
   (preprocessor_deps
     (file version.txt)))

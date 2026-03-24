@@ -20,7 +20,7 @@ In particular, a common idiom is
 let theorem_ty, _ = synth "..."
 let theorem = check "..." theorem_ty
 ```
-That is, we first write the type of a theorem, synthesize it (its type will be `Type`, which we discard), and then check a proof of that theorem against the resulting value.  Of course this can be shortcut with
+That is, we first write the type of a theorem, synthesize it (its type will be `Set`, which we discard), and then check a proof of that theorem against the resulting value.  Of course this can be shortcut with
 ```
 let theorem = check "..." (fst (synth "..."))
 ```

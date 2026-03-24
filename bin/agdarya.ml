@@ -241,15 +241,33 @@ let rec interact_pg () : unit =
 let () =
   try
     run_top ~install_hott:Hott.install @@ fun () ->
+    let exec_fake_interact input =
+      let title, content =
+        if FileUtil.test Is_file input then
+          ( input,
+            In_channel.with_open_bin input @@ fun chan ->
+            really_input_string chan (Int64.to_int (In_channel.length chan)) )
+        else
+          ("command line fake-interact", input) in
+      let rec exec_chunks = function
+        | [] -> Execute.flush_pending_commands ()
+        | chunk :: chunks -> (
+            (match Execute.chunk_start_kind chunk with
+            | Some `Header -> Execute.flush_pending_commands ()
+            | Some `Sig_or_clause | None -> ());
+            match Parser.Command.parse_single ~title chunk with
+            | _, Some cmd ->
+                let _ = Execute.execute_command cmd in
+                exec_chunks chunks
+            | _, None -> exec_chunks chunks)
+      in
+      exec_chunks (Execute.split_source_commands_with_boundaries content)
+    in
     (* Note: run_top executes the input files, so here we only have to do the interaction. *)
     Mbwd.miter
       (fun [ file ] ->
-        let source : Asai.Range.source =
-          if FileUtil.test Is_file file then `File file
-          else `String { title = Some "command line fake-interact"; content = file } in
-        let p, src = Parser.Command.Parse.start_parse source in
         Reporter.try_with ~emit:(Reporter.display ~output:stdout)
-          ~fatal:(Reporter.display ~output:stdout) (fun () -> Execute.batch None p src `None []))
+          ~fatal:(Reporter.display ~output:stdout) (fun () -> exec_fake_interact file))
       [ !fake_interacts ];
     if !interactive then Lwt_main.run (interact ())
     else if !proofgeneral then (

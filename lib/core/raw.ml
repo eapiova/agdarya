@@ -9,7 +9,7 @@ let locate_map f ({ value; loc } : 'a located) = locate_opt loc (f value)
 
 (* Raw (unchecked) terms, using intrinsically well-scoped De Bruijn indices, and separated into synthesizing terms and checking terms.  These match the user-facing syntax rather than the internal syntax.  In particular, applications, abstractions, and pi-types are all unary, there is only one universe, and the only operator actions are refl (including Id) and sym. *)
 
-(* We actually formulate a more general notion of raw term that is parametrized over a notion of "index".  Narya proper only uses ordinary type-level natural numbers as indices, but other frontends may need a notion of raw term that uses explicit names or something else.  Note that all raw terms clearly separate *variables* from *constants*, and the "resolution" process detailed below that transitions between them preserves this distinction.  Therefore, even raw terms that use "explicit names" should not be regarded as an "intermediate parsing step" before turning the names into indices, because a scope of local variables is already required to separate the variables from the constant names (since local variables can shadow global constants).  Instead it is better to think of them as more like the "values" in NbE which can be silently weakened to arbitrary contexts. *)
+(* We actually formulate a more general notion of raw term that is parametrized over a notion of "index".  Agdarya proper only uses ordinary type-level natural numbers as indices, but other frontends may need a notion of raw term that uses explicit names or something else.  Note that all raw terms clearly separate *variables* from *constants*, and the "resolution" process detailed below that transitions between them preserves this distinction.  Therefore, even raw terms that use "explicit names" should not be regarded as an "intermediate parsing step" before turning the names into indices, because a scope of local variables is already required to separate the variables from the constant names (since local variables can shadow global constants).  Instead it is better to think of them as more like the "values" in NbE which can be silently weakened to arbitrary contexts. *)
 
 module type Indices = sig
   (* A 'name' is what labels a variable at the point of *binding*.  In named terms this carries semantic information; in indexed terms it is just annotation, with the semantic information carried by the change in the parametrizing type. *)
@@ -133,6 +133,7 @@ module rec Make : functor (I : Indices) -> sig
     | Record : ('a, 'c, 'ac) Namevec.t located * ('ac, 'd, 'acd) tel * opacity -> 'a check
     | SelfRecord : (Field.wrapped, 'a codatafield) Abwd.t -> 'a check
     | Refute : 'a synth located list * [ `Explicit | `Implicit ] -> 'a check
+    | Infer_type : 'a check
     | Hole : {
         scope : 'a I.scope;
         loc : Asai.Range.t;
@@ -265,7 +266,7 @@ functor
       (* A Match can also sometimes check, but synthesizes if it has an explicit return type or if it is nondependent and its first branch synthesizes. *)
       | Match : {
           tm : 'a synth located;
-          (* Implicit means no "return" statement was given, so Narya has to guess what to do.  Explicit means a "return" statement was given with a motive.  "Nondep" means a placeholder return statement like "_ ↦ _" was given, indicating that a non-dependent matching is intended (to silence hints about fallback from the implicit case). *)
+          (* Implicit means no "return" statement was given, so Agdarya has to guess what to do.  Explicit means a "return" statement was given with a motive.  "Nondep" means a placeholder return statement like "_ ↦ _" was given, indicating that a non-dependent matching is intended (to silence hints about fallback from the implicit case). *)
           sort : [ `Implicit | `Explicit of 'a check located | `Nondep of int located ];
           branches : (Constr.t, 'a branch) Abwd.t;
           refutables : 'a refutables option;
@@ -314,6 +315,7 @@ functor
       | SelfRecord : (Field.wrapped, 'a codatafield) Abwd.t -> 'a check
       (* Empty match against the first one of the arguments belonging to an empty type. *)
       | Refute : 'a synth located list * [ `Explicit | `Implicit ] -> 'a check
+      | Infer_type : 'a check
       (* A hole must store the entire "state" from when it was entered, so that the user can later go back and fill it with a term that would have been valid in its original position.  This includes the variables in lexical scope, which are available only during parsing, so we store them here at that point.  During typechecking, when the actual metavariable is created, we save the lexical scope along with its other context and type data.  A hole also stores its source location so that proofgeneral can create an overlay at that place, and the notation tightnesses of the hole location. *)
       | Hole : {
           scope : 'a I.scope;
@@ -554,6 +556,7 @@ module Resolve (R : Resolver) = struct
           let fields2, _ = tel ctx2 fields ad in
           Record (locate_opt xs.loc xs2, fields2, opaq)
       | Refute (args, sort) -> Refute (List.map (synth ctx) args, sort)
+      | Infer_type -> Infer_type
       | Hole { scope; loc; li; ri; num } -> Hole { scope = R.rescope ctx scope; loc; li; ri; num }
       | Realize x -> Realize (check ctx (locate_opt tm.loc x)).value
       | ImplicitApp (fn, args) ->

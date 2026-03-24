@@ -1,14 +1,18 @@
-axiom A : Type
-def twos : Type := data [
-| foo. (_:A) (_:A)
+postulate A : Set
+twos : Set
+twos = data [
+| foo (_:A) (_:A)
 ]
-notation(1) x "+" y := foo. x y
-def threes : Type := data [
-| foo. (_:A) (_:A) (_:A)
+notation(1) x "+" y := foo x y
+threes : Set
+threes = data [
+| foo (_:A) (_:A) (_:A)
 ]
-notation(1) x "*" y "*" z := foo. x y z
-axiom a:A
-def a2 : twos := a + a
+notation(1) x "*" y "*" z := foo x y z
+postulate a:A
+a2 : twos
+a2 = a + a
 echo a2
-def a3 : threes := a * a * a
+a3 : threes
+a3 = a * a * a
 echo a3

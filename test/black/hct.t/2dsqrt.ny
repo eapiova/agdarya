@@ -1,48 +1,80 @@
-{` The "double square root", a higher coinductive type with a 2-dimensional field. `}
-axiom A : Type
+{- The "double square root", a higher coinductive type with a 2-dimensional field. -}
+postulate A : Set
 
-def √√A : Type ≔ codata [ x .rroot.ee : A ]
+√√A : Set
+√√A = codata [ rroot⟨ee⟩ x : A ]
 
-{` To project this out, we need a doubly degenerated instance.  With a triply degenerated instance, we can project out all six fields. `}
-axiom s000 : √√A
-axiom s001 : √√A
-axiom s002 : Id √√A s000 s001
-axiom s010 : √√A
-axiom s011 : √√A
-axiom s012 : Id √√A s010 s011
-axiom s020 : Id √√A s000 s010
-axiom s021 : Id √√A s001 s011
-axiom s022 : √√A⁽ᵉᵉ⁾ s002 s012 s020 s021
-axiom s100 : √√A
-axiom s101 : √√A
-axiom s102 : Id √√A s100 s101
-axiom s110 : √√A
-axiom s111 : √√A
-axiom s112 : Id √√A s110 s111
-axiom s120 : Id √√A s100 s110
-axiom s121 : Id √√A s101 s111
-axiom s122 : √√A⁽ᵉᵉ⁾ s102 s112 s120 s121
-axiom s200 : Id √√A s000 s100
-axiom s201 : Id √√A s001 s101
-axiom s202 : √√A⁽ᵉᵉ⁾ s002 s102 s200 s201
-axiom s210 : Id √√A s010 s110
-axiom s211 : Id √√A s011 s111
-axiom s212 : √√A⁽ᵉᵉ⁾ s012 s112 s210 s211
-axiom s220 : √√A⁽ᵉᵉ⁾ s020 s120 s200 s210
-axiom s221 : √√A⁽ᵉᵉ⁾ s021 s121 s201 s211
+{- To project this out, we need a doubly degenerated instance.  With a triply degenerated instance, we can project out all six fields. -}
+postulate s000 : √√A
 
-axiom s222 : √√A⁽ᵉᵉᵉ⁾ s022 s122 s202 s212 s220 s221
+postulate s001 : √√A
 
-{` Here are the six fields, with their six different types.  Note that they all compute to .rroot.12 of a symmetrized s222. `}
-echo s222 .rroot.12
-echo s222 .rroot.13
-echo s222 .rroot.23
-echo s222 .rroot.21
-echo s222 .rroot.32
-echo s222 .rroot.31
+postulate s002 : Id √√A s000 s001
 
-{` To compute with concrete instances, let's consider instead the double square root of a type of squares, to make it easier to define elements. `}
-def ID2 (X : Type) : Type ≔ sig (
+postulate s010 : √√A
+
+postulate s011 : √√A
+
+postulate s012 : Id √√A s010 s011
+
+postulate s020 : Id √√A s000 s010
+
+postulate s021 : Id √√A s001 s011
+
+postulate s022 : √√A⁽ᵉᵉ⁾ s002 s012 s020 s021
+
+postulate s100 : √√A
+
+postulate s101 : √√A
+
+postulate s102 : Id √√A s100 s101
+
+postulate s110 : √√A
+
+postulate s111 : √√A
+
+postulate s112 : Id √√A s110 s111
+
+postulate s120 : Id √√A s100 s110
+
+postulate s121 : Id √√A s101 s111
+
+postulate s122 : √√A⁽ᵉᵉ⁾ s102 s112 s120 s121
+
+postulate s200 : Id √√A s000 s100
+
+postulate s201 : Id √√A s001 s101
+
+postulate s202 : √√A⁽ᵉᵉ⁾ s002 s102 s200 s201
+
+postulate s210 : Id √√A s010 s110
+
+postulate s211 : Id √√A s011 s111
+
+postulate s212 : √√A⁽ᵉᵉ⁾ s012 s112 s210 s211
+
+postulate s220 : √√A⁽ᵉᵉ⁾ s020 s120 s200 s210
+
+postulate s221 : √√A⁽ᵉᵉ⁾ s021 s121 s201 s211
+
+postulate s222 : √√A⁽ᵉᵉᵉ⁾ s022 s122 s202 s212 s220 s221
+
+{- Here are the six fields, with their six different types.  Note that they all compute to rroot⟨12⟩ of a symmetrized s222. -}
+echo s222 rroot⟨12⟩
+
+echo s222 rroot⟨13⟩
+
+echo s222 rroot⟨23⟩
+
+echo s222 rroot⟨21⟩
+
+echo s222 rroot⟨32⟩
+
+echo s222 rroot⟨31⟩
+
+{- To compute with concrete instances, let's consider instead the double square root of a type of squares, to make it easier to define elements. -}
+ID2 : (X : Set) → Set
+ID2 X = sig (
   x00 : X,
   x01 : X,
   x02 : Id X x00 x01,
@@ -53,63 +85,94 @@ def ID2 (X : Type) : Type ≔ sig (
   x21 : Id X x01 x11,
   x22 : X⁽ᵉᵉ⁾ x02 x12 x20 x21 )
 
-def √√ID2A : Type ≔ codata [ x .rroot.ee : ID2 A ]
+√√ID2A : Set
+√√ID2A = codata [ rroot⟨ee⟩ x : ID2 A ]
 
-def t (a : A) : √√ID2A ≔ [
-| .rroot.ee ↦ (a.00, a.01, a.02, a.10, a.11, a.12, a.20, a.21, a.22)]
+t : (a : A) → √√ID2A
+t a = record {
+  rroot⟨ee⟩ = (
+    a.00,
+    a⟨01⟩,
+    a⟨02⟩,
+    a⟨10⟩,
+    a⟨11⟩,
+    a⟨12⟩,
+    a⟨20⟩,
+    a⟨21⟩,
+    a⟨22⟩) }
 
-axiom a00 : A
-axiom a01 : A
-axiom a02 : Id A a00 a01
-axiom a10 : A
-axiom a11 : A
-axiom a12 : Id A a10 a11
-axiom a20 : Id A a00 a10
-axiom a21 : Id A a01 a11
-axiom a22 : A⁽ᵉᵉ⁾ a02 a12 a20 a21
+postulate a00 : A
 
-def ta ≔ t⁽ᵉᵉ⁾ a22
+postulate a01 : A
 
-{` ta has two projectable fields, .rroot.12 and .rroot.21. `}
-echo ta .rroot.12
-echo ta .rroot.21
+postulate a02 : Id A a00 a01
 
-{` They are transposed `}
-echo ta .rroot.12 .x00
-echo ta .rroot.21 .x00
+postulate a10 : A
 
-echo ta .rroot.12 .x01
-echo ta .rroot.21 .x01
+postulate a11 : A
 
-echo ta .rroot.12 .x02
-echo ta .rroot.21 .x02
+postulate a12 : Id A a10 a11
 
-echo ta .rroot.12 .x10
-echo ta .rroot.21 .x10
+postulate a20 : Id A a00 a10
 
-echo ta .rroot.12 .x11
-echo ta .rroot.21 .x11
+postulate a21 : Id A a01 a11
 
-echo ta .rroot.12 .x12
-echo ta .rroot.21 .x12
+postulate a22 : A⁽ᵉᵉ⁾ a02 a12 a20 a21
 
-echo ta .rroot.12 .x20
-echo ta .rroot.21 .x20
+ta = t⁽ᵉᵉ⁾ a22
 
-echo ta .rroot.12 .x21
-echo ta .rroot.21 .x21
+{- ta has two projectable fields, rroot⟨12⟩ and rroot⟨2⟩1. -}
+echo ta rroot⟨12⟩
 
-echo ta .rroot.12 .x22
-echo ta .rroot.21 .x22
+echo ta rroot⟨21⟩
 
-{` They are related by symmetry `}
-echo ta .rroot.21
-echo (sym ta) .rroot.12
+{- They are transposed -}
+echo ta rroot⟨12⟩ x00
 
-{` ...and so are their fields. `}
-echo ta .rroot.21 .x01
-echo (sym ta) .rroot.12 .x01
+echo ta rroot⟨21⟩ x00
 
-echo ta .rroot.21 .x02
-echo (sym ta) .rroot.12 .x02
+echo ta rroot⟨12⟩ x01
 
+echo ta rroot⟨21⟩ x01
+
+echo ta rroot⟨12⟩ x02
+
+echo ta rroot⟨21⟩ x02
+
+echo ta rroot⟨12⟩ x10
+
+echo ta rroot⟨21⟩ x10
+
+echo ta rroot⟨12⟩ x11
+
+echo ta rroot⟨21⟩ x11
+
+echo ta rroot⟨12⟩ x12
+
+echo ta rroot⟨21⟩ x12
+
+echo ta rroot⟨12⟩ x20
+
+echo ta rroot⟨21⟩ x20
+
+echo ta rroot⟨12⟩ x21
+
+echo ta rroot⟨21⟩ x21
+
+echo ta rroot⟨12⟩ x22
+
+echo ta rroot⟨21⟩ x22
+
+{- They are related by symmetry -}
+echo ta rroot⟨21⟩
+
+echo (sym ta) rroot⟨12⟩
+
+{- ...and so are their fields. -}
+echo ta rroot⟨21⟩ x01
+
+echo (sym ta) rroot⟨12⟩ x01
+
+echo ta rroot⟨21⟩ x02
+
+echo (sym ta) rroot⟨12⟩ x02

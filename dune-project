@@ -2,9 +2,9 @@
 (license GPL-3.0-or-later)
 (authors "Michael Shulman <shulman@sandiego.edu>")
 (maintainers "Michael Shulman <shulman@sandiego.edu>")
-(source (github gwaithimirdain/narya))
+(source (github gwaithimirdain/agdarya))
 (package
-  (name narya)
+  (name agdarya)
   (synopsis "A proof assistant for higher-dimensional type theories")
   (depends
     (ocaml

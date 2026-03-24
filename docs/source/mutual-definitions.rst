@@ -45,16 +45,16 @@ Here we have used a binary product type, but in more complicated cases when doin
 Mutual induction
 ----------------
 
-The Type-valued predicates ``Even`` and ``Odd`` can be defined similarly:
+The Set-valued predicates ``Even`` and ``Odd`` can be defined similarly:
 
 .. code-block:: none
 
-   def Even : ℕ → Type ≔ data [
+   def Even : ℕ → Set ≔ data [
    | even_zero. : Even zero.
    | even_suc. : (n:ℕ) → Odd n → Even (suc. n)
    ]
    
-   and Odd : ℕ → Type ≔ data [
+   and Odd : ℕ → Set ≔ data [
    | odd_suc. : (n:ℕ) → Even n → Odd (suc. n)
    ]
 
@@ -64,7 +64,7 @@ The fact that canonical type declarations can appear as part of case trees means
 
 .. code-block:: none
 
-   def Even_Odd : (ℕ → Type) × (ℕ → Type) ≔ (
+   def Even_Odd : (ℕ → Set) × (ℕ → Set) ≔ (
      data [
      | even_zero. : Even_Odd .0 zero.
      | even_suc. : (n:ℕ) → Even_Odd .1 n → Even_Odd .0 (suc. n) ],
@@ -72,15 +72,15 @@ The fact that canonical type declarations can appear as part of case trees means
      | odd_suc. : (n:ℕ) → Even_Odd .0 n → Even_Odd .1 (suc. n) ])
 
 
-Recall that in Narya a third possibility is a recursive definition of families of canonical types:
+Recall that in Agdarya a third possibility is a recursive definition of families of canonical types:
 
 .. code-block:: none
 
-   def Even' : ℕ → Type ≔ [
+   def Even' : ℕ → Set ≔ [
    | zero. ↦ sig ()
    | suc. n ↦ sig (even_suc : Odd' n)
    ]
-   and Odd' : ℕ → Type ≔ [
+   and Odd' : ℕ → Set ≔ [
    | zero. ↦ data []
    | suc. n ↦ sig (odd_suc : Even' n)
    ]
@@ -95,12 +95,12 @@ An inductive-inductive definition consists of several type families defined by m
 
 .. code-block:: none
 
-   def ctx : Type ≔ data [
+   def ctx : Set ≔ data [
    | empty.
    | ext. (Γ : ctx) (A : ty Γ)
    ]
 
-   and ty (Γ : ctx) : Type ≔ data [
+   and ty (Γ : ctx) : Set ≔ data [
    | base.
    | pi. (A : ty Γ) (B : ty (ext. Γ A))
    ]
@@ -109,7 +109,7 @@ Note that the context Γ is a non-uniform parameter of the datatype ``ty``.  Her
 
 .. code-block:: none
 
-   def ctx_ty : Σ Type (X ↦ (X → Type)) ≔ (
+   def ctx_ty : Σ Set (X ↦ (X → Set)) ≔ (
      ctx ≔ data [
      | empty.
      | ext. (Γ : ctx_ty .0) (A : ctx_ty .1 Γ) ],
@@ -124,12 +124,12 @@ An inductive-recursive definition consists of one or more type families defined 
 
 .. code-block:: none
 
-   def uu : Type ≔ data [
+   def uu : Set ≔ data [
    | bool.
    | pi. (A : uu) (B : el A → uu)
    ]
    
-   and el : uu → Type ≔ [
+   and el : uu → Set ≔ [
    | bool. ↦ Bool
    | pi. A B ↦ (x : el A) → el (B x)
    ]
@@ -138,7 +138,7 @@ Because a case tree can include canonical type declarations in some branches and
 
 .. code-block:: none
 
-   def uu_el : Σ Type (X ↦ (X → Type)) ≔ (
+   def uu_el : Σ Set (X ↦ (X → Set)) ≔ (
      uu ≔ data [
      | bool.
      | pi. (A : uu_el .0) (B : uu_el .1 A → uu_el .0) ],
@@ -165,11 +165,11 @@ Note that although the outer global ``def`` can (like any ``def``) refer to itse
 Here be dragons
 ---------------
 
-As can be seen from these examples, Narya's facility for mutual definitions is comparable to Agda's in flexibility and power.  Also like Agda, Narya currently permits even more radical things such as nested datatypes:
+As can be seen from these examples, Agdarya's facility for mutual definitions is comparable to Agda's in flexibility and power.  Also like Agda, Agdarya currently permits even more radical things such as nested datatypes:
 
 .. code-block:: none
 
-   def Bush (A:Type) : Type ≔ data [
+   def Bush (A:Set) : Set ≔ data [
    | leaf.
    | cons. (_ : A) (_ : Bush (Bush A))
    ]

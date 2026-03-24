@@ -1,15 +1,15 @@
-This is a static build of the master branch of Narya, an experimental proof assistant for higher-dimensional type theory.
+This is a static build of the master branch of Agdarya, an experimental proof assistant for higher-dimensional type theory.
 
 
 LINUX
 =====
 
-The executable 'narya' should run on any Linux machine.  Place it in a directory that is in your PATH.  On some flavors of Linux, the directory `~/bin` is automatically in your path if it exists, so the first thing to try is
+The executable 'agdarya' should run on any Linux machine.  Place it in a directory that is in your PATH.  On some flavors of Linux, the directory `~/bin` is automatically in your path if it exists, so the first thing to try is
 
   mkdir -p ~/bin
-  cp narya ~/bin
+  cp agdarya ~/bin
 
-Then restart your shell (i.e. terminal or command prompt) and try running 'narya'.  If that doesn't work, try logging out and back in again.  If that still doesn't work, try something like the following:
+Then restart your shell (i.e. terminal or command prompt) and try running 'agdarya'.  If that doesn't work, try logging out and back in again.  If that still doesn't work, try something like the following:
 
   echo export PATH="\$HOME/bin:\$PATH" >>~/.bashrc
 
@@ -23,17 +23,17 @@ Then run the supplied shell script 'install-pg.sh' from this directory:
 
   ./install-pg.sh
 
-If that doesn't work, please report a bug at https://github.com/gwaithimirdain/narya.  In the meantime, you can follow the instructions in the Narya documentation for installing ProofGeneral manually (https://narya.readthedocs.io/en/latest/installation.html#proofgeneral-emacs-mode).  You will need to repeat this every time Emacs, ProofGeneral, or Narya is updated.  Finally, you can run
+If that doesn't work, please report a bug at https://github.com/gwaithimirdain/agdarya.  In the meantime, you can follow the manual ProofGeneral installation steps in the Agdarya source repository (see ``docs/source/installation.rst``).  You will need to repeat this every time Emacs, ProofGeneral, or Agdarya is updated.  Finally, you can run
 
   emacs
 
-and create or open a .ny file to start Narya ProofGeneral.
+and create or open a .ny file to start Agdarya ProofGeneral.
 
 
 WINDOWS
 =======
 
-The easiest way to run Narya on Windows 11 is inside WSL (Windows Subsystem for Linux).  First install WSL by opening a command prompt and running
+The easiest way to run Agdarya on Windows 11 is inside WSL (Windows Subsystem for Linux).  First install WSL by opening a command prompt and running
 
   wsl --install
 
@@ -43,8 +43,8 @@ After this finishes, you may need to reboot your computer and run the same comma
 
 to enter a Linux command prompt, and then follow the Linux instructions.  If you downloaded this bundle in Windows, you can navigate to it in WSL using a path like "/mnt/c/Users/YOUR NAME/Downloads".  You can also download it directly from the WSL prompt with
 
-  wget https://gwaithimirdain.github.io/narya/releases/narya-master-static.tar.gz
-  tar -xzf narya-master-static.tar.gz
-  cd narya-xxxxxxx-YYYYMMDD
+  wget https://gwaithimirdain.github.io/agdarya/releases/agdarya-master-static.tar.gz
+  tar -xzf agdarya-master-static.tar.gz
+  cd agdarya-xxxxxxx-YYYYMMDD
 
 (for the appropriate directory name) and then proceed with the above Linux instructions.  Note that when you run Emacs from within WSL, it should automatically pop up as a graphical window.

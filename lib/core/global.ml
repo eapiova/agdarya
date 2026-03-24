@@ -288,6 +288,11 @@ let run_command ~holes_allowed f =
     ~init:{ holes_allowed; current_holes = Emp; current_evars = Emp; parametric = `Maybe_parametric }
   @@ fun () -> end_command (f ())
 
+let run_command_current ~holes_allowed f =
+  Current_command.run
+    ~init:{ holes_allowed; current_holes = Emp; current_evars = Emp; parametric = `Maybe_parametric }
+  @@ fun () -> end_command (f ())
+
 let run_command_then_undo ~holes_allowed f =
   Origin.do_command_then_undo @@ fun () ->
   Current_command.run

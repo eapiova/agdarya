@@ -6,7 +6,7 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'Narya'
+project = 'Agdarya'
 copyright = '2025, Michael Shulman, Elif Uskuplu'
 author = 'Michael Shulman, Elif Uskuplu'
 release = '0.1'

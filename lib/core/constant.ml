@@ -14,6 +14,7 @@ type t = Constant.t
 
 (* Store autonumber counters *)
 let counters = Versioned.make ~default:(fun _ -> 0) ~inherit_values:false
+let names : (t, string list) Hashtbl.t = Hashtbl.create 100
 
 (* Create a new constant in the current execution location (file or interactive instant). *)
 let make () : t =
@@ -24,11 +25,19 @@ let make () : t =
 
 (* Recreate a constant with an altered file identifier, as when linking. *)
 let remake f ((c : Origin.t), i) =
-  match c with
-  | File n -> (Origin.File (f n), i)
-  (* Built-in constants should be created in the same order with the same identifiers in every execution run, so we don't need to change them. *)
-  | Top -> (c, i)
-  | Instant _ -> raise (Failure "Constant: can't remake interactive constant")
+  let newc =
+    match c with
+    | File n -> (Origin.File (f n), i)
+    (* Built-in constants should be created in the same order with the same identifiers in every execution run, so we don't need to change them. *)
+    | Top -> (c, i)
+    | Instant _ -> raise (Failure "Constant: can't remake interactive constant") in
+  (match Hashtbl.find_opt names (c, i) with
+  | Some name -> Hashtbl.replace names newc name
+  | None -> ());
+  newc
+
+let register_name c name = Hashtbl.replace names c name
+let name_of c = Hashtbl.find_opt names c
 
 (* A constant Table is mutable and versioned, and can store any kind of data. *)
 module Table = struct

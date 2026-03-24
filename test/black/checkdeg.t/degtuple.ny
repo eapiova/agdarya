@@ -1,9 +1,10 @@
-def Prod (A B : Type) : Type ≔ sig ( fst : A, snd : B )
+Prod : (A B : Set) → Set
+Prod A B = sig ( fst : A, snd : B )
 
-axiom A : Type
-axiom B : Type
-axiom a : A
-axiom b : B
+postulate A : Set
+postulate B : Set
+postulate a : A
+postulate b : B
 
 echo refl (a, b) : Id (Prod A B) (a, b) (a, b)
 echo refl (fst ≔ a, snd ≔ b) : Id (Prod A B) (a, b) (a, b)

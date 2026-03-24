@@ -9,26 +9,26 @@ Another interesting tool used in the implementation is a technique for writing g
 
 The source code is organized in directories as follows:
 
-* `lib/ <https://github.com/gwaithimirdain/narya/tree/master/lib>`_: Most of the code
+* `lib/ <https://github.com/gwaithimirdain/agdarya/tree/master/lib>`_: Most of the code
 
-  * `lib/util/ <https://github.com/gwaithimirdain/narya/tree/master/lib/util>`_: Utilities that could in principle be generic libraries
+  * `lib/util/ <https://github.com/gwaithimirdain/agdarya/tree/master/lib/util>`_: Utilities that could in principle be generic libraries
   
-  * `lib/dim/ <https://github.com/gwaithimirdain/narya/tree/master/lib/dim>`_: Definition of the dimension theory (cube category)
+  * `lib/dim/ <https://github.com/gwaithimirdain/agdarya/tree/master/lib/dim>`_: Definition of the dimension theory (cube category)
   
-  * `lib/core/ <https://github.com/gwaithimirdain/narya/tree/master/lib/core>`_: Syntax, normalization, type-checking, etc.
+  * `lib/core/ <https://github.com/gwaithimirdain/agdarya/tree/master/lib/core>`_: Syntax, normalization, type-checking, etc.
   
-  * `lib/parser/ <https://github.com/gwaithimirdain/narya/tree/master/lib/parser>`_: Parsing and printing
+  * `lib/parser/ <https://github.com/gwaithimirdain/agdarya/tree/master/lib/parser>`_: Parsing and printing
   
-  * `lib/top/ <https://github.com/gwaithimirdain/narya/tree/master/lib/top>`_: Auxiliary functions for the top-level (executing files, etc.)
+  * `lib/top/ <https://github.com/gwaithimirdain/agdarya/tree/master/lib/top>`_: Auxiliary functions for the top-level (executing files, etc.)
 
-* `bin/ <https://github.com/gwaithimirdain/narya/tree/master/bin>`_: The main executable
+* `bin/ <https://github.com/gwaithimirdain/agdarya/tree/master/bin>`_: The main executable
 
-* `test/ <https://github.com/gwaithimirdain/narya/tree/master/test>`_: Unit tests
+* `test/ <https://github.com/gwaithimirdain/agdarya/tree/master/test>`_: Unit tests
 
-  * `test/testutil/ <https://github.com/gwaithimirdain/narya/tree/master/test/testutil>`_: Utilities used only for white-box testing
+  * `test/testutil/ <https://github.com/gwaithimirdain/agdarya/tree/master/test/testutil>`_: Utilities used only for white-box testing
   
-  * `test/white/ <https://github.com/gwaithimirdain/narya/tree/master/test/white>`_: White-box tests of the core
+  * `test/white/ <https://github.com/gwaithimirdain/agdarya/tree/master/test/white>`_: White-box tests of the core
   
-  * `test/parser/ <https://github.com/gwaithimirdain/narya/tree/master/test/parser>`_: White-box tests of parsing and printing
+  * `test/parser/ <https://github.com/gwaithimirdain/agdarya/tree/master/test/parser>`_: White-box tests of parsing and printing
   
-  * `test/black/ <https://github.com/gwaithimirdain/narya/tree/master/test/black>`_: Black-box tests of the executable
+  * `test/black/ <https://github.com/gwaithimirdain/agdarya/tree/master/test/black>`_: Black-box tests of the executable

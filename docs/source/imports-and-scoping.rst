@@ -4,7 +4,7 @@ Imports and scoping
 File imports
 ------------
 
-The command ``import "FILE"`` executes another Narya file and adds (some of) its definitions and notations to the current namespace.  The disk file *must* have the ``.ny`` extension, whereas the string given to ``import`` must *not* have it; thus ``import "mylib"`` loads the file ``mylib.ny``.
+The command ``import "FILE"`` executes another Agdarya file and adds (some of) its definitions and notations to the current namespace.  The disk file *must* have the ``.ny`` extension, whereas the string given to ``import`` must *not* have it; thus ``import "mylib"`` loads the file ``mylib.ny``.
 
 The commands in the imported file cannot access any definitions from other files, including the current one, except those that it imports itself.  Importing is not transitive: if ``a.ny`` imports ``b.ny``, and ``b.ny`` imports ``c.ny``, then the definitions from ``c.ny`` do not appear in the namespace of ``a.ny`` unless it also imports ``c.ny`` explicitly.
 
@@ -12,12 +12,12 @@ More precisely, there are two namespaces at any time: the "import" namespace, wh
 
 By contrast, when in interactive mode or executing a command-line ``-e`` string, all definitions from all files and strings that were explicitly specified previously on the command line are available, even if not exported.  This does not carry over transitively to files imported by them.  Standard input (indicated by ``-`` on the command line) is treated as an ordinary file; thus it must import any other files it wants to use, but its definitions are automatically available in ``-e`` strings and interactive mode.
 
-No file will be executed more than once during a single run, even if it is imported by multiple other files.  Thus, if both ``b.ny`` and ``c.ny`` import ``d.ny``, and ``a.ny`` imports both ``b.ny`` and ``c.ny``, any effectual commands like ``echo`` in ``d.ny`` will only happen once, there will only be one copy of the definitions from ``d.ny`` in the namespace of ``a.ny``, and the definitions from ``b.ny`` and ``c.ny`` are compatible.  Circular imports are not allowed (and are checked for).  The order of execution is as specified on the command-line, with depth-first traversal of import statements as they are encountered.  Thus, for instance, if the command-line is ``narya one.ny two.ny`` but ``one.ny`` imports ``two.ny``, then ``two.ny`` will be executed during ``one.ny`` whenever that import statement is encountered, and then skipped when we get to it on the command-line since it was already executed.
+No file will be executed more than once during a single run, even if it is imported by multiple other files.  Thus, if both ``b.ny`` and ``c.ny`` import ``d.ny``, and ``a.ny`` imports both ``b.ny`` and ``c.ny``, any effectual commands like ``echo`` in ``d.ny`` will only happen once, there will only be one copy of the definitions from ``d.ny`` in the namespace of ``a.ny``, and the definitions from ``b.ny`` and ``c.ny`` are compatible.  Circular imports are not allowed (and are checked for).  The order of execution is as specified on the command-line, with depth-first traversal of import statements as they are encountered.  Thus, for instance, if the command-line is ``agdarya one.ny two.ny`` but ``one.ny`` imports ``two.ny``, then ``two.ny`` will be executed during ``one.ny`` whenever that import statement is encountered, and then skipped when we get to it on the command-line since it was already executed.
 
 Namespaces and sections
 -----------------------
 
-Narya uses `Yuujinchou <https://redprl.org/yuujinchou/yuujinchou/>`_ for hierarchical namespacing, with periods to separate namespaces.  Thus a name like ``nat.plus`` lies in the ``nat`` namespace.  You can define a constant with such a name explicitly:
+Agdarya uses `Yuujinchou <https://redprl.org/yuujinchou/yuujinchou/>`_ for hierarchical namespacing, with periods to separate namespaces.  Thus a name like ``nat.plus`` lies in the ``nat`` namespace.  You can define a constant with such a name explicitly:
 
 .. code-block:: none
    
@@ -82,8 +82,8 @@ The first argument of the ``import`` command can also be a namespace, with the e
 
 .. code-block:: none
    
-   axiom a.one : ℕ ≔ 1
-   axiom a.two : ℕ ≔ 2
+   postulate a.one : ℕ ≔ 1
+   postulate a.two : ℕ ≔ 2
    import a | renaming one uno
 
 the names ``a.one`` and ``uno`` will refer to ``1`` while the names ``a.two`` and ``two`` will refer to ``2``.
@@ -131,7 +131,7 @@ Notations in sub-namespaces of ``notations`` still have an effect on printing an
 Compilation
 -----------
 
-Whenever a file ``FILE.ny`` is successfully executed, Narya writes a "compiled" version of that file in the same directory called ``FILE.nyo``.  Then in future runs of Narya, whenever ``FILE.ny`` is to be executed, if
+Whenever a file ``FILE.ny`` is successfully executed, Agdarya writes a "compiled" version of that file in the same directory called ``FILE.nyo``.  Then in future runs of Agdarya, whenever ``FILE.ny`` is to be executed, if
 
 1. ``-source-only`` was not specified,
 2. ``FILE.ny`` was not specified explicitly on the command-line (so that it must have been imported by another file),
@@ -142,4 +142,4 @@ Whenever a file ``FILE.ny`` is successfully executed, Narya writes a "compiled" 
 
 then ``FILE.nyo`` is loaded directly instead of re-executing ``FILE.ny``, skipping the typechecking step.  This can be much faster.  If any of these conditions fail, then ``FILE.ny`` is executed from source as usual, and a new compiled version ``FILE.nyo`` is saved, overwriting the previous one.
 
-Effectual commands like ``echo`` are *not* re-executed when a file is loaded from its compiled version (they are not even stored in the compiled version).  Since this may be surprising, Narya issues a warning when loading a compiled version of a file that originally contained ``echo`` commands.  Since files explicitly specified on the command-line are never loaded from a compiled version, the best way to avoid this warning is to avoid ``echo`` statements in "library" files that are intended to be imported by other files.  Of course, you can also use ``-source-only`` to prevent all loading from compiled files.
+Effectual commands like ``echo`` are *not* re-executed when a file is loaded from its compiled version (they are not even stored in the compiled version).  Since this may be surprising, Agdarya issues a warning when loading a compiled version of a file that originally contained ``echo`` commands.  Since files explicitly specified on the command-line are never loaded from a compiled version, the best way to avoid this warning is to avoid ``echo`` statements in "library" files that are intended to be imported by other files.  Of course, you can also use ``-source-only`` to prevent all loading from compiled files.

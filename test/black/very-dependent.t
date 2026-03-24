@@ -1,7 +1,7 @@
-  $ narya -e "def a : b := ? and b : a := ?"
-   ￫ error[E0300]
+  $ agdarya -e $'a : b\na = ?\nb : a\nb = ?'
+   ￫ bug[E0301]
    ￭ command-line exec string
-   1 | def a : b := ? and b : a := ?
-     ^ unbound variable: b
+   1 | a : b
+     ^ undefined constant: b
   
   [1]

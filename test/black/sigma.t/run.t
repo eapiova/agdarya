@@ -1,4 +1,4 @@
-  $ narya -v sigma.ny
+  $ agdarya -v sigma.ny
    ￫ info[I0000]
    ￮ constant Σ defined
   
@@ -6,16 +6,16 @@
    ￮ constant pair defined
   
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom B assumed
+   ￮ postulate B assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ info[I0001]
-   ￮ axiom b assumed
+   ￮ postulate b assumed
   
    ￫ info[I0000]
    ￮ constant ab defined
@@ -27,7 +27,7 @@
    ￮ constant ab_equals_ab' defined
   
    ￫ info[I0001]
-   ￮ axiom x assumed
+   ￮ postulate x assumed
   
    ￫ info[I0000]
    ￮ constant x1 defined
@@ -60,22 +60,22 @@
    ￮ constant x_equals_x'' defined
   
    ￫ info[I0001]
-   ￮ axiom a0 assumed
+   ￮ postulate a0 assumed
   
    ￫ info[I0001]
-   ￮ axiom b0 assumed
+   ￮ postulate b0 assumed
   
    ￫ info[I0001]
-   ￮ axiom a1 assumed
+   ￮ postulate a1 assumed
   
    ￫ info[I0001]
-   ￮ axiom b1 assumed
+   ￮ postulate b1 assumed
   
    ￫ info[I0001]
-   ￮ axiom a2 assumed
+   ￮ postulate a2 assumed
   
    ￫ info[I0001]
-   ￮ axiom b2 assumed
+   ￮ postulate b2 assumed
   
    ￫ info[I0000]
    ￮ constant ab2 defined
@@ -99,48 +99,48 @@
    ￮ constant refl_comm2 defined
   
    ￫ info[I0001]
-   ￮ axiom X assumed
+   ￮ postulate X assumed
   
    ￫ info[I0001]
-   ￮ axiom x00 assumed
+   ￮ postulate x00 assumed
   
    ￫ info[I0001]
-   ￮ axiom x01 assumed
+   ￮ postulate x01 assumed
   
    ￫ info[I0001]
-   ￮ axiom x02 assumed
+   ￮ postulate x02 assumed
   
    ￫ info[I0001]
-   ￮ axiom x10 assumed
+   ￮ postulate x10 assumed
   
    ￫ info[I0001]
-   ￮ axiom x11 assumed
+   ￮ postulate x11 assumed
   
    ￫ info[I0001]
-   ￮ axiom x12 assumed
+   ￮ postulate x12 assumed
   
    ￫ info[I0001]
-   ￮ axiom x20 assumed
+   ￮ postulate x20 assumed
   
    ￫ info[I0001]
-   ￮ axiom x21 assumed
+   ￮ postulate x21 assumed
   
    ￫ info[I0001]
-   ￮ axiom x22 assumed
+   ￮ postulate x22 assumed
   
    ￫ info[I0001]
-   ￮ axiom Y assumed
+   ￮ postulate Y assumed
   
    ￫ info[I0001]
-   ￮ axiom y assumed
+   ￮ postulate y assumed
   
    ￫ info[I0001]
-   ￮ axiom s assumed
+   ￮ postulate s assumed
   
    ￫ info[I0000]
    ￮ constant s1s defined
   
-  $ narya sigma.ny -e "echo (sym s)"
+  $ agdarya sigma.ny -e "echo (sym s)"
    ￫ error[E0601]
    ￭ command-line exec string
    1 | echo (sym s)

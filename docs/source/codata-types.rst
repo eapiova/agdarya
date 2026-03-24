@@ -15,7 +15,7 @@ Here is a corecursive definition of the codatatype of infinite streams:
 
 .. code-block:: none
 
-   def Stream (A:Type) : Type ≔ codata [
+   def Stream (A:Set) : Set ≔ codata [
    | x .head : A
    | x .tail : Stream A
    ]
@@ -24,7 +24,7 @@ That is, we use brackets and bars instead of parentheses and commas.  Moreover, 
 
 .. code-block:: none
 
-   def codata-Σ (A : Type) (B : A → Type) : Type ≔ codata [
+   def codata-Σ (A : Set) (B : A → Set) : Set ≔ codata [
    | x .fst : A
    | x .snd : B (x .fst)
    ]

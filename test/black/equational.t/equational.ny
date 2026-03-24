@@ -1,24 +1,28 @@
-axiom A : Type
-axiom x : A
-axiom y : A
-axiom z : A
-axiom w : A
+postulate A : Set
+postulate x : A
+postulate y : A
+postulate z : A
+postulate w : A
 
-axiom p : Id A x y
-axiom q : Id A y z
-axiom r : Id A z w
+postulate p : Id A x y
+postulate q : Id A y z
+postulate r : Id A z w
 
-def xx : Id A x x ≔ calc
+xx : Id A x x
+xx = calc
   x ∎
 
-def xy : Id A x y ≔ calc
+xy : Id A x y
+xy = calc
   x
   = y
       by p ∎
 
-def xydef : Id (Id A x y) xy (A⁽ᵉᵉ⁾ (refl x) p .trr (refl x)) ≔ refl xy
+xydef : Id (Id A x y) xy (A⁽ᵉᵉ⁾ (refl x) p trr (refl x))
+xydef = refl xy
 
-def xyz : Id A x z ≔ calc
+xyz : Id A x z
+xyz = calc
   x
   = y
       by p
@@ -26,12 +30,12 @@ def xyz : Id A x z ≔ calc
   = z
       by q ∎
 
-def xyzdef
-  : Id (Id A x z) xyz
-      (A⁽ᵉᵉ⁾ (refl x) q .trr (A⁽ᵉᵉ⁾ (refl x) p .trr (refl x)))
-  ≔ refl xyz
+xyzdef : Id (Id A x z) xyz
+      (A⁽ᵉᵉ⁾ (refl x) q trr (A⁽ᵉᵉ⁾ (refl x) p trr (refl x)))
+xyzdef = refl xyz
 
-def xyzw : Id A x w ≔ calc
+xyzw : Id A x w
+xyzw = calc
   x
   = x
   = y
@@ -42,47 +46,50 @@ def xyzw : Id A x w ≔ calc
       by r
   = w ∎
 
-def xyzwdef
-  : Id (Id A x w) xyzw
+xyzwdef : Id (Id A x w) xyzw
       (A⁽ᵉᵉ⁾ (refl x) r
-       .trr (A⁽ᵉᵉ⁾ (refl x) q .trr (A⁽ᵉᵉ⁾ (refl x) p .trr (refl x))))
-  ≔ refl xyzw
+       trr (A⁽ᵉᵉ⁾ (refl x) q trr (A⁽ᵉᵉ⁾ (refl x) p trr (refl x))))
+xyzwdef = refl xyzw
 
-axiom s : Id A z y
+postulate s : Id A z y
 
-def xz' : Id A x z ≔ calc
+xz' : Id A x z
+xz' = calc
   x
   = y
       by p
   = z
       by s ∎
 
-def xz'def
-  : Id (Id A x z) xz'
-      (A⁽ᵉᵉ⁾ (refl x) s .trl (A⁽ᵉᵉ⁾ (refl x) p .trr (refl x)))
-  ≔ refl xz'
+xz'def : Id (Id A x z) xz'
+      (A⁽ᵉᵉ⁾ (refl x) s trl (A⁽ᵉᵉ⁾ (refl x) p trr (refl x)))
+xz'def = refl xz'
 
-def ℕ : Type ≔ data [ zero. : ℕ | suc. : ℕ → ℕ ]
-def plus (m n : ℕ) : ℕ ≔ match m [ zero. ↦ n | suc. m' ↦ suc. (plus m' n) ]
+ℕ : Set
+ℕ = data [ zero : ℕ | suc : ℕ → ℕ ]
+plus : (m n : ℕ) → ℕ
+plus m n = match m [ zero ↦ n | suc m' ↦ suc (plus m' n) ]
 
 notation(0) … m "+" n ≔ plus m n
 
-def 2plus3 : Id ℕ (2 + 3) 5 ≔ calc
+2plus3 : Id ℕ (2 + 3) 5
+2plus3 = calc
   2 + 3
-  = suc. (1 + 3)
-  = suc. (suc. (0 + 3))
-  = suc. (suc. 3)
+  = suc (1 + 3)
+  = suc (suc (0 + 3))
+  = suc (suc 3)
   = 5 ∎
 
-def ℕ.plus_assoc (m n p : ℕ) : Id ℕ ((m + n) + p) (m + (n + p)) ≔ match m [
-| zero. ↦ calc
-    (zero. + n) + p
+ℕ.plus_assoc : (m n p : ℕ) → Id ℕ ((m + n) + p) (m + (n + p))
+ℕ.plus_assoc m n p = match m [
+| zero ↦ calc
+    (zero + n) + p
     = n + p
-    = zero. + (n + p) ∎
-| suc. m ↦ calc
-    (suc. m + n) + p
-    = suc. (m + n) + p
-    = suc. ((m + n) + p)
-    = suc. (m + (n + p))
-        by suc. (ℕ.plus_assoc m n p)
-    = suc. m + (n + p) ∎]
+    = zero + (n + p) ∎
+| suc m ↦ calc
+    (suc m + n) + p
+    = suc (m + n) + p
+    = suc ((m + n) + p)
+    = suc (m + (n + p))
+        by suc (ℕ.plus_assoc m n p)
+    = suc m + (n + p) ∎]

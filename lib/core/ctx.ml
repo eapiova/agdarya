@@ -286,6 +286,50 @@ module Ordered = struct
         let Zero = pf in
         pop (lookup ctx k)
 
+  let rec raw_name : type a b. (a, b) t -> a Raw.index -> string option option =
+   fun ctx k ->
+    match (ctx, k) with
+    | Emp, _ -> .
+    | Snoc (ctx, e, pf), _ -> raw_name_entry ctx e pf k
+    | Lock _, _ -> None
+
+  and raw_name_entry : type a b f af mn.
+      (a, b) t -> (f, mn) entry -> (a, f, af) N.plus -> af Raw.index -> string option option =
+   fun ctx e pf k ->
+    match e with
+    | Vis
+        (type m n f1 f2)
+        ({ vars; fplus; _ } : (m, n, mn, f1, f2, f) vis_data) -> (
+        let (Plus pf1) = N.plus (NICubeOf.out N.zero vars) in
+        let pf12 = N.plus_assocl pf1 fplus pf in
+        match N.index_in_plus pf12 (fst k) with
+        | Right _ -> None
+        | Left i -> (
+            let module Lookup = struct
+              type 'right t =
+                | Unfound : (a, 'right, 'rest) N.plus * 'rest N.index -> 'right t
+                | Found : string option -> 'right t
+            end in
+            let module Fold = NICubeOf.Traverse (Lookup) in
+            let lookup_folder : type left l.
+                (l, n) sface ->
+                (left, l, string option) NFamOf.t ->
+                left N.suc Lookup.t ->
+                left Lookup.t * (left, l, unit) NFamOf.t =
+             fun _ (NFamOf name) acc ->
+              match acc with
+              | Found name -> (Found name, NFamOf ())
+              | Unfound (Suc p, Pop k) -> (Unfound (p, k), NFamOf ())
+              | Unfound (_, Top) -> (Found name, NFamOf ()) in
+            match
+              Fold.fold_map_right { foldmap = (fun fb -> lookup_folder fb) } vars (Unfound (pf1, i))
+            with
+            | Unfound (Zero, j), _ -> raw_name ctx (j, snd k)
+            | Found name, _ -> Some name))
+    | Invis _ ->
+        let Zero = pf in
+        raw_name ctx k
+
   (* Look up a De Bruijn level in a context and find the corresponding possibly-invisible index, if one exists. *)
   let rec find_level : type a b. (a, b) t -> level -> b index option =
    fun ctx i ->
@@ -452,6 +496,7 @@ let apps (Permute { ctx; _ }) = Ordered.apps ctx
 
 (* Lookup is the only place where the permutations are used nontrivially: we apply the permutation to the raw index before looking it up. *)
 let lookup (Permute { perm; ctx; _ }) i = Ordered.lookup ctx (N.perm_apply perm (fst i), snd i)
+let raw_name (Permute { perm; ctx; _ }) i = Ordered.raw_name ctx (N.perm_apply perm (fst i), snd i)
 let find_level (Permute { ctx; _ }) x = Ordered.find_level ctx x
 
 (* To get the environment, we can now just return the precomputed one. *)

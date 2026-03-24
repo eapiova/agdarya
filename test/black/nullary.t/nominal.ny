@@ -1,17 +1,19 @@
-{` -*- narya-prog-args: ("-proofgeneral" "-parametric" "-arity" "0" "-direction" "w,wk") -*- `}
+{- -*- agdarya-prog-args: ("-proofgeneral" "-parametric" "-arity" "0" "-direction" "w,wk") -*- -}
 
-def И (A : Type) : Type ≔ codata [ x .subst.w : A.0 . ]
+И : (A : Set) → Set
+И A = codata [ subst⟨w⟩ x : A.0 . ]
 
-def toИ (A : Type) (a : A) : И A ≔ [ .subst.w ↦ a.0 ]
+toИ : (A : Set) → (a : A) → И A
+toИ A a = record { subst⟨w⟩ = a⟨0⟩ }
 
-axiom A : Type
+postulate A : Set
 
-axiom a : wk (И A) .
+postulate a : wk (И A) .
 
-echo a .subst
+echo a subst
 
-axiom b : wk (wk (И A)) . .
+postulate b : wk (wk (И A)) . .
 
-echo b .subst.1
+echo b subst⟨1⟩
 
-echo b .subst.2
+echo b subst⟨2⟩

@@ -1,0 +1,29 @@
+--langdef=agdarya{_autoFQTag}
+--map-agdarya=.ny
+
+--kinddef-agdarya=d,definition,definitions
+--kinddef-agdarya=a,axiom,axioms
+--kinddef-agdarya=s,section,sections
+
+--_tabledef-agdarya=toplevel
+--_tabledef-agdarya=linecomment
+--_tabledef-agdarya=blockcomment
+
+--_mtable-regex-agdarya=toplevel/def[ \t\n]+([^ \t\n]+)/\1/d/{scope=ref}
+--_mtable-regex-agdarya=toplevel/and[ \t\n]+([^ \t\n]+)/\1/d/{scope=ref}
+--_mtable-regex-agdarya=toplevel/axiom[ \t\n]+([^ \t\n]+)/\1/a/{scope=ref}
+--_mtable-regex-agdarya=toplevel/section[ \t\n]+([^ \t\n]+)/\1/s/{scope=push}
+--_mtable-regex-agdarya=toplevel/end///{placeholder}{scope=pop}
+--_mtable-regex-agdarya=toplevel/quit//{tquit}
+--_mtable-regex-agdarya=toplevel/\{`//{tenter=blockcomment}
+--_mtable-regex-agdarya=toplevel/`//{tenter=linecomment}
+--_mtable-regex-agdarya=toplevel/.//
+
+--_mtable-regex-agdarya=blockcomment/\{`//{tenter=blockcomment}
+--_mtable-regex-agdarya=blockcomment/`\}//{tleave}
+--_mtable-regex-agdarya=blockcomment/.//
+
+--_mtable-regex-agdarya=linecomment/\n//{tleave}
+--_mtable-regex-agdarya=linecomment/.//
+
+--extras=+q

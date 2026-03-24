@@ -5,7 +5,10 @@ module Trie = Yuujinchou.Trie
 
 module Param : sig
   type data =
-    [ `Constant of Constant.t | `Notation of User.prenotation * User.notation ]
+    [ `Constant of Constant.t
+    | `Constructor of Constr.t * Constant.t
+    | `Field of string * Constant.t
+    | `Notation of User.prenotation * User.notation ]
     * Asai.Range.t option
 
   type tag = unit
@@ -80,9 +83,19 @@ val start_section : string list -> unit
 val end_section : unit -> string list option
 val count_sections : unit -> int
 val lookup : Trie.path -> Constant.t option
+val lookup_notation : string -> (User.prenotation * User.notation) option
+val lookup_constr : Trie.path -> (Constr.t * Constant.t) option
+val lookup_field : Trie.path -> (string * Constant.t) option
+val lookup_field_at : Origin.t -> Trie.path -> (string * Constant.t) option
+val resolve_constr : Trie.path -> Constr.t option
+val resolve_field : Trie.path -> string option
+val with_local_constrs : (Trie.path * Constr.t) list -> (unit -> 'a) -> 'a
+val with_local_fields : string list -> (unit -> 'a) -> 'a
 val find_data : ('a * 'c, 'b) Trie.t -> 'a -> Trie.path option
 val name_of : Constant.t -> Trie.path
 val define : ?loc:Asai.Range.t -> Trie.path -> Constant.t
+val define_constr : ?loc:Asai.Range.t -> Trie.path -> Constr.t -> Constant.t -> unit
+val define_field : ?loc:Asai.Range.t -> Trie.path -> string -> Constant.t -> unit
 val define_notation : User.prenotation -> ?loc:Asai.Range.t -> Trie.path -> User.key list
 val check_name : Trie.path -> Asai.Range.t option -> unit
 
@@ -94,6 +107,8 @@ module Situation : sig
   val tighters : ('tight, 'strict) No.iinterval -> ('tight, 'strict) Notation.entry
   val left_opens_at : Origin.t -> Token.t -> No.interval option
   val left_opens : Token.t -> No.interval option
+  val binders_at : Origin.t -> Token.t -> User.notation list
+  val binders : Token.t -> User.notation list
   val unparse : Situation.PrintKey.t -> User.notation option
   val add : ('left, 'tight, 'right) Notation.notation -> unit
   val add_user : User.prenotation -> User.notation * User.key list

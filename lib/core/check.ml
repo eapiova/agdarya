@@ -204,6 +204,31 @@ let fresh_evar : type a b.
   let etm = eval_term (Ctx.env ctx) tm in
   (tm, { tm = etm; ty })
 
+let instantiate_unsolved_type_to_pi : type a b.
+    ?loc:Asai.Range.t ->
+    (a, b) Ctx.t ->
+    [ `Implicit | `Explicit ] ->
+    kinetic value ->
+    kinetic value option =
+ fun ?loc ctx impl ty ->
+  match Unify.unsolved_evar_head ty with
+  | Some (Unify.KE meta) ->
+      let cdom, dom_nf = fresh_evar ?loc ctx (universe D.zero) in
+      let newctx = Ctx.ext ctx None dom_nf.tm in
+      let ccod, _ = fresh_evar ?loc newctx (universe D.zero) in
+      let pi =
+        eval_term (Ctx.env ctx)
+          (Term.Pi
+             ( impl,
+               singleton_variables D.zero None,
+               CubeOf.singleton cdom,
+               CodCube.singleton ccod ))
+      in
+      (match Unify.solve ctx meta pi with
+      | Ok () -> Some (eval_term (Ctx.env ctx) (readback_val ctx ty))
+      | Error _ -> None)
+  | None -> None
+
 let ensure_subtype_or_unify : type a b.
     (a, b) Ctx.t -> kinetic value -> kinetic value -> (unit, Unequal.t) result =
  fun ctx got expected ->
@@ -527,135 +552,142 @@ let rec check : type a b s.
               (Unequal_synthesized_type
                  { got = PVal (ctx, sty); expected = PVal (ctx, ty); which = None; why }))
     | Lam { name = { value = x; loc = xloc }; cube; implicit; dom; body }, _ -> (
-        match view_type ~severity ty "typechecking lambda" with
-        | Canonical (_, Pi (impl, _, doms, cods), ins, tyargs) -> (
-            let Eq = eq_of_ins_zero ins in
-            (* TODO: Move this into a helper function, it's too long to go in here. *)
-            let m = CubeOf.dim doms in
-            let lam_impl =
-              match D.compare_zero m with
-              | Zero -> impl
-              | Pos _ -> `Explicit
-            in
-            (* If the domain was supplied, it must be a zero-dimensional lambda and it must match the checking domain, or at least contain it as a subtype (contravariance!). *)
-            (match (dom, D.compare_zero m) with
-            | Some _, Pos _ -> fatal (Unimplemented "domain-ascribed higher abstractions")
-            | Some dom, Zero -> (
-                let cdom = check (Kinetic `Nolet) ctx dom (universe D.zero) in
-                let edom = eval_term (Ctx.env ctx) cdom in
-                match subtype_of ctx (CubeOf.find_top doms) edom with
-                | Ok () -> ()
-                | Error why ->
-                    fatal ?loc:dom.loc
-                      (Unequal_synthesized_type
-                         {
-                           got = PVal (ctx, edom);
-                           expected = PVal (ctx, CubeOf.find_top doms);
-                           which = None;
-                           why;
-                         }))
-            | _ -> ());
-            (* A zero-dimensional parameter that is a discrete type doesn't block discreteness, but others do. *)
-            let discrete =
-              match D.compare m D.zero with
-              | Eq -> if is_discrete ?discrete (CubeOf.find_top doms) then discrete else None
-              | Neq -> None in
-            let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus m) in
-            (* Extend the context by one variable for each type in doms, instantiated at the appropriate previous ones. *)
-            let newargs, newnfs = dom_vars ctx doms in
-            (* A helper function to update the status *)
-            let mkstatus (type n) (xs : n variables) : (b, s) status -> ((b, n) snoc, s) status =
-              function
-              | Kinetic l -> Kinetic l
-              | Potential (c, args, hyp) ->
-                  let arg = CubeOf.mmap { map = (fun _ [ x ] -> Ctx.Binding.value x) } [ newnfs ] in
-                  Potential
-                    ( c,
-                      Arg (lam_impl, args, arg, ins_zero m),
-                      fun tm -> hyp (Term.Lam (lam_impl, xs, tm)) )
-              in
-            (* Apply and instantiate the codomain to those arguments to get a type to check the body at. *)
-            let output = tyof_app cods tyargs newargs in
-            match cube.value with
-            (* If the abstraction is not a cube, we slurp up the right number of lambdas for the dimension of the pi-type, requiring all but the top variable to be {implicit}, and pick up the body inside them.  We do this by building a cube of variables of the right dimension while maintaining the current term as an indexed state.  We also build a sum of raw lengths, since we need that to extend the context.  Note that we never need to manually "count" how many faces there are in a cube of any dimension, or discuss how to put them in order: the counting and ordering is handled automatically by iterating through a cube. *)
-            | `Normal -> (
-                let module S = struct
-                  type 'b t =
-                    | Ok : (a, 'b, 'ab) N.plus * 'ab check located -> 'b t
-                    | Missing of int
-                end in
-                let module Build = NICubeOf.Traverse (S) in
-                match
-                  Build.build_left m
-                    {
-                      build =
-                        (fun fa -> function
-                          | Ok
-                              ( ab,
-                                {
-                                  value =
-                                    Lam
-                                      {
-                                        name;
-                                        cube = { value = `Normal; _ };
-                                        implicit;
-                                        dom = _;
-                                        body;
-                                      };
-                                  _;
-                                } ) -> (
-                              let expected_implicit =
-                                match D.compare_zero m with
-                                | Zero -> impl
-                                | Pos _ -> (
-                                    match is_id_sface fa with
-                                    | Some _ -> `Explicit
-                                    | None -> `Implicit)
-                              in
-                              match (expected_implicit, implicit) with
-                              | `Explicit, `Implicit ->
-                                  fatal ?loc:name.loc
-                                    (Unexpected_implicitness
-                                       (`Implicit, "abstraction", "expecting explicit variable"))
-                              | `Implicit, `Explicit ->
-                                  fatal ?loc:name.loc
-                                    (Unexpected_implicitness
-                                       (`Explicit, "abstraction", "expecting implicit variable"))
-                              | _ -> Fwrap (NFamOf name.value, Ok (Suc ab, body)))
-                          | Ok (_, _) -> Fwrap (NFamOf None, Missing 1)
-                          | Missing j -> Fwrap (NFamOf None, Missing (j + 1)));
-                    }
-                    (Ok (Zero, tm))
-                with
-                | Wrap (names, Ok (af, body)) ->
-                    let xs = Variables (D.zero, D.zero_plus m, names) in
-                    let ctx = Ctx.vis ctx D.zero (D.zero_plus m) names newnfs af in
-                    Term.Lam (lam_impl, xs, check ?discrete (mkstatus xs status) ctx body output)
-                | Wrap (_, Missing j) -> fatal ?loc:cube.loc (Not_enough_lambdas j))
-            | `Cube absdim -> (
-                match (D.compare_zero m, implicit) with
-                | Zero, _ -> fatal ?loc:cube.loc (Zero_dimensional_cube_abstraction "function")
-                | _, `Implicit -> fatal (Unimplemented "general implicit functions")
-                | Pos _, `Explicit ->
-                    (match !absdim with
-                    | None -> absdim := Some (Wrap m, xloc)
-                    | Some (Wrap m', xloc') -> (
-                        match D.compare m m' with
-                        | Eq -> ()
-                        | Neq ->
-                            let extra_remarks =
-                              Option.to_list
-                                (Option.map
-                                   (fun loc -> Asai.Diagnostic.loctext ~loc "previous variable")
-                                   xloc') in
-                            fatal ?loc:xloc ~extra_remarks
-                              (Mismatched_dimensions_in_cube_abstraction (m', m))));
-                    (* Here we don't need to slurp up lots of lambdas, but can make do with one. *)
-                    let xs = singleton_variables m x in
-                    let ctx = Ctx.cube_vis ctx x newnfs in
-                    Term.Lam
-                      (`Explicit, xs, check ?discrete (mkstatus xs status) ctx body output)))
-        | _ -> fatal (Checking_lambda_at_nonfunction (PVal (ctx, ty))))
+        match
+          match cube.value with
+          | `Normal -> instantiate_unsolved_type_to_pi ?loc:tm.loc ctx implicit ty
+          | `Cube _ -> None
+        with
+        | Some ty -> check ?discrete status ctx tm ty
+        | None -> (
+            match view_type ~severity ty "typechecking lambda" with
+                | Canonical (_, Pi (impl, _, doms, cods), ins, tyargs) -> (
+                    let Eq = eq_of_ins_zero ins in
+                    (* TODO: Move this into a helper function, it's too long to go in here. *)
+                    let m = CubeOf.dim doms in
+                    let lam_impl =
+                      match D.compare_zero m with
+                      | Zero -> impl
+                      | Pos _ -> `Explicit
+                    in
+                    (* If the domain was supplied, it must be a zero-dimensional lambda and it must match the checking domain, or at least contain it as a subtype (contravariance!). *)
+                    (match (dom, D.compare_zero m) with
+                    | Some _, Pos _ -> fatal (Unimplemented "domain-ascribed higher abstractions")
+                    | Some dom, Zero -> (
+                        let cdom = check (Kinetic `Nolet) ctx dom (universe D.zero) in
+                        let edom = eval_term (Ctx.env ctx) cdom in
+                        match subtype_of ctx (CubeOf.find_top doms) edom with
+                        | Ok () -> ()
+                        | Error why ->
+                            fatal ?loc:dom.loc
+                              (Unequal_synthesized_type
+                                 {
+                                   got = PVal (ctx, edom);
+                                   expected = PVal (ctx, CubeOf.find_top doms);
+                                   which = None;
+                                   why;
+                                 }))
+                    | _ -> ());
+                    (* A zero-dimensional parameter that is a discrete type doesn't block discreteness, but others do. *)
+                    let discrete =
+                      match D.compare m D.zero with
+                      | Eq -> if is_discrete ?discrete (CubeOf.find_top doms) then discrete else None
+                      | Neq -> None in
+                    let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus m) in
+                    (* Extend the context by one variable for each type in doms, instantiated at the appropriate previous ones. *)
+                    let newargs, newnfs = dom_vars ctx doms in
+                    (* A helper function to update the status *)
+                    let mkstatus (type n) (xs : n variables) : (b, s) status -> ((b, n) snoc, s) status =
+                      function
+                      | Kinetic l -> Kinetic l
+                      | Potential (c, args, hyp) ->
+                          let arg = CubeOf.mmap { map = (fun _ [ x ] -> Ctx.Binding.value x) } [ newnfs ] in
+                          Potential
+                            ( c,
+                              Arg (lam_impl, args, arg, ins_zero m),
+                              fun tm -> hyp (Term.Lam (lam_impl, xs, tm)) )
+                    in
+                    (* Apply and instantiate the codomain to those arguments to get a type to check the body at. *)
+                    let output = tyof_app cods tyargs newargs in
+                    match cube.value with
+                    (* If the abstraction is not a cube, we slurp up the right number of lambdas for the dimension of the pi-type, requiring all but the top variable to be {implicit}, and pick up the body inside them.  We do this by building a cube of variables of the right dimension while maintaining the current term as an indexed state.  We also build a sum of raw lengths, since we need that to extend the context.  Note that we never need to manually "count" how many faces there are in a cube of any dimension, or discuss how to put them in order: the counting and ordering is handled automatically by iterating through a cube. *)
+                    | `Normal -> (
+                        let module S = struct
+                          type 'b t =
+                            | Ok : (a, 'b, 'ab) N.plus * 'ab check located -> 'b t
+                            | Missing of int
+                        end in
+                        let module Build = NICubeOf.Traverse (S) in
+                        match
+                          Build.build_left m
+                            {
+                              build =
+                                (fun fa -> function
+                                  | Ok
+                                      ( ab,
+                                        {
+                                          value =
+                                            Lam
+                                              {
+                                                name;
+                                                cube = { value = `Normal; _ };
+                                                implicit;
+                                                dom = _;
+                                                body;
+                                              };
+                                          _;
+                                        } ) -> (
+                                      let expected_implicit =
+                                        match D.compare_zero m with
+                                        | Zero -> impl
+                                        | Pos _ -> (
+                                            match is_id_sface fa with
+                                            | Some _ -> `Explicit
+                                            | None -> `Implicit)
+                                      in
+                                      match (expected_implicit, implicit) with
+                                      | `Explicit, `Implicit ->
+                                          fatal ?loc:name.loc
+                                            (Unexpected_implicitness
+                                               (`Implicit, "abstraction", "expecting explicit variable"))
+                                      | `Implicit, `Explicit ->
+                                          fatal ?loc:name.loc
+                                            (Unexpected_implicitness
+                                               (`Explicit, "abstraction", "expecting implicit variable"))
+                                      | _ -> Fwrap (NFamOf name.value, Ok (Suc ab, body)))
+                                  | Ok (_, _) -> Fwrap (NFamOf None, Missing 1)
+                                  | Missing j -> Fwrap (NFamOf None, Missing (j + 1)));
+                            }
+                            (Ok (Zero, tm))
+                        with
+                        | Wrap (names, Ok (af, body)) ->
+                            let xs = Variables (D.zero, D.zero_plus m, names) in
+                            let ctx = Ctx.vis ctx D.zero (D.zero_plus m) names newnfs af in
+                            Term.Lam (lam_impl, xs, check ?discrete (mkstatus xs status) ctx body output)
+                        | Wrap (_, Missing j) -> fatal ?loc:cube.loc (Not_enough_lambdas j))
+                    | `Cube absdim -> (
+                        match (D.compare_zero m, implicit) with
+                        | Zero, _ -> fatal ?loc:cube.loc (Zero_dimensional_cube_abstraction "function")
+                        | _, `Implicit -> fatal (Unimplemented "general implicit functions")
+                        | Pos _, `Explicit ->
+                            (match !absdim with
+                            | None -> absdim := Some (Wrap m, xloc)
+                            | Some (Wrap m', xloc') -> (
+                                match D.compare m m' with
+                                | Eq -> ()
+                                | Neq ->
+                                    let extra_remarks =
+                                      Option.to_list
+                                        (Option.map
+                                           (fun loc -> Asai.Diagnostic.loctext ~loc "previous variable")
+                                           xloc') in
+                                    fatal ?loc:xloc ~extra_remarks
+                                      (Mismatched_dimensions_in_cube_abstraction (m', m))));
+                            (* Here we don't need to slurp up lots of lambdas, but can make do with one. *)
+                            let xs = singleton_variables m x in
+                            let ctx = Ctx.cube_vis ctx x newnfs in
+                            Term.Lam
+                              (`Explicit, xs, check ?discrete (mkstatus xs status) ctx body output)))
+                | _ -> fatal (Checking_lambda_at_nonfunction (PVal (ctx, ty)))))
     | Struct (Noeta, tms), Potential _ -> (
         match view_type ~severity ty "typechecking comatch" with
         | Canonical (name, Codata ({ eta = Noeta; _ } as codata_args), ins, tyargs) ->
@@ -833,6 +865,7 @@ let rec check : type a b s.
           else { value = Raw.Constr (quot, [ process_nat n.num; process_pos n.den ]); loc = tm.loc }
         in
         check ?discrete status ctx numeral ty
+    | Infer_type, _ -> fatal (Anomaly "Infer_type outside telescope checking")
     | Synth (Match { tm; sort = `Implicit; branches; refutables; highers }), Potential _ ->
         check_implicit_match status ctx tm branches refutables highers ty
     | Synth (Match { tm; sort = `Nondep i; branches; refutables = _; highers }), Potential _ ->
@@ -3253,6 +3286,51 @@ and synth : type a b s.
   (restm, resty)
 
 (* Given something that can be applied, its type, and a list of arguments, check the arguments in appropriately-sized groups. *)
+and try_lower_field_projection : type a b.
+    (a, b) Ctx.t ->
+    (b, kinetic) term located ->
+    kinetic value ->
+    a check located ->
+    a check option located ->
+    (((b, kinetic) term located * kinetic value) * a check located) option =
+ fun ctx sfn sty fn arg ->
+  let name =
+    match arg.value with
+    | Some (Synth (Var (i, None))) -> (
+        match Ctx.raw_name ctx (i, None) with
+        | Some (Some name) -> Some name
+        | _ -> None)
+    | Some (Synth (Const c)) -> (
+        match Constant.name_of c with
+        | Some [ name ] -> Some name
+        | _ -> None)
+    | _ -> None in
+  match name with
+  | None -> None
+  | Some name -> (
+      match view_type sty "lower-field fallback" with
+      | Canonical (_, Codata { fields; _ }, _, _) -> (
+          match Term.CodatafieldAbwd.find_string_opt fields name with
+          | Some (Term.CodatafieldAbwd.Entry (_, Term.Codatafield.Higher _)) -> None
+          | Some (Term.CodatafieldAbwd.Entry (_, Term.Codatafield.Lower _)) ->
+              let etm = eval_term (Ctx.env ctx) sfn.value in
+              let WithIns (fld, ins), newty = tyof_field_withname ctx (Ok etm) sty (`Name (name, [])) in
+              let raw =
+                match fn.value with
+                | Synth sraw ->
+                    let loc =
+                      match arg.loc with
+                      | Some _ as loc -> loc
+                      | None -> sfn.loc in
+                    locate_opt loc (Synth (Raw.Field (locate_opt fn.loc sraw, `Name (name, []))))
+                | _ -> fn in
+              Some
+                ( ( locate_opt sfn.loc (Term.Field (sfn.value, fld, ins)),
+                    newty ),
+                  raw )
+          | None -> None)
+      | _ -> None)
+
 and synth_apps : type a b.
     (a, b) Ctx.t ->
     (b, kinetic) term located ->
@@ -3261,6 +3339,53 @@ and synth_apps : type a b.
     (Asai.Range.t option * a check option located * [ `Implicit | `Explicit ] located) list ->
     (b, kinetic) term * kinetic value =
  fun ctx sfn sty fn args ->
+  match args with
+  | (_, _, { value = impl; _ }) :: _ -> (
+      match instantiate_unsolved_type_to_pi ?loc:sfn.loc ctx impl sty with
+      | Some sty -> synth_apps ctx sfn sty fn args
+      | None ->
+          (* To determine what to do, we inspect the (fully instantiated) *type* of the function being applied.  Failure of view_type here is really a bug, not a user error: the user can try to check something against an abstraction as if it were a type, but our synthesis functions should never synthesize (say) a lambda-abstraction as if it were a type. *)
+          let asfn, aty, afn, aargs =
+            match view_type sty "synthesizing application spine" with
+            (* The obvious thing we can "apply" is an element of a pi-type. *)
+            | Canonical (_, Pi (impl, _, doms, cods), ins, tyargs) ->
+                let Eq = eq_of_ins_zero ins in
+                let insert_implicit () =
+                  match (impl, args, D.compare_zero (CubeOf.dim doms)) with
+                  | `Implicit, ((_, _, { value = `Explicit; _ }) :: _), Zero ->
+                      let meta_tm, meta_nf = fresh_evar ?loc:fn.loc ctx (CubeOf.find_top doms) in
+                      let new_sfn =
+                        locate_opt sfn.loc (Term.App (`Implicit, sfn.value, CubeOf.singleton meta_tm)) in
+                      let new_sty = refresh_value ctx (tyof_app cods tyargs (CubeOf.singleton meta_nf.tm)) in
+                      Some (new_sfn, new_sty, fn, args)
+                  | _ -> None in
+                (match insert_implicit () with
+                | Some result -> result
+                | None -> synth_app ctx impl sfn doms cods tyargs fn args)
+            (* We can also "apply" a higher-dimensional *type*, leading to a (further) instantiation of it.  Here the number of arguments must exactly match *some* integral instantiation. *)
+            | Canonical (_, UU _, _, tyargs) -> synth_inst ctx sfn tyargs fn args
+            (* Something that synthesizes a type that isn't a pi-type or a universe cannot be applied to anything, but this is a user error, not a bug. *)
+            | _ -> (
+                match args with
+                | (_, arg, { value = `Explicit; _ }) :: rest -> (
+                    match try_lower_field_projection ctx sfn sty fn arg with
+                    | Some ((asfn, aty), afn) -> (asfn, aty, afn, rest)
+                    | None ->
+                        fatal ?loc:sfn.loc
+                          (Applying_nonfunction_nontype (PTerm (ctx, sfn.value), PVal (ctx, sty))))
+                | _ ->
+                    fatal ?loc:sfn.loc (Applying_nonfunction_nontype (PTerm (ctx, sfn.value), PVal (ctx, sty))))
+          in
+          (* synth_app and synth_inst fail if there aren't enough arguments.  If they used up all the arguments, we're done; otherwise we continue with the rest of the arguments. *)
+          match aargs with
+          | [] -> (asfn.value, aty)
+          | _ :: _ ->
+              with_loc asfn.loc (fun () ->
+                  Annotate.ctx (Kinetic `Nolet) ctx afn;
+                  Annotate.ty ctx aty;
+                  Annotate.tm ctx asfn.value);
+              synth_apps ctx asfn aty afn aargs)
+  | [] ->
   (* To determine what to do, we inspect the (fully instantiated) *type* of the function being applied.  Failure of view_type here is really a bug, not a user error: the user can try to check something against an abstraction as if it were a type, but our synthesis functions should never synthesize (say) a lambda-abstraction as if it were a type. *)
   let asfn, aty, afn, aargs =
     match view_type sty "synthesizing application spine" with
@@ -3282,8 +3407,16 @@ and synth_apps : type a b.
     (* We can also "apply" a higher-dimensional *type*, leading to a (further) instantiation of it.  Here the number of arguments must exactly match *some* integral instantiation. *)
     | Canonical (_, UU _, _, tyargs) -> synth_inst ctx sfn tyargs fn args
     (* Something that synthesizes a type that isn't a pi-type or a universe cannot be applied to anything, but this is a user error, not a bug. *)
-    | _ ->
-        fatal ?loc:sfn.loc (Applying_nonfunction_nontype (PTerm (ctx, sfn.value), PVal (ctx, sty)))
+    | _ -> (
+        match args with
+        | (_, arg, { value = `Explicit; _ }) :: rest -> (
+            match try_lower_field_projection ctx sfn sty fn arg with
+            | Some ((asfn, aty), afn) -> (asfn, aty, afn, rest)
+            | None ->
+                fatal ?loc:sfn.loc
+                  (Applying_nonfunction_nontype (PTerm (ctx, sfn.value), PVal (ctx, sty))))
+        | _ ->
+            fatal ?loc:sfn.loc (Applying_nonfunction_nontype (PTerm (ctx, sfn.value), PVal (ctx, sty))))
   in
   (* synth_app and synth_inst fail if there aren't enough arguments.  If they used up all the arguments, we're done; otherwise we continue with the rest of the arguments. *)
   match aargs with
@@ -3708,11 +3841,15 @@ and check_tel : type a b c ac.
     (a, b) Ctx.t ->
     (a, c, ac) Raw.tel ->
     (a, b, c, ac) checked_tel * bool =
- fun ?discrete ctx tel ->
+fun ?discrete ctx tel ->
   match tel with
   | Emp -> (Checked_tel (Emp, ctx), Option.is_some discrete)
   | Ext (x, ty, tys) ->
-      let cty = check (Kinetic `Nolet) ctx ty (universe D.zero) in
+      let cty =
+        match ty.value with
+        | Infer_type -> fst (fresh_evar ?loc:ty.loc ctx (universe D.zero))
+        | _ -> check (Kinetic `Nolet) ctx ty (universe D.zero)
+      in
       let ety = eval_term (Ctx.env ctx) cty in
       let _, newnfs = dom_vars ctx (CubeOf.singleton ety) in
       let ctx = Ctx.cube_vis ctx x newnfs in

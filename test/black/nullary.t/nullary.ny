@@ -1,33 +1,33 @@
-{` -*- narya-prog-args: ("-proofgeneral" "-parametric" "-arity" "0" "-direction" "w,wk") -*- `}
+{- -*- agdarya-prog-args: ("-proofgeneral" "-parametric" "-arity" "0" "-direction" "w,wk") -*- -}
 
-axiom A : Type
+postulate A : Set
 echo wk A
 echo A⁽ʷ⁾
 echo wk (wk A)
 
-axiom a : A
+postulate a : A
 echo wk a
 echo wk (wk a)
 
-axiom a' : wk A .
+postulate a' : wk A .
 echo a'
 echo wk a'
 echo sym (wk a')
 
-axiom a'' : A⁽ʷʷ⁾ . .
+postulate a'' : A⁽ʷʷ⁾ . .
 echo a''
 echo sym a''
 echo wk a''
 echo sym (wk a'')
 
-axiom B : Type⁽ʷ⁾ .
-axiom b : B .
+postulate B : Set⁽ʷ⁾ .
+postulate b : B .
 echo b
 echo wk b
 echo sym (wk b)
 
-axiom C : Type⁽ʷʷ⁾ . .
-axiom c : C . .
+postulate C : Set⁽ʷʷ⁾ . .
+postulate c : C . .
 echo c
 echo sym c
 echo wk c

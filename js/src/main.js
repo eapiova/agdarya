@@ -50,12 +50,12 @@ rl.setCheckHandler((text) => {
 });
 
 function readLine() {
-    term.write("\x1B[4mnarya\x1B[0m\n\r");
+    term.write("\x1B[4magdarya\x1B[0m\n\r");
     rl.read("").then(processLine);
 }
 
 function processLine(text) {
-    rl.println(Narya.execute(text));
+    rl.println(Agdarya.execute(text));
     setTimeout(readLine);
 }
 
@@ -64,7 +64,7 @@ function start() {
 
     var startupcode = startup.value
     
-    var err = Narya.start(arity.value, direction.value, internal.checked, discreteness.checked, startupcode);
+    var err = Agdarya.start(arity.value, direction.value, internal.checked, discreteness.checked, startupcode);
     if (!err) {
         arity.disabled = true;
         direction.disabled = true;

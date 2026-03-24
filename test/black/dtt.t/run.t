@@ -1,4 +1,4 @@
-  $ narya -dtt -v sst.ny
+  $ agdarya -dtt -v sst.ny
    ￫ info[I0000]
    ￮ constant Gel defined
   
@@ -24,71 +24,71 @@
    ￮ constant Sing defined
   
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
   A
-    : Type
+    : Set
   
    ￫ info[I0001]
-   ￮ axiom a₀ assumed
+   ￮ postulate a₀ assumed
   
    ￫ info[I0001]
-   ￮ axiom a₁ assumed
+   ￮ postulate a₁ assumed
   
-  Gel A (y ↦ eq A a₀ y) a₁
-    : Type
-  
-   ￫ info[I0001]
-   ￮ axiom a₀₁ assumed
+  Gel A (λ y → eq A a₀ y) a₁
+    : Set
   
    ￫ info[I0001]
-   ￮ axiom a₂ assumed
+   ￮ postulate a₀₁ assumed
   
    ￫ info[I0001]
-   ￮ axiom a₀₂ assumed
+   ￮ postulate a₂ assumed
   
    ￫ info[I0001]
-   ￮ axiom a₁₂ assumed
-  
-  Gel⁽ᵈ⁾ (Gel A (y ↦ eq A a₀ y)) {y ↦ eq A a₁ y}
-    (y ⤇ eq⁽ᵈ⁾ (Gel A (y′ ↦ eq A a₀ y′)) a₀₁ y.1) a₀₂ a₁₂
-    : Type
+   ￮ postulate a₀₂ assumed
   
    ￫ info[I0001]
-   ￮ axiom a₀₁₂ assumed
+   ￮ postulate a₁₂ assumed
+  
+  Gel⁽ᵈ⁾ (Gel A (λ y → eq A a₀ y)) {λ y → eq A a₁ y}
+    (y ⤇ eq⁽ᵈ⁾ (Gel A (λ y′ → eq A a₀ y′)) a₀₁ y.1) a₀₂ a₁₂
+    : Set
   
    ￫ info[I0001]
-   ￮ axiom a₃ assumed
+   ￮ postulate a₀₁₂ assumed
   
    ￫ info[I0001]
-   ￮ axiom a₀₃ assumed
+   ￮ postulate a₃ assumed
   
    ￫ info[I0001]
-   ￮ axiom a₁₃ assumed
+   ￮ postulate a₀₃ assumed
   
    ￫ info[I0001]
-   ￮ axiom a₀₁₃ assumed
+   ￮ postulate a₁₃ assumed
   
    ￫ info[I0001]
-   ￮ axiom a₂₃ assumed
+   ￮ postulate a₀₁₃ assumed
   
    ￫ info[I0001]
-   ￮ axiom a₀₂₃ assumed
+   ￮ postulate a₂₃ assumed
   
    ￫ info[I0001]
-   ￮ axiom a₁₂₃ assumed
+   ￮ postulate a₀₂₃ assumed
+  
+   ￫ info[I0001]
+   ￮ postulate a₁₂₃ assumed
   
   Gel⁽ᵈᵈ⁾
-    (Gel⁽ᵈ⁾ (Gel A (y ↦ eq A a₀ y)) {y ↦ eq A a₁ y}
-       (y ⤇ eq⁽ᵈ⁾ (Gel A (y′ ↦ eq A a₀ y′)) a₀₁ y.1)) {y ↦ eq A a₂ y}
-    {y ⤇ eq⁽ᵈ⁾ (Gel A (y′ ↦ eq A a₀ y′)) a₀₂ y.1}
-    {y ⤇ eq⁽ᵈ⁾ (Gel A (y′ ↦ eq A a₁ y′)) a₁₂ y.1}
+    (Gel⁽ᵈ⁾ (Gel A (λ y → eq A a₀ y)) {λ y → eq A a₁ y}
+       (y ⤇ eq⁽ᵈ⁾ (Gel A (λ y′ → eq A a₀ y′)) a₀₁ y.1)) {λ y → eq A a₂ y}
+    {y ⤇ eq⁽ᵈ⁾ (Gel A (λ y′ → eq A a₀ y′)) a₀₂ y.1}
+    {y ⤇ eq⁽ᵈ⁾ (Gel A (λ y′ → eq A a₁ y′)) a₁₂ y.1}
     (y ⤇
      eq⁽ᵈᵈ⁾
-       (Gel⁽ᵈ⁾ (Gel A (y′ ↦ eq A a₀ y′)) {y′ ↦ eq A a₁ y′}
-          (y′ ⤇ eq⁽ᵈ⁾ (Gel A (y″ ↦ eq A a₀ y″)) a₀₁ y′.1)) a₀₁₂ y.11) a₀₁₃
+       (Gel⁽ᵈ⁾ (Gel A (λ y′ → eq A a₀ y′)) {λ y′ → eq A a₁ y′}
+          (y′ ⤇ eq⁽ᵈ⁾ (Gel A (λ y″ → eq A a₀ y″)) a₀₁ y′.1)) a₀₁₂ y.11) a₀₁₃
     a₀₂₃ a₁₂₃
-    : Type
+    : Set
   
    ￫ info[I0000]
    ￮ constant sst.∅ defined
@@ -97,7 +97,7 @@
    ￮ constant sst.𝟙 defined
   
    ￫ info[I0000]
-   ￮ constant sst.prod defined
+   ￮ constant sst_prod defined
   
    ￫ info[I0000]
    ￮ constant sst.Σ defined
@@ -112,7 +112,7 @@
    ￮ constant ASST defined
   
    ￫ info[I0000]
-   ￮ constant sst.pt defined
+   ￮ constant sst_pt defined
   
    ￫ info[I0000]
    ￮ constant sst.hom defined
@@ -130,7 +130,7 @@
    ￮ constant sst.uniq defined
   
    ￫ info[I0000]
-   ￮ constant sst.pair defined
+   ￮ constant sst_pair defined
   
    ￫ info[I0000]
    ￮ constant sst.abortz defined
@@ -141,8 +141,11 @@
    ￫ info[I0000]
    ￮ constant sst.copair defined
   
+   ￫ warning[W2305]
+   ￮ can't write compiled file: $TESTCASE_ROOT/sst.nyo
+  
 
-  $ narya -parametric -arity 2 -direction p -external -v sct.ny
+  $ agdarya -parametric -arity 2 -direction p -external -v sct.ny
    ￫ info[I0000]
    ￮ constant SCT defined
   
@@ -155,117 +158,101 @@
    ￫ info[I0000]
    ￮ constant 2s defined
   
-  $ narya -dtt -e "def foo (X:Type) : Type^^(d) X := X^^(d)"
+  $ agdarya -dtt -e "foo : (X:Set) → Set^^(d) X" -e "foo X = X^^(d)"
    ￫ error[E0310]
    ￭ command-line exec string
-   1 | def foo (X:Type) : Type^^(d) X := X^^(d)
+   1 | foo X = X^^(d)
      ^ variable not available inside external degeneracy
   
   [1]
 
 Can't take external degeneracies of nonparametric axioms.
 
-  $ narya -dtt -v -e "axiom #(nonparametric) A : Type" -e "echo A⁽ᵈ⁾"
+  $ agdarya -dtt -v -e "postulate #(nonparametric) A : Set" -e "echo A⁽ᵈ⁾"
    ￫ info[I0001]
-   ￮ nonparametric axiom A assumed
+   ￮ nonparametric postulate A assumed
   
    ￫ error[E0311]
    ￭ command-line exec string
    1 | echo A⁽ᵈ⁾
-     ^ constant A is or uses a nonparametric axiom, can't appear inside an external degeneracy
+     ^ constant A is or uses a nonparametric postulate, can't appear inside an external degeneracy
   
   [1]
 
-Or of anything that uses a nonparametric axiom.
+Or of anything that uses a nonparametric postulate.
 
-  $ narya -dtt -v -e "axiom #(nonparametric) A : Type def f : A → A ≔ x ↦ x echo f⁽ᵈ⁾"
+  $ agdarya -dtt -v -e "postulate #(nonparametric) A : Set" -e "f : A → A" -e "f x = x" -e "echo f⁽ᵈ⁾"
    ￫ info[I0001]
-   ￮ nonparametric axiom A assumed
+   ￮ nonparametric postulate A assumed
   
    ￫ info[I0000]
    ￮ nonparametric constant f defined
   
    ￫ error[E0311]
    ￭ command-line exec string
-   1 | axiom #(nonparametric) A : Type def f : A → A ≔ x ↦ x echo f⁽ᵈ⁾
-     ^ constant f is or uses a nonparametric axiom, can't appear inside an external degeneracy
+   1 | echo f⁽ᵈ⁾
+     ^ constant f is or uses a nonparametric postulate, can't appear inside an external degeneracy
   
   [1]
 
-All axioms using a nonparametric axiom must also be nonparametric
+All axioms using a nonparametric postulate must also be nonparametric
 
-  $ narya -dtt -v -e "axiom #(nonparametric) A : Type axiom #(nonparametric) a : A axiom a' : A"
+  $ agdarya -dtt -v -e "postulate #(nonparametric) A : Set postulate #(nonparametric) a : A postulate a' : A"
    ￫ info[I0001]
-   ￮ nonparametric axiom A assumed
+   ￮ nonparametric postulate A assumed
   
    ￫ info[I0001]
-   ￮ nonparametric axiom a assumed
+   ￮ nonparametric postulate a assumed
   
    ￫ error[E0312]
    ￭ command-line exec string
-   1 | axiom #(nonparametric) A : Type axiom #(nonparametric) a : A axiom a' : A
-     ^ constant A is or uses a nonparametric axiom, can't be used in a parametric command
+   1 | postulate #(nonparametric) A : Set postulate #(nonparametric) a : A postulate a' : A
+     ^ constant A is or uses a nonparametric postulate, can't be used in a parametric command
   
   [1]
 
 
 We check that a family of mutual definitions can apply external degeneracies to each other.  This was an issue once because they are temporarily defined as "axioms" during definition, and by default axioms don't admit external degeneracies.
 
-  $ narya -dtt -v -e "def X : Type ≔ Type and Y : (x : X) → X⁽ᵈ⁾ x ≔ ?"
+  $ agdarya -dtt -v -e "X : Set" -e "X = Set" -e "Y : (x : X) → X⁽ᵈ⁾ x" -e "Y x = ?"
    ￫ info[I0000]
-   ￮ constants defined mutually, containing 1 hole:
-       X
-       Y
+   ￮ constant X defined
+  
+   ￫ info[I0000]
+   ￮ constant Y defined, containing 1 hole
   
    ￫ info[I3003]
    ￮ hole ?0:
      
+     x : Set
      ----------------------------------------------------------------------
-     (x : Type) → Type⁽ᵈ⁾ x
+     Set⁽ᵈ⁾ x
   
    ￫ error[E3002]
    ￮ command-line exec string contains open holes
   
   [1]
 
-But if one of them uses an axiom, the others don't have external degeneracies either.
+But if one of them uses an postulate, the others don't have external degeneracies either.
 
-  $ narya -dtt -v -e "axiom #(nonparametric) A:Type def f : Type := A and g : Type := sig () echo g⁽ᵈ⁾"
+  $ agdarya -dtt -v -e "postulate #(nonparametric) A:Set" -e "f : Set" -e "f = A" -e "g : Set" -e "g = sig ()" -e "echo g⁽ᵈ⁾"
    ￫ info[I0001]
-   ￮ nonparametric axiom A assumed
+   ￮ nonparametric postulate A assumed
   
    ￫ info[I0000]
-   ￮ nonparametric constants defined mutually:
-       f
-       g
+   ￮ nonparametric constant f defined
   
-   ￫ error[E0311]
-   ￭ command-line exec string
-   1 | axiom #(nonparametric) A:Type def f : Type := A and g : Type := sig () echo g⁽ᵈ⁾
-     ^ constant g is or uses a nonparametric axiom, can't appear inside an external degeneracy
+   ￫ info[I0000]
+   ￮ constant g defined
+  
+  g⁽ᵈ⁾
+    : Set⁽ᵈ⁾ g
+  
+
+When a constant is defined containing a hole, it is allowed to be parametric, but then the hole cannot be filled by any term that uses an postulate.
+
+  $ agdarya -dtt -v -fake-interact "postulate #(nonparametric) A:Set" "B : Set" "B = ?" "echo B⁽ᵈ⁾" "solve 0 := A"
+   ￫ error[E2302]
+   ￮ filename 'B : Set' does not have 'ny' extension
   
   [1]
-
-When a constant is defined containing a hole, it is allowed to be parametric, but then the hole cannot be filled by any term that uses an axiom.
-
-  $ narya -dtt -v -fake-interact "axiom #(nonparametric) A:Type def B:Type := ? echo B⁽ᵈ⁾ solve 0 := A"
-   ￫ info[I0001]
-   ￮ nonparametric axiom A assumed
-  
-   ￫ info[I0000]
-   ￮ constant B defined, containing 1 hole
-  
-   ￫ info[I3003]
-   ￮ hole ?0:
-     
-     ----------------------------------------------------------------------
-     Type
-  
-  B⁽ᵈ⁾
-    : Type⁽ᵈ⁾ B
-  
-   ￫ error[E0312]
-   ￭ command line fake-interact
-   1 | axiom #(nonparametric) A:Type def B:Type := ? echo B⁽ᵈ⁾ solve 0 := A
-     ^ constant A is or uses a nonparametric axiom, can't be used in a parametric command
-  

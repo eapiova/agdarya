@@ -1,9 +1,9 @@
 Echo and synth
 
-  $ narya -e 'def A : Type ≔ Type' -e 'echo A' -e 'synth A'
-  Type
-    : Type
+  $ agdarya -e 'A : Set' -e 'A = Set' -e 'echo A' -e 'synth A'
+  Set
+    : Set
   
   A
-    : Type
+    : Set
   

@@ -1,15 +1,15 @@
-;; narya-syntax.el --- Proof General instance for Narya - syntax file
+;; agdarya-syntax.el --- Proof General instance for Agdarya - syntax file
 
 ;; We omit "display", "solve", "split", "show", "undo", and "chdir" because these should NOT appear in source files.
-(defconst narya-commands
-  "\\_<\\(axiom\\|def\\|echo\\|synth\\|notation\\|import\\|export\\|quit\\|section\\|option\\|end\\)\\_>")
+(defconst agdarya-commands
+  "\\_<\\(postulate\\|def\\|echo\\|synth\\|notation\\|import\\|export\\|quit\\|section\\|option\\|end\\)\\_>")
 
 ;; As noted in the PG source, the default function proof-generic-state-preserving-p is not really correct; it thinks that things like "def" are state-preserving.  These are the commands that it makes sense for PG to issue directly to the prover without their being in the file.
-(defun narya-state-preserving-p (cmd)
+(defun agdarya-state-preserving-p (cmd)
   (string-match "^echo\\|synth\\|show\\|display" cmd))
 
 ;; TODO: Do this for everything else too.
-(defun narya-highlight-abstractions (limit)
+(defun agdarya-highlight-abstractions (limit)
   "Font-lock search function to find abstractions.
 Only finds abstractions with a sequence of variables separated by
 whitespace (no comments).  Finds the arguments of a simple match pattern
@@ -21,7 +21,7 @@ Does not handle sequences of abstraction variables broken across lines."
     (backward-char 1)
     t))
 
-(defun narya-next-hole-subdivision (limit)
+(defun agdarya-next-hole-subdivision (limit)
   "Look for the next hole-ending or subdivision-delimiting sequence.
 Skips over nested holes.
 
@@ -52,7 +52,7 @@ END, and moves point to END."
         (list (= nesting 0) (match-beginning 3) (match-end 3))
       nil)))
 
-(defun narya-highlight-holes (limit)
+(defun agdarya-highlight-holes (limit)
   "Font-lock search function to find holes.
 Highlights their starting, ending, and subdivider sequences as
 subexpressions 1 and 3 (with 3 sometimes missing), and their interiors
@@ -65,7 +65,7 @@ subdivisions."
           (start-end (set-marker (make-marker) (match-end 0))))
       ;; Now look for the next hole-ending or subdivision-delimiting
       ;; sequence, skipping over nested holes.
-      (let ((data (narya-next-hole-subdivision limit)))
+      (let ((data (agdarya-next-hole-subdivision limit)))
         (if data
             (let ((end-start (set-marker (make-marker) (nth 1 data)))
                   (end-end (set-marker (make-marker) (nth 2 data))))
@@ -96,19 +96,19 @@ subdivisions."
 
 ;; Yes, the face names here actually have to be *quoted*, even though the entire list is *also* quoted.  I think font lock expects an expression there that it *evaluates*, and while some of the faces are also variables whose value is the face of the same name, some aren't.  So we ought to quote them all.
 ;; Many of these regexps are simplistic and will get confused if there are comments interspersed.  They also depend on font-lock-multiline being set to t.
-(defconst narya-core-font-lock-keywords
+(defconst agdarya-core-font-lock-keywords
   `(
     ;; Holes with contents
-    (narya-highlight-holes
+    (agdarya-highlight-holes
      (1 'font-lock-warning-face)
      (2 'default t)
      (3 'font-lock-warning-face nil t))
 
-    (,narya-commands . 'font-lock-keyword-face)
-    ("\\_<\\(Type\\|let\\|rec\\|in\\|and\\|match\\|return\\|sig\\|data\\|codata\\|Id\\|refl\\|sym\\)\\_>" 1 'font-lock-builtin-face)
+    (,agdarya-commands . 'font-lock-keyword-face)
+    ("\\_<\\(Set\\|let\\|rec\\|in\\|and\\|match\\|return\\|sig\\|data\\|codata\\|Id\\|refl\\|sym\\)\\_>" 1 'font-lock-builtin-face)
 
     ;; Constants being defined.
-    ("\\_<\\(axiom\\|def\\)[[:space:]\n]+\\([[:word:]_.']+\\)\\_>" 2 'font-lock-function-name-face)
+    ("\\_<\\(postulate\\|def\\)[[:space:]\n]+\\([[:word:]_.']+\\)\\_>" 2 'font-lock-function-name-face)
 
     ;; Fields/methods
     ("\\_<\\.[[:word:]_.']+\\_>" . 'font-lock-property-name-face)
@@ -125,7 +125,7 @@ subdivisions."
     ;; Variables bound by let-bindings
     ("\\_<\\(let[[:space:]\n]+rec\\|let\\|and\\)[[:space:]\n]+\\([[:word:]_']+\\)\\_>" 2 'font-lock-variable-name-face)
     ;; Variables bound by abstractions
-    (narya-highlight-abstractions 1 'font-lock-variable-name-face)
+    (agdarya-highlight-abstractions 1 'font-lock-variable-name-face)
     ;; Self variables in codata declarations.
     ("[[|][[:space:]\n]*\\([[:word:]_']+\\)[[:space:]\n]*\\(↦\\||->\\)" 1 'font-lock-variable-name-face)
     ;; Variables bound in telescopes (parameters or dependent-function arguments)
@@ -141,12 +141,12 @@ subdivisions."
     ;; "keywords" used only in import statements.  We put them last so they don't prevent other things.
     ("\\_<\\(all\\|id\\|none\\|only\\|except\\|renaming\\|seq\\|union\\)\\_>" . 'font-lock-builtin-face)
     )
-  "Narya core language font-lock keywords")
+  "Agdarya core language font-lock keywords")
 
-(defconst narya-script-font-lock-keywords
-  (append narya-core-font-lock-keywords))
+(defconst agdarya-script-font-lock-keywords
+  (append agdarya-core-font-lock-keywords))
 
-(defconst narya-mode-syntax-table-entries
+(defconst agdarya-mode-syntax-table-entries
   (append
    ;; By default, everything can be part of a word.
    `((128 . ,(max-char)) "w")
@@ -158,7 +158,7 @@ subdivisions."
    ;; Whitespace
    '(?  " ")
    '(?\t " ")
-   ;; Symbol constituents, which for Narya means things that can appear in identifiers like "namespace.function" or "x.01" or "long_function_name" or "f''", but which are not part of "words".  Thus an identifier can consist of multiple "words" which are moved through separately by commands like forwards-word.  That means that we can't use \< and \> in regexps to detect the beginning or end of identifiers; we have to use \_< and \_> instead.
+   ;; Symbol constituents, which for Agdarya means things that can appear in identifiers like "namespace.function" or "x.01" or "long_function_name" or "f''", but which are not part of "words".  Thus an identifier can consist of multiple "words" which are moved through separately by commands like forwards-word.  That means that we can't use \< and \> in regexps to detect the beginning or end of identifiers; we have to use \_< and \_> instead.
    '(?. "_")
    '(?_ "_")
    '(?' "_")
@@ -205,7 +205,7 @@ subdivisions."
    '(?⁇ ".")
    ))
 
-(provide 'narya-syntax)
+(provide 'agdarya-syntax)
 
 ;; Local Variables:
 ;; indent-tabs-mode: nil

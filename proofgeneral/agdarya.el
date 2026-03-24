@@ -1,4 +1,4 @@
-;;;narya.el --- Proof General instance for Narya
+;;;agdarya.el --- Proof General instance for Agdarya
 
 (eval-and-compile
   (require 'proof-site)
@@ -6,41 +6,41 @@
   (require 'proof)
   (require 'proof-config)
   (require 'proof-easy-config)
-  (proof-ready-for-assistant 'narya))        ;; compilation for narya
+  (proof-ready-for-assistant 'agdarya))        ;; compilation for agdarya
 
-(require 'narya-syntax)
+(require 'agdarya-syntax)
 (require 'font-lock)
 (require 'ansi-color)
 
-(defun narya-script-preprocess (file start end cmd)
+(defun agdarya-script-preprocess (file start end cmd)
   "Add a formfeed at the end of a command, as a delimiter."
   (list (concat cmd "\n\x0C\n")))
 
-(defvar narya-hole-overlays nil
+(defvar agdarya-hole-overlays nil
   "List of overlays marking the locations of open holes")
   
-(defun narya-delete-all-holes ()
-  "Delete all hole overlays and reset `narya-hole-overlays' to nil."
-  (mapc #'delete-overlay narya-hole-overlays)
-  (setq narya-hole-overlays nil))
+(defun agdarya-delete-all-holes ()
+  "Delete all hole overlays and reset `agdarya-hole-overlays' to nil."
+  (mapc #'delete-overlay agdarya-hole-overlays)
+  (setq agdarya-hole-overlays nil))
 
-(add-hook 'proof-shell-kill-function-hooks #'narya-delete-all-holes)
+(add-hook 'proof-shell-kill-function-hooks #'agdarya-delete-all-holes)
 
-(defcustom narya-reformat-commands t
+(defcustom agdarya-reformat-commands t
   "Automatically reformat commands upon processing and solving holes."
   :type 'boolean
-  :group 'narya)
+  :group 'agdarya)
 
-(defvar narya-pending-hole-positions nil
+(defvar agdarya-pending-hole-positions nil
   "Temporary storage for hole positions when executing commands invisibly.")
 
-(defvar narya-pending-reformatted nil
+(defvar agdarya-pending-reformatted nil
   "Temporary storage for reformatted hole-filling term.")
 
-(defvar narya-pending-parenthesized nil
+(defvar agdarya-pending-parenthesized nil
   "Temporary storage for parenthesization of hole-filling term.")
 
-(defun narya-create-hole-overlays (start-position relative-positions)
+(defun agdarya-create-hole-overlays (start-position relative-positions)
   "Create overlays for holes given a starting position and a list of relative positions.
 Each entry in RELATIVE-POSITIONS should be a list of the form (START-OFFSET END-OFFSET HOLE-ID).
 Also replaces single ? holes with ¿ʔ.
@@ -67,11 +67,11 @@ Return the number of such overlays created."
             (delete-char 1)
             (set-marker start (- (point) 2))
             (set-marker end (point))))
-        (narya-create-hole-overlay start end hole-id))
+        (agdarya-create-hole-overlay start end hole-id))
       (setq count (+ count 1)))
     count))
 
-(defun narya-create-hole-overlay (char-start char-end hole-id)
+(defun agdarya-create-hole-overlay (char-start char-end hole-id)
   "Create a single hole overlay.
 The start and end regions should include the already-inserted ¿ and ʔ."
   (when (and char-start char-end)
@@ -79,12 +79,12 @@ The start and end regions should include the already-inserted ¿ and ʔ."
                              ;; No text should be inserted outside the
                              ;; hole anyway.
                              t nil)))
-      (overlay-put ovl 'narya-hole hole-id)
+      (overlay-put ovl 'agdarya-hole hole-id)
       (overlay-put ovl 'face '(:extend t :inherit highlight))
-      (push ovl narya-hole-overlays)
+      (push ovl agdarya-hole-overlays)
       ovl)))
 
-(defun narya-create-marked-hole-overlays (start end)
+(defun agdarya-create-marked-hole-overlays (start end)
   "Create hole overlays from markers of the form ⁇0¿...ʔ from START to END.
 Return the number of such overlays created."
   (goto-char start)
@@ -95,29 +95,29 @@ Return the number of such overlays created."
         (replace-match "" nil nil nil 1)
         (goto-char (match-end 3))
         (while
-          (and (setq data (narya-next-hole-subdivision end))
+          (and (setq data (agdarya-next-hole-subdivision end))
                data
                (nth 0 data)))
-        (narya-create-hole-overlay hole-start (nth 2 data) number)
+        (agdarya-create-hole-overlay hole-start (nth 2 data) number)
         (setq count (+ count 1))))
     count))
 
-(defun narya-get-hole-overlay (pos)
+(defun agdarya-get-hole-overlay (pos)
   "Find the hole overlay that strictly contains the given position, if any.
 Does *not* find overlays that we are at the beginning or end of (outside the markers)."
   ;; `overlays-at' finds overlays we're at the beginning of, but not
   ;; those we're at the end of.  So we filter out the beginning ones.
   (cl-find-if
    (lambda (ovl)
-     (and (overlay-get ovl 'narya-hole)
+     (and (overlay-get ovl 'agdarya-hole)
           (< (overlay-start ovl) pos (overlay-end ovl))))
    (overlays-at pos)))
 
-(defun narya-extend-font-lock-region ()
+(defun agdarya-extend-font-lock-region ()
   "Extend the font-lock region so it includes any processed hole.
 For unprocessed holes, you're on your own."
-  (let ((beg-ovl (narya-get-hole-overlay font-lock-beg))
-        (end-ovl (narya-get-hole-overlay font-lock-beg)))
+  (let ((beg-ovl (agdarya-get-hole-overlay font-lock-beg))
+        (end-ovl (agdarya-get-hole-overlay font-lock-beg)))
     (or (and beg-ovl
              (< (overlay-start beg-ovl) font-lock-beg)
              (setq font-lock-beg (overlay-start beg-ovl)))
@@ -125,7 +125,7 @@ For unprocessed holes, you're on your own."
              (> (overlay-end end-ovl) font-lock-end)
              (setq font-lock-end (overlay-end end-ovl))))))
 
-(defun narya-skip-comments-backwards ()
+(defun agdarya-skip-comments-backwards ()
   "Skip backwards to the last non-whitespace, non-comment character."
   (let ((continue t)
 	(line-comment nil)
@@ -145,14 +145,14 @@ For unprocessed holes, you're on your own."
   ;; Move back across the non-whitespace, non-comment character we found
   (forward-char 1))
 
-(defun narya-parse-cmdstart ()
+(defun agdarya-parse-cmdstart ()
   "Parse a complete command, not including any comments that follow it.
 For `proof-script-parse-function'.
 Based on `proof-script-generic-parse-cmdstart'."
   (let ((case-fold-search proof-case-fold-search))
     (if (looking-at proof-script-comment-start-regexp)
 	;; Find end of comment
-        ;; Narya TODO: Why don't we iterate this moving past whitespace too?
+        ;; Agdarya TODO: Why don't we iterate this moving past whitespace too?
 	(if (proof-script-generic-parse-find-comment-end) 'comment)
     ;; Handle non-comments: assumed to be commands
     (when (looking-at proof-script-command-start-regexp)
@@ -169,17 +169,17 @@ Based on `proof-script-generic-parse-cmdstart'."
           ;; That backs up too far
           (forward-char 1))
         ;; Then back across complete comments
-        (narya-skip-comments-backwards)
+        (agdarya-skip-comments-backwards)
         'cmd)))))
 
-(defun narya-retract-target (target)
+(defun agdarya-retract-target (target)
   "Retract the span TARGET as in `proof-retract-target', if it exists.
 This can be added to an undo list without causing an error in case the
 span has been deleted at undo time."
   (when (and target (overlay-buffer target))
     (proof-retract-target target nil nil)))
 
-(defun narya-add-command-undo (span)
+(defun agdarya-add-command-undo (span)
   "Add an undo entry causing retraction back to the supplied SPAN.
 Don't add an extra entry if there is already an entry that will do this;
 otherwise we end up undoing too much when commands are executing asynchronously."
@@ -189,7 +189,7 @@ otherwise we end up undoing too much when commands are executing asynchronously.
       (setq found (and (listp (car undos))
                        (eq (caar undos) 'apply)
                        (listp (cdar undos))
-                       (eq (cadar undos) 'narya-retract-target)
+                       (eq (cadar undos) 'agdarya-retract-target)
                        (listp (cddar undos))
                        (caddar undos)
                        (overlay-buffer (caddar undos))
@@ -197,9 +197,9 @@ otherwise we end up undoing too much when commands are executing asynchronously.
             undos (cdr undos)))
     (when (not found)
       (setq buffer-undo-list
-            (cons (list 'apply 'narya-retract-target span) buffer-undo-list)))))
+            (cons (list 'apply 'agdarya-retract-target span) buffer-undo-list)))))
 
-(defun narya-find-threeb-frames ()
+(defun agdarya-find-threeb-frames ()
   "Return a list of frames displaying both response and goals buffers.
 Copied from Coq"
   (let* ((wins-resp (get-buffer-window-list proof-response-buffer nil t))
@@ -208,14 +208,14 @@ Copied from Coq"
          (frame-gls (mapcar #'window-frame wins-gls)))
     (filtered-frame-list (lambda (x) (and (member x frame-resp) (member x frame-gls))))))
 
-(defun narya-optimise-resp-windows ()
+(defun agdarya-optimise-resp-windows ()
   "Resize response buffer to optimal size.
 Only when three-buffer-mode is enabled.
 Copied from Coq."
   (unless (memq 'no-response-display proof-shell-delayed-output-flags)
     ;; If there is no frame with goal+response then do nothing
     (when proof-three-window-enable
-      (let ((threeb-frames (narya-find-threeb-frames)))
+      (let ((threeb-frames (agdarya-find-threeb-frames)))
         (when threeb-frames
           (let ((pg-frame (car threeb-frames))) ; selecting one adequate frame
             (with-selected-frame pg-frame
@@ -237,11 +237,11 @@ Copied from Coq."
                         (goto-char (point-min))
                         (recenter)))))))))))))
 
-(defun narya-show-goal ()
+(defun agdarya-show-goal ()
   "Scroll the goal buffer to the end.
 Some code copied from Coq."
   (unless (memq 'no-goals-display proof-shell-delayed-output-flags)
-    (let ((pg-frame (car (narya-find-threeb-frames))))
+    (let ((pg-frame (car (agdarya-find-threeb-frames))))
       (with-selected-frame (or pg-frame (window-frame (selected-window)))
         (let ((goal-win (or (get-buffer-window proof-goals-buffer)
                             (get-buffer-window proof-goals-buffer t))))
@@ -250,10 +250,10 @@ Some code copied from Coq."
                 (goto-char (point-max))
                 (recenter (- 1)))))))))
 
-(defvar narya-current-error-start nil)
+(defvar agdarya-current-error-start nil)
 
 (define-advice proof-shell-error-or-interrupt-action
-    (:before (err-or-int) narya-save-start)
+    (:before (err-or-int) agdarya-save-start)
   (save-excursion
     (proof-with-script-buffer
      ;; For an invisible command, there is no overlay, and no error highlighting.
@@ -261,33 +261,33 @@ Some code copied from Coq."
        (when ovl
          (goto-char (overlay-start ovl))
          (skip-chars-forward " \t\n")
-         (setq narya-current-error-start (point-marker)))))))
+         (setq agdarya-current-error-start (point-marker)))))))
 
-(defface narya-error-face
+(defface agdarya-error-face
   '((t (:foreground "red1" :underline t)))
-  "Face used to highlight script errors in Narya."
-  :group 'narya)
+  "Face used to highlight script errors in Agdarya."
+  :group 'agdarya)
 
-(defvar narya-error-overlays nil
+(defvar agdarya-error-overlays nil
   "List of overlays for error highlighting.")
 
-(defun narya-highlight-error-range (start end)
+(defun agdarya-highlight-error-range (start end)
   "Highlight the byte range START to END in the script buffer."
   (when (and start end)
     (let ((ovl (make-overlay start end)))
-      (overlay-put ovl 'narya-error t)
-      (overlay-put ovl 'face 'narya-error-face)
-      (push ovl narya-error-overlays))))
+      (overlay-put ovl 'agdarya-error t)
+      (overlay-put ovl 'face 'agdarya-error-face)
+      (push ovl agdarya-error-overlays))))
 
-(defun narya-clear-error-highlights ()
+(defun agdarya-clear-error-highlights ()
   "Remove all current error overlays."
-  (mapc #'delete-overlay narya-error-overlays)
-  (setq narya-error-overlays nil))
+  (mapc #'delete-overlay agdarya-error-overlays)
+  (setq agdarya-error-overlays nil))
 
-(defun narya-clear-error-highlights-on-edit (start end _length)
+(defun agdarya-clear-error-highlights-on-edit (start end _length)
   "Clear error overlays if they intersect the edit.
-For `after-change-functions' in Narya-mode buffers."
-  (setq narya-error-overlays
+For `after-change-functions' in Agdarya-mode buffers."
+  (setq agdarya-error-overlays
         (seq-filter
          (lambda (ovl)
            (if (and (overlay-start ovl)
@@ -296,18 +296,18 @@ For `after-change-functions' in Narya-mode buffers."
                     (>= (overlay-end ovl) start))
                (progn (delete-overlay ovl) nil)
              t))
-         narya-error-overlays)))
+         agdarya-error-overlays)))
 
-(defun narya-clear-error-highlights-on-visible-cmd ()
+(defun agdarya-clear-error-highlights-on-visible-cmd ()
   "Clear error highlights whenever a non-invisible command is executed."
   (unless (member 'invisible (nth 3 (car proof-action-list)))
-    (narya-clear-error-highlights)
-    (setq narya-pre-change-unprocessed-begin nil)))
+    (agdarya-clear-error-highlights)
+    (setq agdarya-pre-change-unprocessed-begin nil)))
 
-(add-hook 'proof-state-change-hook #'narya-clear-error-highlights-on-visible-cmd)
+(add-hook 'proof-state-change-hook #'agdarya-clear-error-highlights-on-visible-cmd)
   
-(defun narya-handle-output (cmd string)
-  "Parse and handle Narya's output.
+(defun agdarya-handle-output (cmd string)
+  "Parse and handle Agdarya's output.
 If called with an invisible command (such as 'solve'), store hole data
 in a global variable instead of creating overlays immediately.
 Otherwise, create overlays for new holes.
@@ -332,20 +332,20 @@ handling in Proof General."
                 ;; Start parsing the error numbers after the initial "^L[errors]^L" part
                 rend (string-match "\f\\[errors\\]\f\n" string))
           ;; This should only be set for non-invisible commands.
-          (when narya-current-error-start
+          (when agdarya-current-error-start
             (proof-with-script-buffer
-             (let ((cmd-start-bytes (position-bytes narya-current-error-start))
+             (let ((cmd-start-bytes (position-bytes agdarya-current-error-start))
                    (pos rend))
                ;; Parse all the error pairs (start-byte, end-byte)
                (while (string-match "\\([0-9]+\\) \\([0-9]+\\)" string pos)
                  (setq pos (match-end 0))
                  (let ((start-byte (string-to-number (match-string 1 string)))
                        (end-byte (string-to-number (match-string 2 string))))
-                   (narya-highlight-error-range
+                   (agdarya-highlight-error-range
                     (byte-to-position (+ cmd-start-bytes start-byte))
                     (byte-to-position (+ cmd-start-bytes end-byte)))))))
             ;; We nil it out so that subsequent invisible commands won't see it.
-            (setq narya-current-error-start nil))
+            (setq agdarya-current-error-start nil))
           (proof-shell-display-output-as-response flags (substring string rstart rend)))
       ;; If no errors, proceed with normal processing.
       ;; Check for the goals marker in the output, setting positions to slice
@@ -356,7 +356,7 @@ handling in Proof General."
         (string-match "\x0C\\[data\\]\x0C\n" string gstart)
         (setq gend (match-beginning 0)
               dpos (match-end 0))
-        ;; Find out whether Narya parenthesized the term
+        ;; Find out whether Agdarya parenthesized the term
         (string-match "\\(un\\)?parenthesized\n" string dpos)
         (setq dpos (match-end 0))
         (setq parenthesized (not (match-string 1 string)))
@@ -383,13 +383,13 @@ handling in Proof General."
         ;; Handle parsed hole data based on the visibility of the command
         (if (member 'invisible flags)
             ;; For invisible commands ("solve"), store the parsed data globally, both the holes and the reformatted term
-            (setq narya-pending-hole-positions parsed-hole-data
-                  narya-pending-reformatted reformatted
-                  narya-pending-parenthesized parenthesized)
+            (setq agdarya-pending-hole-positions parsed-hole-data
+                  agdarya-pending-reformatted reformatted
+                  agdarya-pending-parenthesized parenthesized)
           ;; For visible commands, create overlays directly
           (when (and span (overlay-buffer span))
             (proof-with-script-buffer
-             (if (and narya-reformat-commands (not (equal reformatted "")))
+             (if (and agdarya-reformat-commands (not (equal reformatted "")))
                  ;; If we are reformatting commands, replace the old command with the new one.
                  (let ((inhibit-read-only t)
                        (start (set-marker (make-marker) (overlay-start span)))
@@ -401,7 +401,7 @@ handling in Proof General."
                      (while (looking-at "[ \t\n]")
                        (forward-char 1))
                      ;; We also skip backwards across any indent to include it in the command being replaced, 
-                     ;; since the Narya reformatter will insert indentation if necessary (e.g. if we are in a section).
+                     ;; since the Agdarya reformatter will insert indentation if necessary (e.g. if we are in a section).
                      ;; And we insert a blank line if we aren't at the beginning of a line.
                      ;; It would be nice to also insert an extra newline if there isn't any blank line between
                      ;; the previous command and this one, but that would be too much work for now.
@@ -416,9 +416,9 @@ handling in Proof General."
                          (insert reformatted)
                          (delete-region (point) end))
                        ;; In the reformatted command, its holes were printed using the ⁇0? syntax.
-                       (narya-create-marked-hole-overlays start end)
-                       ;; Add an undo item so that if the reformatting is undone, ProofGeneral will also retract the Narya command.
-                       (narya-add-command-undo span)
+                       (agdarya-create-marked-hole-overlays start end)
+                       ;; Add an undo item so that if the reformatting is undone, ProofGeneral will also retract the Agdarya command.
+                       (agdarya-add-command-undo span)
                        (if (>= pos (window-height))
                            (recenter)
                          ;; Apparently count-screen-lines is 1-based, but recenter is 0-based.
@@ -431,7 +431,7 @@ handling in Proof General."
                                              (goto-char (overlay-start span))
                                              (skip-chars-forward " \t\n")
                                              (point)))))
-                 (narya-create-hole-overlays bpos parsed-hole-data)))))))
+                 (agdarya-create-hole-overlays bpos parsed-hole-data)))))))
       ;; Handle the goals section output if `proof-shell-exec-loop` is active
       (when (proof-shell-exec-loop)
         (setq proof-shell-last-goals-output (substring string gstart gend))
@@ -448,21 +448,21 @@ handling in Proof General."
       (proof-tree-handle-delayed-output old-proof-marker cmd flags span))
     (run-hooks 'proof-shell-handle-delayed-output-hook)))
 
-(defun narya-delete-undone-holes ()
+(defun agdarya-delete-undone-holes ()
   "Delete overlays for holes that are (now) outside the processed region."
   (let ((pend (proof-unprocessed-begin))
         (inhibit-read-only t))
-    (setq narya-hole-overlays
+    (setq agdarya-hole-overlays
 	  (seq-filter
 	   (lambda (ovl)
 	     (if (and (overlay-start ovl) (< (overlay-start ovl) pend))
 		 t
 	       (delete-overlay ovl)
 	       nil))
-	   narya-hole-overlays))))
+	   agdarya-hole-overlays))))
 
 ;; Use Asai's ANSI coloring of error messages
-(defun narya-insert-and-color-text (&rest args)
+(defun agdarya-insert-and-color-text (&rest args)
   (let ((start (point)))
     (apply 'insert args)
     (ansi-color-apply-on-region start (point))))
@@ -470,21 +470,21 @@ handling in Proof General."
 ;; Easy configuration
 (proof-easy-config
  ;; The two names below should be the same as in proof-site.el
- 'narya "Narya"      
- proof-prog-name                       "narya"
- narya-prog-args                       `("-proofgeneral")
+ 'agdarya "Agdarya"      
+ proof-prog-name                       "agdarya"
+ agdarya-prog-args                       `("-proofgeneral")
  proof-toolbar-enable                  t
  
  ;; when not nil, a space is added to the beginning of the previous line at each new line transition.
- narya-script-indent                   nil  
+ agdarya-script-indent                   nil  
  
  ;; Syntax and font-lock
- proof-script-syntax-table-entries     narya-mode-syntax-table-entries
- proof-script-font-lock-keywords       narya-script-font-lock-keywords
- proof-goals-syntax-table-entries      narya-mode-syntax-table-entries
- proof-goals-font-lock-keywords        narya-script-font-lock-keywords
- proof-response-syntax-table-entries   narya-mode-syntax-table-entries
- proof-response-font-lock-keywords     narya-script-font-lock-keywords
+ proof-script-syntax-table-entries     agdarya-mode-syntax-table-entries
+ proof-script-font-lock-keywords       agdarya-script-font-lock-keywords
+ proof-goals-syntax-table-entries      agdarya-mode-syntax-table-entries
+ proof-goals-font-lock-keywords        agdarya-script-font-lock-keywords
+ proof-response-syntax-table-entries   agdarya-mode-syntax-table-entries
+ proof-response-font-lock-keywords     agdarya-script-font-lock-keywords
  
  ;; Comment syntax
  proof-script-comment-start            "`"       ;; For line comments
@@ -495,15 +495,15 @@ handling in Proof General."
  comment-quote-nested                  nil			 ;; Nested comments are allowed
  
  ;; Commands
- proof-script-command-start-regexp     narya-commands
- proof-script-parse-function           'narya-parse-cmdstart
+ proof-script-command-start-regexp     agdarya-commands
+ proof-script-parse-function           'agdarya-parse-cmdstart
 
  ;; Undo
  proof-non-undoables-regexp            "undo"
  proof-ignore-for-undo-count           "echo\\|synth\\|show\\|undo"
  proof-undo-n-times-cmd                "undo %s\n\x0C" ;; has to end with a formfeed to terminate a PG-mode command
- proof-state-preserving-p              'narya-state-preserving-p
- ;; The difference between proof-count-undos-fn and proof-find-and-forget-fn seems to be that the former is called iff staying inside a single proof.  However, as far as I can see, for Narya the default value of the former also works for the latter.
+ proof-state-preserving-p              'agdarya-state-preserving-p
+ ;; The difference between proof-count-undos-fn and proof-find-and-forget-fn seems to be that the former is called iff staying inside a single proof.  However, as far as I can see, for Agdarya the default value of the former also works for the latter.
  proof-find-and-forget-fn              'proof-generic-count-undos
 
  ;; multiple file management
@@ -511,16 +511,16 @@ handling in Proof General."
  ;; TODO: more?
 
  ;; Delimiting input commands
- ;; Narya allows internal CR in interactive command, and has line-comments ended by CR that could appear internally to a command, so we *have* to leave the CRs in place.  The preprocessing function adds a formfeed as an end-of-command marker instead.
+ ;; Agdarya allows internal CR in interactive command, and has line-comments ended by CR that could appear internally to a command, so we *have* to leave the CRs in place.  The preprocessing function adds a formfeed as an end-of-command marker instead.
  proof-shell-strip-crs-from-input      nil
- proof-script-preprocess               'narya-script-preprocess
+ proof-script-preprocess               'agdarya-script-preprocess
  ;; This won't get used for parsing commands since proof-script-command-start-regexp takes priority, but it will get added automatically to the end of minibuffer-read commands.
  proof-terminal-string                 "\n\x0C\n"
  proof-shell-auto-terminate-commands   t
  ;; Detect holes for goals buffer
  ;; proof-shell-start-goals-regexp        "\x0C\\[holes\\]\x0C\n\\(\\)"
  ;; proof-shell-end-goals-regexp          "\x0C\\[data\\]\x0C\n"
- proof-shell-handle-output-system-specific 'narya-handle-output
+ proof-shell-handle-output-system-specific 'agdarya-handle-output
  ;; We don't have "save" commands yet, so silence the warning about their absence.
  proof-save-command-regexp             ""
  proof-really-save-command-p           (lambda (span cmd) nil)
@@ -531,11 +531,11 @@ handling in Proof General."
 
  ;; Parsing output
  ;; The PG-mode prompt doesn't need to be human-readable or writeable, so we use formfeed characters to ensure no accidental collisions with ordinary output.
- proof-shell-annotated-prompt-regexp   "\x0C\\[narya\\]\x0C"
+ proof-shell-annotated-prompt-regexp   "\x0C\\[agdarya\\]\x0C"
  proof-shell-error-regexp              "^ ￫ .*\\(error\\|bug\\)" ; the .* skips the ANSI color codes
  proof-shell-truncate-before-error     nil
  proof-script-color-error-messages     nil
- pg-insert-text-function               'narya-insert-and-color-text
+ pg-insert-text-function               'agdarya-insert-and-color-text
 
  ;; interactive proof (TODO)
                                         ;proof-shell-proof-completed-regexp    ""
@@ -543,7 +543,7 @@ handling in Proof General."
                                         ;proof-shell-end-goals-regexp          ""
 
  ;; Settings for generic user-level commands
- proof-assistant-home-page             "https://github.com/mikeshulman/narya/"
+ proof-assistant-home-page             "https://github.com/mikeshulman/agdarya/"
  )
 
 ;; The Emacs comment functions are a bit weird and inconsistent.
@@ -558,7 +558,7 @@ handling in Proof General."
 ;;   - if so, it inserts block-comment-start and block-comment end.
 ;;   - if not, it inserts comment-start and comment-end.
 ;; Thus, to avoid infinite loops and get block comments exactly on empty lines, we define our value of comment-insert-comment-function as follows:
-(defun narya-insert-comment ()
+(defun agdarya-insert-comment ()
   ;; If the line is empty,
   (if (save-excursion (beginning-of-line) (looking-at "\\s-*$"))
       ;; Directly insert block-comment-start and block-comment-end, like comment-dwim does but using the block ones.
@@ -573,40 +573,40 @@ handling in Proof General."
       (comment-indent))))
 
 ;; Make commenting out regions use block comments.
-(defun narya-comment-region (beg end &optional arg)
+(defun agdarya-comment-region (beg end &optional arg)
   (let ((comment-start block-comment-start)
 	(comment-end block-comment-end)
 	(comment-continue "")
 	(comment-style 'extra-line))
     (comment-region-default beg end arg)))
 
-(defun narya-chdir-to-current-file ()
-  "Change Narya's current directory to that of the current buffer file."
+(defun agdarya-chdir-to-current-file ()
+  "Change Agdarya's current directory to that of the current buffer file."
   (proof-shell-invisible-command
    (concat "chdir " (prin1-to-string (file-name-directory (buffer-file-name))))
    t))
 
-(defun narya-mode-extra-config ()
+(defun agdarya-mode-extra-config ()
   (set (make-local-variable 'block-comment-start) "{` ")
   (set (make-local-variable 'block-comment-end) " `}")
-  (set (make-local-variable 'comment-insert-comment-function) 'narya-insert-comment)
-  (set (make-local-variable 'comment-region-function) 'narya-comment-region)
-  (add-hook 'proof-state-change-hook 'narya-delete-undone-holes)
+  (set (make-local-variable 'comment-insert-comment-function) 'agdarya-insert-comment)
+  (set (make-local-variable 'comment-region-function) 'agdarya-comment-region)
+  (add-hook 'proof-state-change-hook 'agdarya-delete-undone-holes)
   ;; These have to go in this order, or optimizing the windows will recenter the goal window
-  (add-hook 'proof-shell-handle-delayed-output-hook 'narya-show-goal)
-  (add-hook 'proof-shell-handle-delayed-output-hook 'narya-optimise-resp-windows)
+  (add-hook 'proof-shell-handle-delayed-output-hook 'agdarya-show-goal)
+  (add-hook 'proof-shell-handle-delayed-output-hook 'agdarya-optimise-resp-windows)
   (modify-syntax-entry ? " ")           ; Why is this necessary?
   (setq font-lock-multiline t)
-  (add-to-list 'font-lock-extend-region-functions 'narya-extend-font-lock-region)
-  (add-hook 'proof-activate-scripting-hook 'narya-chdir-to-current-file)
-  (add-hook 'after-change-functions 'narya-clear-error-highlights-on-edit nil t))
+  (add-to-list 'font-lock-extend-region-functions 'agdarya-extend-font-lock-region)
+  (add-hook 'proof-activate-scripting-hook 'agdarya-chdir-to-current-file)
+  (add-hook 'after-change-functions 'agdarya-clear-error-highlights-on-edit nil t))
 
-(add-hook 'narya-mode-hook 'narya-mode-extra-config)
+(add-hook 'agdarya-mode-hook 'agdarya-mode-extra-config)
 
 ;; Don't retract the processed region when editing in a hole contents.
 (define-advice proof-retract-before-change
-    (:before-until (beg end) narya-holes)
-  (let ((ovl (cl-find-if (lambda (ovl) (and (overlay-get ovl 'narya-hole) ))
+    (:before-until (beg end) agdarya-holes)
+  (let ((ovl (cl-find-if (lambda (ovl) (and (overlay-get ovl 'agdarya-hole) ))
                          (overlays-in beg end))))
     ;; If the user is trying to delete the starting or ending marker but not the whole goal, signal a read-only error.
     (and ovl
@@ -618,53 +618,53 @@ handling in Proof General."
 
 ;; Interactive commands
 
-(defun narya-next-hole ()
+(defun agdarya-next-hole ()
   "Move point to the next open hole, if any."
   (interactive)
   ;; Get the overlay of the current hole, *including* if we're at the beginning.
-  (let* ((ovl (cl-find-if (lambda (ovl) (overlay-get ovl 'narya-hole)) (overlays-at (point))))
+  (let* ((ovl (cl-find-if (lambda (ovl) (overlay-get ovl 'agdarya-hole)) (overlays-at (point))))
          (pos (if ovl
                   (if (= (point) (overlay-start ovl))
                       ;; But if we're at the start, go to *this* overlay.
                       (point)
-                    (next-single-char-property-change (overlay-end ovl) 'narya-hole))
-                (next-single-char-property-change (point) 'narya-hole))))
+                    (next-single-char-property-change (overlay-end ovl) 'agdarya-hole))
+                (next-single-char-property-change (point) 'agdarya-hole))))
     (if (< pos (point-max))
         ;; Go to the beginning of that hole's interior.
         (goto-char (+ pos 1))
       (message "No more processed holes."))))
 
-(defun narya-previous-hole ()
+(defun agdarya-previous-hole ()
   "Move point to the previous open hole, if any."
   (interactive)
   ;; Get the overlay of the current hole.  This does *not* include if we're at the end.
-  (let* ((ovl (cl-find-if (lambda (ovl) (overlay-get ovl 'narya-hole)) (overlays-in (- (point ) 1) (point))))
+  (let* ((ovl (cl-find-if (lambda (ovl) (overlay-get ovl 'agdarya-hole)) (overlays-in (- (point ) 1) (point))))
          (pos (if ovl
                   (if (= (point) (overlay-end ovl))
                       (point)
-                    (previous-single-char-property-change (overlay-start ovl) 'narya-hole))
-                (previous-single-char-property-change (point) 'narya-hole))))
+                    (previous-single-char-property-change (overlay-start ovl) 'agdarya-hole))
+                (previous-single-char-property-change (point) 'agdarya-hole))))
     (if (> pos (point-min))
         ;; Go back to the beginning of that hole.
-        (goto-char (+ (previous-single-char-property-change pos 'narya-hole) 1))
+        (goto-char (+ (previous-single-char-property-change pos 'agdarya-hole) 1))
       (message "No more holes."))))
 
-(defun narya-show-hole ()
+(defun agdarya-show-hole ()
   "Show the goal and context for the current open hole, if any."
   (interactive)
-  (let ((n (get-char-property (point) 'narya-hole)))
+  (let ((n (get-char-property (point) 'agdarya-hole)))
     (if n
 	(proof-shell-invisible-command (concat "show hole " (number-to-string n)))
       (message "Place the cursor in a hole to use this command."))))
 
-(defun narya-show-all-holes ()
+(defun agdarya-show-all-holes ()
   "Show the goal and context for all open holes."
   (interactive)
   (proof-shell-invisible-command "show holes"))
 
-(defun narya-current-hole-contents ()
+(defun agdarya-current-hole-contents ()
   "Get the contents of the current subdivision of the current hole."
-  (let ((ovl (narya-get-hole-overlay (point)))
+  (let ((ovl (agdarya-get-hole-overlay (point)))
         (pos (point))
         start
         (result nil))
@@ -673,13 +673,13 @@ handling in Proof General."
         (goto-char (+ (overlay-start ovl) 1))
         (while (not result)
           (setq start (point))
-          (setq data (narya-next-hole-subdivision (overlay-end ovl)))
+          (setq data (agdarya-next-hole-subdivision (overlay-end ovl)))
           (when (or (not data)
                     (>= (nth 2 data) pos))
             (setq result (buffer-substring-no-properties start (nth 1 data)))))
         (string-trim result)))))
 
-(defun narya-hole-subdivisions (ovl)
+(defun agdarya-hole-subdivisions (ovl)
   "Parse and return the non-empty subdivisions in a hole overlay, if any.
 Here \"empty\" means containing only whitespace; comments are nonempty."
   (let ((subdivisions nil)
@@ -687,7 +687,7 @@ Here \"empty\" means containing only whitespace; comments are nonempty."
     (save-excursion
       (goto-char (+ (overlay-start ovl) 1))
       (setq start (point))
-      (while (setq data (narya-next-hole-subdivision (overlay-end ovl)))
+      (while (setq data (agdarya-next-hole-subdivision (overlay-end ovl)))
         (setq str (string-trim
                    (buffer-substring-no-properties start (nth 1 data))))
         (unless (equal str "")
@@ -695,11 +695,11 @@ Here \"empty\" means containing only whitespace; comments are nonempty."
         (setq start (point)))
       subdivisions)))
 
-(defun narya-choose-delimited-term (terms prompt extra)
+(defun agdarya-choose-delimited-term (terms prompt extra)
   "Given a hole overlay, prompt the user to choose one of the terms in it."
   (let* ((concatenated nil)
          (n 0)
-         (tempbuf (generate-new-buffer "narya terms"))
+         (tempbuf (generate-new-buffer "agdarya terms"))
          (tempwin (display-buffer tempbuf))
          choice concatn entern extran)
     (unwind-protect
@@ -753,34 +753,34 @@ Here \"empty\" means containing only whitespace; comments are nonempty."
            (t (string-trim (nth choice terms)))))
       (quit-window t tempwin))))
 
-(defun narya-get-hole-term (hole-overlay prompt multiprompt extra)
+(defun agdarya-get-hole-term (hole-overlay prompt multiprompt extra)
   "Get a term to solve or split with from the hole contents, perhaps prompting."
-  (let ((subdivisions (narya-hole-subdivisions hole-overlay)))
+  (let ((subdivisions (agdarya-hole-subdivisions hole-overlay)))
     (cond
      ((not subdivisions)
       (read-from-minibuffer prompt nil nil nil nil nil t))
      ((not (cdr subdivisions))
-      (read-from-minibuffer prompt (narya-current-hole-contents) nil nil nil nil t))
+      (read-from-minibuffer prompt (agdarya-current-hole-contents) nil nil nil nil t))
      (t
-      (narya-choose-delimited-term subdivisions multiprompt extra)))))
+      (agdarya-choose-delimited-term subdivisions multiprompt extra)))))
 
-(defun narya-solve-hole ()
+(defun agdarya-solve-hole ()
   "Solve the current hole with a user-provided term."
   (interactive)
   ;; Check for an overlay marking the current hole at point.
-  (let ((hole-overlay (narya-get-hole-overlay (point))))
+  (let ((hole-overlay (agdarya-get-hole-overlay (point))))
     ;; If no hole overlay is found, prompt the user to place the cursor on a hole.
     (if (not hole-overlay)
         (message "Place the cursor in a hole to use this command.")
       ;; Otherwise, proceed to solve the hole, perhaps with a user-provided term.
-      (let ((term (narya-get-hole-term hole-overlay "Solve hole with: " "Solve hole with: " nil)))
-        (narya-solve-hole-with hole-overlay term)))))
+      (let ((term (agdarya-get-hole-term hole-overlay "Solve hole with: " "Solve hole with: " nil)))
+        (agdarya-solve-hole-with hole-overlay term)))))
 
-(defun narya-solve-hole-with (hole-overlay term)
+(defun agdarya-solve-hole-with (hole-overlay term)
   (let ((column (current-column)))
     ;; Send the solution command invisibly to the proof shell, synchronously.
     (proof-shell-invisible-command
-     (format "solve %d %d := %s" (overlay-get hole-overlay 'narya-hole) column term) t)
+     (format "solve %d %d := %s" (overlay-get hole-overlay 'agdarya-hole) column term) t)
     ;; Check for errors in the proof shell output.
     (if (eq proof-shell-last-output-kind 'error)
         (message "You entered an incorrect term.")
@@ -796,15 +796,15 @@ Here \"empty\" means containing only whitespace; comments are nonempty."
 	  ;; order so that if the hole is at the very end of the
 	  ;; processed region, the inserted term will end up
 	  ;; *inside* the processed region.
-          (if narya-reformat-commands
+          (if agdarya-reformat-commands
               ;; If we're splitting or reformatting holes, insert the reformatted version.
               (let ((spaces (concat "\n" (make-string column ? ))))
-                (insert (string-replace "\n" spaces narya-pending-reformatted)))
+                (insert (string-replace "\n" spaces agdarya-pending-reformatted)))
             ;; If we're not reformatting holes, check whether the
             ;; reformatted version would have put new parentheses
             ;; around the term, and if so put parentheses around
             ;; the user's term.
-            (if narya-pending-parenthesized
+            (if agdarya-pending-parenthesized
                 (progn
                   (insert "(" term ")")
                   (setq shift 1))
@@ -814,86 +814,86 @@ Here \"empty\" means containing only whitespace; comments are nonempty."
             (delete-region (point) (overlay-end hole-overlay))
             ;; Delete the overlay for the solved hole and update the hole list.
             (delete-overlay hole-overlay)
-            (setq narya-hole-overlays (delq hole-overlay narya-hole-overlays))
+            (setq agdarya-hole-overlays (delq hole-overlay agdarya-hole-overlays))
             ;; Create new overlays from holes in the new term.
-            (if narya-reformat-commands
+            (if agdarya-reformat-commands
                 ;; If the new term was reformatted, then its holes
                 ;; were printed using the ⁇0? syntax, so we can use
-                ;; narya-create-marked-hole-overlays.
-                ;; (narya-create-marked-hole-overlays insert-start insert-end)
-                (narya-reformat-command cmd-span)
+                ;; agdarya-create-marked-hole-overlays.
+                ;; (agdarya-create-marked-hole-overlays insert-start insert-end)
+                (agdarya-reformat-command cmd-span)
               ;; Otherwise, we get the hole position information
               ;; from the [data] block.
-              (let ((new-holes (narya-create-hole-overlays (+ byte-insert-start shift)
-                                                           narya-pending-hole-positions)))
-                (setq narya-pending-hole-positions nil)
-                ;; The rest is done by narya-reformat-command when we
+              (let ((new-holes (agdarya-create-hole-overlays (+ byte-insert-start shift)
+                                                           agdarya-pending-hole-positions)))
+                (setq agdarya-pending-hole-positions nil)
+                ;; The rest is done by agdarya-reformat-command when we
                 ;; call that, but here we have to do it ourselves.
                 ;;
                 ;; First we add an Emacs undo action so that if the
                 ;; "solve" command is undone in Emacs, PG will rewind
                 ;; past the command containing the hole.  This is the
-                ;; only sensible course of action, since the Narya
+                ;; only sensible course of action, since the Agdarya
                 ;; "solve" command can't be undone.
-                (narya-add-command-undo cmd-span)
+                (agdarya-add-command-undo cmd-span)
                 ;; Then if any new holes were created, we position the
                 ;; cursor in the first of them.
                 (when (> new-holes 0)
                   (goto-char insert-start)
-                  (narya-next-hole))))
+                  (agdarya-next-hole))))
             (message "Hole solved.")))))))
 
-(defun narya-split-hole ()
+(defun agdarya-split-hole ()
   "Split in the current hole, prompting the user to edit and then solving."
   (interactive)
-  (let ((hole-overlay (narya-get-hole-overlay (point))))
+  (let ((hole-overlay (agdarya-get-hole-overlay (point))))
     (if (not hole-overlay)
         (message "Place the cursor in a hole to use this command.")
-      (let* ((userterm (narya-get-hole-term
+      (let* ((userterm (agdarya-get-hole-term
                         hole-overlay
                         "Split on term (leave blank to split on goal): "
                         "Split on term: "
                         "none (split on goal)"))
              (term (if (equal userterm "") "_" userterm)))
         (proof-shell-invisible-command
-         (format "split %d := %s" (overlay-get hole-overlay 'narya-hole) term) t)
+         (format "split %d := %s" (overlay-get hole-overlay 'agdarya-hole) term) t)
         (if (eq proof-shell-last-output-kind 'error)
             (message "You entered an incorrect term.")
           ;; Now we prompt the user to edit the term, and pass off the edited version to solve.
-          (setq term (read-from-minibuffer "Solve with term: " narya-pending-reformatted nil nil nil nil t))
-          (narya-solve-hole-with hole-overlay term))))))
+          (setq term (read-from-minibuffer "Solve with term: " agdarya-pending-reformatted nil nil nil nil t))
+          (agdarya-solve-hole-with hole-overlay term))))))
 
-(defun narya-echo-or-synth (cmd prompt)
-  (let* ((contents (narya-current-hole-contents))
+(defun agdarya-echo-or-synth (cmd prompt)
+  (let* ((contents (agdarya-current-hole-contents))
          (term (read-from-minibuffer prompt contents nil nil nil nil t))
-         (n (get-char-property (point) 'narya-hole))
+         (n (get-char-property (point) 'agdarya-hole))
          (command (concat cmd " "
                           (if n (concat "in " (number-to-string n) " ") "")
                           term)))
     (proof-shell-invisible-command command)))
 
-(defun narya-echo ()
+(defun agdarya-echo ()
   "Normalize and display the value and type of a term.
 If cursor is over a hole, the term is interpreted in the context of that hole."
   (interactive)
-  (narya-echo-or-synth "echo" "Term to normalize: "))
+  (agdarya-echo-or-synth "echo" "Term to normalize: "))
 
-(defun narya-synth ()
+(defun agdarya-synth ()
   "Display the type of a term.
 If cursor is over a hole, the term is interpreted in the context of that hole."
   (interactive)
-  (narya-echo-or-synth "synth" "Term to synthesize: "))
+  (agdarya-echo-or-synth "synth" "Term to synthesize: "))
 
-(defun narya-insert-hole-numbers (start end)
+(defun agdarya-insert-hole-numbers (start end)
   "Insert hole-number labels ⁇n in front of hole overlays from START to END."
   (save-excursion
     (dolist (ovl (overlays-in start end))
-      (let ((n (overlay-get ovl 'narya-hole)))
+      (let ((n (overlay-get ovl 'agdarya-hole)))
         (when n
           (goto-char (overlay-start ovl))
           (insert "⁇" (number-to-string n)))))))
 
-(defun narya-reformat-command (&optional ovl)
+(defun agdarya-reformat-command (&optional ovl)
   "Reformat the command with overlay OVL in the processed region.
 Defaults to the command containing point."
   (interactive)
@@ -919,7 +919,7 @@ Defaults to the command containing point."
                         (point-marker)))
                (end (copy-marker (overlay-end ovl) t))
                (cmd (progn
-                      (narya-insert-hole-numbers start end)
+                      (agdarya-insert-hole-numbers start end)
                       (buffer-substring-no-properties start end)))
                new-holes)
           ;; Reformat the command
@@ -930,26 +930,26 @@ Defaults to the command containing point."
             ;; Delete the existing hole overlays in the region
             (atomic-change-group
               (dolist (h (overlays-in start end))
-                (when (overlay-get h 'narya-hole)
+                (when (overlay-get h 'agdarya-hole)
                   (delete-overlay h)
-                  (setq narya-hole-overlays (delq h narya-hole-overlays))))
+                  (setq agdarya-hole-overlays (delq h agdarya-hole-overlays))))
               ;; Insert the reformatted version in place of the old version
               (goto-char start)
-              (insert narya-pending-reformatted)
+              (insert agdarya-pending-reformatted)
               (delete-region (point) end)
               ;; Adjust the PG overlay to be in the right place.
               (move-overlay ovl ovl-start end)
               ;; Create new hole overlays.  Since we're forcing reformatting
               ;; here, we can use the marked version.
-              (setq new-holes (narya-create-marked-hole-overlays start end))
+              (setq new-holes (agdarya-create-marked-hole-overlays start end))
               ;; Add an undo action to retract to here
-              (narya-add-command-undo ovl)
+              (agdarya-add-command-undo ovl)
               (goto-char start)
               (when (> new-holes 0)
-                (narya-next-hole)))))
+                (agdarya-next-hole)))))
       (message "No current processed command found."))))
 
-(defun narya-display-chars (arg)
+(defun agdarya-display-chars (arg)
   "Set, unset, or toggle display of unicode characters.
 With no prefix argument, toggle display of unicode and ASCII.
 With a positive prefix argument, set display to unicode.
@@ -962,7 +962,7 @@ With a negative prefix argument, set display to ASCII."
          "display chars := ascii")
      "display chars := toggle")))
 
-(defun narya-display-function-boundaries (arg)
+(defun agdarya-display-function-boundaries (arg)
   "Set, unset, or toggle display of function boundaries.
 With no prefix argument, toggle display of function boundaries.
 With a positive prefix argument, set display of function boundaries on.
@@ -975,7 +975,7 @@ With a negative prefix argument,set display of function boundaries off."
          "display function boundaries := off")
      "display function boundaries := toggle")))
 
-(defun narya-display-type-boundaries (arg)
+(defun agdarya-display-type-boundaries (arg)
   "Set, unset, or toggle display of type boundaries.
 With no prefix argument, toggle display of type boundaries.
 With a positive prefix argument, set display of type boundaries on.
@@ -988,7 +988,7 @@ With a negative prefix argument,set display of type boundaries off."
          "display type boundaries := off")
      "display type boundaries := toggle")))
 
-(defvar narya-minibuffer-commands
+(defvar agdarya-minibuffer-commands
   '("echo"
     "synth"
     "show hole"
@@ -1000,11 +1000,11 @@ With a negative prefix argument,set display of type boundaries off."
     "display type boundaries ≔ on"
     "display type boundaries ≔ off"))
 
-(defun narya-minibuffer-cmd (cmd)
-  "Wrapper around `proof-minibuffer-cmd' with completion for Narya commands."
+(defun agdarya-minibuffer-cmd (cmd)
+  "Wrapper around `proof-minibuffer-cmd' with completion for Agdarya commands."
   (interactive
    (list (completing-read
-          "Command: " narya-minibuffer-commands nil nil
+          "Command: " agdarya-minibuffer-commands nil nil
 	  (and current-prefix-arg (region-active-p)
 	       (concat
                 " "
@@ -1014,7 +1014,7 @@ With a negative prefix argument,set display of type boundaries off."
 	  'proof-minibuffer-history nil t)))
   (proof-minibuffer-cmd cmd))
 
-;; Proof General key bindings, with suggested Narya bindings marked
+;; Proof General key bindings, with suggested Agdarya bindings marked
 ;; C-c C-a --> apply/refine in a hole
 ;; C-c C-b proof-process-buffer
 ;; C-c C-c proof-interrupt-process
@@ -1037,7 +1037,7 @@ With a negative prefix argument,set display of type boundaries off."
 ;; C-c C-t proof-ctxt (show current context)
 ;; C-c C-u proof-undo-last-successful-command
 ;; C-c C-v proof-minibuffer-cmd
-;;         --> narya-minibuffer-cmd (wrapped)
+;;         --> agdarya-minibuffer-cmd (wrapped)
 ;; C-c C-w pg-response-clear-displays
 ;; C-c C-x proof-shell-exit
 ;; C-c C-y --> case split (Y looks like a split)
@@ -1092,25 +1092,25 @@ With a negative prefix argument,set display of type boundaries off."
 ;; C-c C-t show goal type
 ;; C-c C-w why in scope
 
-(keymap-set narya-mode-map "C-c C-SPC" 'narya-solve-hole)
-(keymap-set narya-mode-map "C-c C-y" 'narya-split-hole)
-(keymap-set narya-mode-map "C-c C-," 'narya-show-hole)
-(keymap-set narya-mode-map "C-c C-?" 'narya-show-all-holes)
-(keymap-set narya-mode-map "C-c C-j" 'narya-next-hole)
-(keymap-set narya-mode-map "C-c C-k" 'narya-previous-hole)
-(keymap-set narya-mode-map "C-c ;" 'narya-echo)
-(keymap-set narya-mode-map "C-c C-;" 'narya-echo)
-(keymap-set narya-mode-map "C-c :" 'narya-synth)
-(keymap-set narya-mode-map "C-c C-:" 'narya-synth)
-(keymap-set narya-mode-map "C-c C-v" 'narya-minibuffer-cmd)
-(keymap-set narya-mode-map "C-c C-d C-u" 'narya-display-chars)
-(keymap-set narya-mode-map "C-c C-d C-f" 'narya-display-function-boundaries)
-(keymap-set narya-mode-map "C-c C-d C-t" 'narya-display-type-boundaries)
-(keymap-set narya-mode-map "C-M-q" 'narya-reformat-command)
+(keymap-set agdarya-mode-map "C-c C-SPC" 'agdarya-solve-hole)
+(keymap-set agdarya-mode-map "C-c C-y" 'agdarya-split-hole)
+(keymap-set agdarya-mode-map "C-c C-," 'agdarya-show-hole)
+(keymap-set agdarya-mode-map "C-c C-?" 'agdarya-show-all-holes)
+(keymap-set agdarya-mode-map "C-c C-j" 'agdarya-next-hole)
+(keymap-set agdarya-mode-map "C-c C-k" 'agdarya-previous-hole)
+(keymap-set agdarya-mode-map "C-c ;" 'agdarya-echo)
+(keymap-set agdarya-mode-map "C-c C-;" 'agdarya-echo)
+(keymap-set agdarya-mode-map "C-c :" 'agdarya-synth)
+(keymap-set agdarya-mode-map "C-c C-:" 'agdarya-synth)
+(keymap-set agdarya-mode-map "C-c C-v" 'agdarya-minibuffer-cmd)
+(keymap-set agdarya-mode-map "C-c C-d C-u" 'agdarya-display-chars)
+(keymap-set agdarya-mode-map "C-c C-d C-f" 'agdarya-display-function-boundaries)
+(keymap-set agdarya-mode-map "C-c C-d C-t" 'agdarya-display-type-boundaries)
+(keymap-set agdarya-mode-map "C-M-q" 'agdarya-reformat-command)
 
-(provide 'narya)
+(provide 'agdarya)
 
-;;; narya.el ends here
+;;; agdarya.el ends here
 
 ;; Local Variables:
 ;; indent-tabs-mode: nil

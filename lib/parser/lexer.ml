@@ -16,7 +16,10 @@ end
 
 (* As the lexer "state" we remember whether we just saw a line comment. *)
 module LexerState = struct
-  type t = [ `Linecomment | `None ]
+  type t = {
+    linecomment : bool;
+    pragma : bool;
+  }
 end
 
 (* We define the lexer using a basic utf-8 character parser from Fmlib. *)
@@ -27,28 +30,42 @@ let backquote = Uchar.of_char '`'
 let newline = Uchar.of_char '\n'
 let lbrace = Uchar.of_char '{'
 let rbrace = Uchar.of_char '}'
+let dash = Uchar.of_char '-'
 
-(* A line comment starts with a backquote and extends to the end of the line.  *)
+(* A line comment starts with -- and extends to the end of the line. *)
 let line_comment : Whitespace.t t =
-  let* c = uword (fun c -> c = backquote) (fun c -> c <> newline) "line comment" in
-  let* () = set `Linecomment in
-  return (`Line (String.sub c 1 (String.length c - 1)))
+  let* _ = backtrack (string "--") "\"--\"" in
+  let* c =
+    zero_or_more_fold_left ""
+      (fun s c -> return (s ^ Utf8.Encoder.to_internal c))
+      (ucharp (fun c -> c <> newline) "line comment")
+  in
+  let* state = get in
+  let* () = set { state with linecomment = true } in
+  return (`Line c)
 
-(* A block comment starts with {` and ends with `}, and can be nested.  *)
+(* A block comment starts with {- and ends with -}, and can be nested. *)
 let block_comment : Whitespace.t t =
-  let state_of c = if c = lbrace then `LBrace else if c = backquote then `Backquote else `None in
+  let state_of c = if c = lbrace then `LBrace else if c = dash then `Dash else `None in
   let rec rest buf nesting prev =
     let* c = ucharp (fun _ -> true) "any character" in
     match prev with
-    | `LBrace when c = backquote -> rest (buf ^ "`") (nesting + 1) `None
-    | `Backquote when c = rbrace ->
-        if nesting <= 0 then return (`Block buf) else rest (buf ^ "`}") (nesting - 1) `None
-    | `Backquote when c = backquote -> rest (buf ^ "`") nesting `Backquote
-    | `Backquote -> rest (buf ^ "`" ^ Utf8.Encoder.to_internal c) nesting (state_of c)
-    | _ when c = backquote -> rest buf nesting `Backquote
+    | `LBrace when c = dash -> rest (buf ^ "-") (nesting + 1) `None
+    | `Dash when c = rbrace ->
+        if nesting <= 0 then return (`Block buf) else rest (buf ^ "-}") (nesting - 1) `None
+    | `Dash when c = dash -> rest (buf ^ "-") nesting `Dash
+    | `Dash -> rest (buf ^ "-" ^ Utf8.Encoder.to_internal c) nesting (state_of c)
+    | _ when c = dash -> rest buf nesting `Dash
     | _ -> rest (buf ^ Utf8.Encoder.to_internal c) nesting (state_of c) in
-  let* _ = backtrack (string "{`") "\"{`\"" in
-  let* () = set `None in
+  let* _ =
+    backtrack
+      (let* _ = string "{-" in
+       let* () = not_followed_by (char '#') "\"#\"" in
+       return ())
+      "\"{-\""
+  in
+  let* state = get in
+  let* () = set { state with linecomment = false } in
   rest "" 0 `None
 
 (* This combinator parses not just newlines but also spaces and tabs, but it only counts the number of newlines.  Thus it returns (`Newlines 0) if it parses only spaces and tabs (possibly including the newline at the end of a preceding line comment). *)
@@ -58,18 +75,19 @@ let newlines : Whitespace.t t =
       (fun c -> return (if c = '\n' then 1 else 0))
       (fun n c -> return (if c = '\n' then n + 1 else n))
       (one_of_chars " \t\n\r" "space, tab, or newline") in
-  let* line = get in
-  let* () = set `None in
+  let* state = get in
+  let* () = set { state with linecomment = false } in
   (* If we just saw a line comment, then we don't include the newline that *ended* the line comment as a "newline". *)
-  return (`Newlines (if line = `Linecomment then n - 1 else n))
+  return (`Newlines (if state.linecomment then n - 1 else n))
 
 (* Whitespace.t consists of spaces, tabs, newlines, and comments.  We only record newlines when there are a positive number of them. *)
 let whitespace : Whitespace.t list t =
-  let* () = set `None in
+  let* state = get in
+  let* () = set { state with linecomment = false } in
   let* ws =
     zero_or_more_fold_left Emp
       (fun ws w -> if w = `Newlines 0 then return ws else return (Snoc (ws, w)))
-      (line_comment </> block_comment </> newlines)
+      ((if state.pragma then newlines else line_comment </> block_comment </> newlines))
     |> no_expectations in
   return (Bwd.to_list ws)
 
@@ -137,8 +155,14 @@ module Specials = struct
       (0x29, RParen);
       (0x5B, LBracket);
       (0x5D, RBracket);
+      (0x2C, Op ",");
+      (0x3B, Op ";");
+      (0x27E8, LAngle);
+      (0x27E9, RAngle);
       (0x7B, LBrace);
       (0x7D, RBrace);
+      (0x2190, Bind);
+      (0x03BB, Lambda);
       (0x21A6, Mapsto);
       (0x2907, DblMapsto);
       (0x2192, Arrow);
@@ -153,6 +177,7 @@ module Specials = struct
   let default_ascii_symbols =
     [|
       '~'; '!'; '@'; '#'; '$'; '%'; '&'; '*'; '/'; '='; '+'; '|'; ','; '<'; '>'; ':'; ';'; '-'; '^';
+      '\\';
     |]
 
   module Data = struct
@@ -188,12 +213,15 @@ let onechar_op : Token.t t =
 
 let ascii_symbol_uchars () = Array.map Uchar.of_char (Specials.ascii_symbols ())
 let is_ascii_symbol c = Array.mem c (Specials.ascii_symbols ())
+let is_ascii_operator_char c = is_ascii_symbol c && c <> ',' && c <> ';'
 
 let ascii_op : Token.t t =
-  let* op = word is_ascii_symbol is_ascii_symbol "ASCII symbol" in
+  let* op = word is_ascii_operator_char is_ascii_operator_char "ASCII symbol" in
   match op with
+  | "\\" -> return Lambda
   | "->" -> return Arrow
   | "=>" -> return DblArrow
+  | "<-" -> return Bind
   | "|->" -> return Mapsto
   | "|=>" -> return DblMapsto
   | ":=" -> return Coloneq
@@ -259,32 +287,38 @@ let specials () =
       [| Uchar.of_char '.' |];
     ]
 
+(* Identifiers quoted by guillemets *)
+let guillemet_start = Uchar.of_int 0xAB
+let guillemet_end = Uchar.of_int 0xBB
+
 let other_char : string t =
-  let* c = ucharp (fun x -> not (Array.mem x (specials ()))) "alphanumeric or unicode" in
+  let* c =
+    ucharp
+      (fun x ->
+        not (Array.mem x (specials ())) && x <> guillemet_start && x <> guillemet_end)
+      "alphanumeric or unicode"
+  in
   return (Utf8.Encoder.to_internal c)
 
 let all_digits = String.for_all is_digit
 let is_numeral = List.for_all all_digits
 let valid_var x = not (all_digits x)
+let starts_with_digit s = String.length s > 0 && is_digit s.[0]
 
 (* Whether a string is valid as a dot-separated piece of an identifier name, or equivalently as a local variable name.  We don't test for absence of the delimited symbols, since they will automatically be lexed separately; this is for testing validity after the lexer has split things into potential tokens.  We also don't test for absence of dots, since identifiers will be split on dots automatically. *)
 let atomic_ident s =
   String.length s > 0
-  && s.[0] <> '_'
-  && (Specials.digit_vars () || s.[0] < '0' || s.[1] > '9')
+  && s <> "_"
+  && (Specials.digit_vars () || not (starts_with_digit s))
   && not (all_digits s)
 
 (* A field name is like an identifier, but it could be all numeric for positional projections. *)
 let valid_field s =
   String.length s > 0
   && s.[0] <> '_'
-  && ((Specials.digit_vars () || s.[0] < '0' || s.[1] > '9') || all_digits s)
+  && ((Specials.digit_vars () || not (starts_with_digit s)) || all_digits s)
 
 let valid_ident = List.for_all atomic_ident
-
-(* Identifiers quoted by guillemets *)
-let guillemet_start = Uchar.of_int 0xAB
-let guillemet_end = Uchar.of_int 0xBB
 
 let rec guillemeted_word buf n =
   let* c = ucharp (fun _ -> true) "any" in
@@ -293,11 +327,63 @@ let rec guillemeted_word buf n =
   else if c = guillemet_start then guillemeted_word buf (n + 1)
   else guillemeted_word buf n
 
-(* A sequence of other_chars, notably not including dots.  Not necessarily valid as an identifier. *)
-let other_word =
+(* A sequence of other_chars and guillemeted chunks, notably not including dots.  Not necessarily valid as an identifier. *)
+let other_word_piece =
   (let* _ = uchar guillemet_start in
    guillemeted_word "«" 1)
   </> one_or_more_fold_left return (fun str c -> return (str ^ c)) other_char
+
+let other_word =
+  one_or_more_fold_left return (fun str piece -> return (str ^ piece)) other_word_piece
+
+let underscoreless_other_char : string t =
+  let* c =
+    ucharp
+      (fun x ->
+        x <> Uchar.of_char '_'
+        && not (Array.mem x (specials ()))
+        && x <> guillemet_start
+        && x <> guillemet_end)
+      "underscore-free alphanumeric or unicode"
+  in
+  return (Utf8.Encoder.to_internal c)
+
+let underscoreless_other_word_piece =
+  (let* _ = uchar guillemet_start in
+   guillemeted_word "«" 1)
+  </> one_or_more_fold_left return (fun str c -> return (str ^ c)) underscoreless_other_char
+
+let underscoreless_other_word =
+  one_or_more_fold_left return (fun str piece -> return (str ^ piece)) underscoreless_other_word_piece
+
+let ascii_symbol_chunk = word is_ascii_symbol is_ascii_symbol "ASCII symbol chunk"
+
+let mixfix_boundary =
+  not_followed_by underscoreless_other_word_piece "\"mixfix continuation\""
+
+let mixfix_word =
+  backtrack
+    (let* first = optional (underscoreless_other_word </> ascii_symbol_chunk) in
+     let* _ = char '_' in
+     let rec rest acc saw_nonempty leading_slot =
+       let* chunk = optional (underscoreless_other_word </> ascii_symbol_chunk) in
+       let acc = acc ^ Option.value ~default:"" chunk in
+       let saw_nonempty = saw_nonempty || Option.is_some chunk in
+       (let* _ = char '_' in
+        rest (acc ^ "_") saw_nonempty leading_slot)
+       </> if saw_nonempty then
+             match (leading_slot, chunk) with
+             | true, Some (":" | ",") -> fail ()
+             | _ ->
+                 let* () = mixfix_boundary in
+                 return acc
+           else fail ()
+     in
+     rest
+       (Option.value ~default:"" first ^ "_")
+       (Option.is_some first)
+       (Option.is_none first))
+    "\"underscore mixfix\""
 
 (* One or more dots. *)
 let dots = skip_one_or_more (char '.')
@@ -311,9 +397,11 @@ let rec dot_other_token () =
   </> return [ `Dots n ]
 
 and atomic_other_token () =
-  let* atom = other_word in
-  (let* rest = dot_other_token () in
-   return (`Atom atom :: rest))
+  let* atom = mixfix_word </> other_word in
+  (let* _ = followed_by (string ".(") "\".(\"" in
+   return [ `Atom atom ])
+  </> (let* rest = dot_other_token () in
+       return (`Atom atom :: rest))
   </> return [ `Atom atom ]
 
 let dot_separated_token : [ `Dots of int | `Atom of string ] list t =
@@ -324,18 +412,29 @@ let get_reserved_word = function
   | "let" -> Some Let
   | "rec" -> Some Rec
   | "in" -> Some In
-  | "axiom" -> Some Axiom
+  | "postulate" -> Some Axiom
+  | "Set" -> Some Set
   | "def" -> Some Def
   | "and" -> Some And
   | "echo" -> Some Echo
   | "synth" -> Some Synth
   | "quit" -> Some Quit
   | "match" -> Some Match
+  | "case" -> Some Case
+  | "of" -> Some Of
   | "return" -> Some Return
   | "sig" -> Some Sig
   | "data" -> Some Data
+  | "record" -> Some Record
+  | "where" -> Some Where
+  | "field" -> Some Field_kw
+  | "constructor" -> Some Constructor_kw
   | "codata" -> Some Codata
   | "notation" -> Some Notation
+  | "infix" -> Some Infix
+  | "infixl" -> Some Infixl
+  | "infixr" -> Some Infixr
+  | "do" -> Some Do
   | "import" -> Some Import
   | "export" -> Some Export
   | "chdir" -> Some Chdir
@@ -343,7 +442,6 @@ let get_reserved_word = function
   | "split" -> Some Split
   | "show" -> Some Show
   | "display" -> Some Display
-  | "option" -> Some Option
   | "undo" -> Some Undo
   | "section" -> Some Section
   | "fmt" -> Some Fmt
@@ -378,6 +476,11 @@ let rec get_higher_parts = function
       | None -> None)
   | _ -> None
 
+let string_of_legacy_higher_field fld parts =
+  if List.fold_right (fun s m -> max (String.length s) m) parts 0 > 1 then
+    "." ^ fld ^ ".." ^ String.concat "." parts
+  else "." ^ fld ^ "." ^ String.concat "" parts
+
 let canonicalize (loc : Asai.Range.t) (parts : [ `Dots of int | `Atom of string ] list) : Token.t =
   match is_single_reserved_word parts with
   | Some tok -> tok
@@ -387,18 +490,30 @@ let canonicalize (loc : Asai.Range.t) (parts : [ `Dots of int | `Atom of string 
         match parts with
         | [ `Dots 1 ] -> Dot
         | [ `Dots 3 ] -> Ellipsis
-        (* Simple field (allowed to be positional) *)
-        | [ `Dots 1; `Atom fld ] when valid_field fld -> Field (fld, [])
-        (* Higher field with one suffix (not allowed to be positional) *)
+        (* Positional field *)
+        | [ `Dots 1; `Atom fld ] when all_digits fld -> Field (fld, [])
+        (* Lower field syntax was removed in Agdarya. *)
+        | [ `Dots 1; `Atom fld ] when valid_field fld ->
+            fatal ~loc (Field_dot_syntax_removed ("." ^ fld))
+        (* Deferred higher constructor syntax still uses a leading dot. *)
+        | [ `Dots 1; `Atom con; `Dots 1; `Atom pbij; `Dots 1 ] when atomic_ident con ->
+            Constr (con, String.fold_right (fun c s -> String.make 1 c :: s) pbij [])
+        | `Dots 1 :: `Atom con :: `Dots 2 :: rest when atomic_ident con -> (
+            match get_higher_parts rest with
+            | Some (parts, true) -> Constr (con, parts)
+            | _ -> fatal ~loc Parse_error)
+        (* Named higher field syntax now uses angle suffixes. *)
         | [ `Dots 1; `Atom fld; `Dots 1; `Atom pbij ] when atomic_ident fld ->
-            Field (fld, String.fold_right (fun c s -> String.make 1 c :: s) pbij [])
-        (* Higher field with multiple suffixes (not allowed to be positional) *)
+            let parts = [ pbij ] in
+            fatal ~loc (Field_dot_syntax_removed (string_of_legacy_higher_field fld parts))
         | `Dots 1 :: `Atom fld :: `Dots 2 :: rest when atomic_ident fld -> (
             match get_higher_parts rest with
-            | Some (parts, false) -> Field (fld, parts)
+            | Some (parts, false) ->
+                fatal ~loc (Field_dot_syntax_removed (string_of_legacy_higher_field fld parts))
             | _ -> fatal ~loc Parse_error)
-        (* Simple constructor *)
-        | [ `Atom con; `Dots 1 ] when atomic_ident con -> Constr (con, [])
+        (* Simple constructor syntax was removed in Agdarya. *)
+        | [ `Atom con; `Dots 1 ] when atomic_ident con ->
+            fatal ~loc (Constructor_dot_syntax_removed (con ^ "."))
         (* Higher constructor with multiple suffixes *)
         | `Atom con :: `Dots 2 :: rest when atomic_ident con ->
             (match get_higher_parts rest with
@@ -417,10 +532,22 @@ let other : Token.t t =
   let* rng, parts = located dot_separated_token in
   return (canonicalize (Range.convert rng) parts)
 
+let pragma_open : Token.t t =
+  let* _ = backtrack (string "{-#") "\"{-#\"" in
+  let* () = set { linecomment = false; pragma = true } in
+  return PragmaOpen
+
+let pragma_close : Token.t t =
+  let* _ = backtrack (string "#-}") "\"#-}\"" in
+  let* () = set { linecomment = false; pragma = false } in
+  return PragmaClose
+
 (* Finally, a token is either a quoted string, a single-character operator, an operator of special ASCII symbols, or something else.  Unlike the built-in 'lexer' function, we include whitespace *after* the token, so that we can save comments occurring after any code. *)
 let token : Located_token.t t =
   (let* loc, tok =
-     located (hole </> quoted_string </> onechar_op </> superscript </> ascii_op </> other) in
+     located
+       (hole </> quoted_string </> pragma_open </> pragma_close </> onechar_op </> superscript
+      </> other </> ascii_op) in
    let* ws = whitespace in
    return (loc, (tok, ws)))
   </> located (expect_end (Eof, []))
@@ -434,8 +561,10 @@ module Parser = struct
   include Basic.Parser
 
   (* This is how we make the lexer to plug into the parser. *)
-  let start : t = make_partial Position.start `None bof
-  let restart (lex : t) : t = make_partial (position lex) `None token |> transfer_lookahead lex
+  let initial_state = { LexerState.linecomment = false; pragma = false }
+
+  let start : t = make_partial Position.start initial_state bof
+  let restart (lex : t) : t = make_partial (position lex) (state lex) token |> transfer_lookahead lex
 end
 
 module Single_token = struct

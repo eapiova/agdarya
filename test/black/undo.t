@@ -1,19 +1,19 @@
 Undo single command
 
   $ cat >undo.ny <<EOF
-  > axiom A:Type
-  > axiom a:A
+  > postulate A:Set
+  > postulate a:A
   > echo a
   > undo 1
   > echo a
   > EOF
 
-  $ narya -v -fake-interact undo.ny
+  $ agdarya -v -fake-interact undo.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
   a
     : A
@@ -23,30 +23,30 @@ Undo single command
   
    ￫ error[E0300]
    ￭ undo.ny
-   5 | echo a
+   1 | echo a
      ^ unbound variable: a
   
 
 Undo multiple commands
 
   $ cat >undo2.ny <<EOF
-  > axiom A:Type
-  > axiom a:A
-  > axiom b:A
+  > postulate A:Set
+  > postulate a:A
+  > postulate b:A
   > echo a
   > undo 2
   > echo a
   > EOF
 
-  $ narya -v -fake-interact undo2.ny
+  $ agdarya -v -fake-interact undo2.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ info[I0001]
-   ￮ axiom b assumed
+   ￮ postulate b assumed
   
   a
     : A
@@ -56,7 +56,7 @@ Undo multiple commands
   
    ￫ error[E0300]
    ￭ undo2.ny
-   6 | echo a
+   1 | echo a
      ^ unbound variable: a
   
 
@@ -66,7 +66,7 @@ Undo nothing
   > undo 1
   > EOF
 
-  $ narya -v -fake-interact no-undo.ny
+  $ agdarya -v -fake-interact no-undo.ny
    ￫ error[E2500]
    ￮ not enough commands to undo
   
@@ -74,24 +74,24 @@ Undo nothing
 Undo notations
 
   $ cat >undo-notn.ny <<EOF
-  > axiom A:Type
-  > axiom a:A
-  > axiom f : A -> A -> A
+  > postulate A:Set
+  > postulate a:A
+  > postulate f : A -> A -> A
   > notation(1) x "+" y := f x y
   > echo a + a
   > undo 1
   > echo a + a
   > EOF
 
-  $ narya -v -fake-interact undo-notn.ny
+  $ agdarya -v -fake-interact undo-notn.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ info[I0001]
-   ￮ axiom f assumed
+   ￮ postulate f assumed
   
    ￫ info[I0002]
    ￮ notation «_ + _» defined
@@ -102,11 +102,8 @@ Undo notations
    ￫ info[I0006]
    ￮ 1 command undone
   
-  a
-    : A
-  
    ￫ error[E0200]
    ￭ undo-notn.ny
-   7 | echo a + a
+   1 | echo a + a
      ^ parse error
   

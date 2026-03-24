@@ -1,6 +1,6 @@
-# Utilities for Narya
+# Utilities for Agdarya
 
-This directory contains a number of utilities used in Narya that in principle could be generic libraries.  Many of them are inspired by the following fundamental ideas.
+This directory contains a number of utilities used in Agdarya that in principle could be generic libraries.  Many of them are inspired by the following fundamental ideas.
 
 1. As much as can be statically ensured should be.  This means we take advantage of OCaml's features like GADTs to approximate dependent types, e.g. by defining a type-level notion of natural numbers and using it to index the lengths of lists ("vectors") statically.  We also implement lists *of types* as additional types, which can then be used to index "heterogeneous lists", as well as type-level dyadic rationals (a convenient dense linear ordering).
 

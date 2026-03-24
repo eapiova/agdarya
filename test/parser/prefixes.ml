@@ -40,7 +40,7 @@ let () = make star "star" (Open_entry (eop (Op "*") (done_open star)))
 let perc : (No.strict opn, No.zero, No.strict opn) notation = (Perc, Infix No.zero)
 let () = make perc "perc" (Open_entry (eop (Op "%") (done_open perc)))
 
-(* A right-associative infix operator of tightness -ω can have an abstraction on its right. *)
+(* A right-associative infix operator of tightness -ω can have an abstraction on its right *)
 let atat : (No.strict opn, No.minus_omega, No.nonstrict opn) notation = (Atat, Infixr No.minus_omega)
 let () = make atat "atat" (Open_entry (eop (Op "@@") (done_open atat)))
 
@@ -74,12 +74,12 @@ let () =
   (* And again, since @ is a prefix notation, it can appear anyhere on the right, including inside itself. *);
 
   assert (parse "@ @ x" = Notn ("at", [ Term (Notn ("at", [ Term (Ident [ "x" ]) ])) ]))
-  (* Same for field projections, which are literally parsed as applications (and compiled later to something else) *);
+  (* Same for positional field projections, which are literally parsed as applications (and compiled later to something else) *);
 
-  assert (parse "@ f .x" = App (Notn ("at", [ Term (Ident [ "f" ]) ]), Field ("x", [])))
+  assert (parse "@ f .1" = App (Notn ("at", [ Term (Ident [ "f" ]) ]), Field ("1", [])))
   (* But we can't apply @ *to* a field projection, since that's not a valid term on its own. *);
 
-  unparse "f @ .x" (* Now we experiment with the postfix ones *);
+  unparse "f @ .1" (* Now we experiment with the postfix ones *);
 
   assert (parse "x $" = Notn ("dollar", [ Term (Ident [ "x" ]) ]));
   assert (parse "x $$" = Notn ("dbldollar", [ Term (Ident [ "x" ]) ]));
@@ -124,7 +124,7 @@ let () =
   Scope.Situation.add atat;
 
   assert (
-    parse "f @@ x ↦ y"
+    parse "f @@ λ x → y"
     = Notn
         ( "atat",
           [

@@ -1,4 +1,4 @@
-  $ narya -v -e "def «a long name» : Type := sig () def « » : «a long name» := ()"
+  $ agdarya -v -e "«a long name» : Set" -e "«a long name» = sig ()" -e "« » : «a long name»" -e "« » = ()"
    ￫ info[I0000]
    ￮ constant «a long name» defined
   
@@ -6,7 +6,7 @@
    ￮ constant « » defined
   
 
-  $ narya -v -e "def «nested «guillemets» here» : Type := sig () def «a + b» : «nested «guillemets» here» := ()"
+  $ agdarya -v -e "«nested «guillemets» here» : Set" -e "«nested «guillemets» here» = sig ()" -e "«a + b» : «nested «guillemets» here»" -e "«a + b» = ()"
    ￫ info[I0000]
    ￮ constant «nested «guillemets» here» defined
   
@@ -14,40 +14,38 @@
    ￮ constant «a + b» defined
   
 
-  $ narya -v -e "def «foo.bar» : Type := sig () import foo def x : bar := ()"
+  $ agdarya -v -e "«foo.bar» : Set" -e "«foo.bar» = sig ()" -e "import foo" -e "x : bar" -e "x = ()"
    ￫ info[I0000]
    ￮ constant «foo.bar» defined
   
    ￫ error[E0300]
    ￭ command-line exec string
-   1 | def «foo.bar» : Type := sig () import foo def x : bar := ()
+   1 | x : bar
      ^ unbound variable: bar
   
   [1]
 
-  $ narya -v -e "def «foo.bar» : Type := sig () import «foo def x : bar» := ()"
+  $ agdarya -v -e "«foo.bar» : Set" -e "«foo.bar» = sig ()" -e "import «foo def x : bar»" -e "x = ()"
+   ￫ info[I0000]
+   ￮ constant «foo.bar» defined
+  
+   ￫ error[E0400]
+   ￮ non-synthesizing term in synthesizing position (body of def without specified type)
+  
+  [1]
+
+  $ agdarya -v -e "«foo.bar» : Set" -e "«foo.bar» = sig ()" -e "import «foo def x : bar := ()"
    ￫ info[I0000]
    ￮ constant «foo.bar» defined
   
    ￫ error[E0200]
    ￭ command-line exec string
-   1 | def «foo.bar» : Type := sig () import «foo def x : bar» := ()
+   1 | import «foo def x : bar := ()‹EOF›
      ^ parse error
   
   [1]
 
-  $ narya -v -e "def «foo.bar» : Type := sig () import «foo def x : bar := ()"
-   ￫ info[I0000]
-   ￮ constant «foo.bar» defined
-  
-   ￫ error[E0200]
-   ￭ command-line exec string
-   1 | def «foo.bar» : Type := sig () import «foo def x : bar := ()‹EOF›
-     ^ parse error
-  
-  [1]
-
-  $ narya -v -e "def foo.«a long name» : Type := sig () import foo def « » : «a long name» := ()"
+  $ agdarya -v -e "foo.«a long name» : Set" -e "foo.«a long name» = sig ()" -e "import foo" -e "« » : «a long name»" -e "« » = ()"
    ￫ info[I0000]
    ￮ constant foo.«a long name» defined
   
@@ -55,7 +53,7 @@
    ￮ constant « » defined
   
 
-  $ narya -v -e "def «contains \` comments» : Type := sig () import foo def «{\`» : «contains \` comments» := ()"
+  $ agdarya -v -e "«contains \` comments» : Set" -e "«contains \` comments» = sig ()" -e "import foo" -e "«{\`» : «contains \` comments»" -e "«{\`» = ()"
    ￫ info[I0000]
    ￮ constant «contains ` comments» defined
   
@@ -63,7 +61,7 @@
    ￮ constant «{`» defined
   
 
-  $ narya -v -e "def «contains \" quotes» : Type := sig () import foo def «\"» : «contains \" quotes» := ()"
+  $ agdarya -v -e "«contains \" quotes» : Set" -e "«contains \" quotes» = sig ()" -e "import foo" -e "«\"» : «contains \" quotes»" -e "«\"» = ()"
    ￫ info[I0000]
    ￮ constant «contains " quotes» defined
   

@@ -88,7 +88,7 @@ type (_, _) tree =
 (* A map from tokens to trees that remembers in addition whether each token is allowed to be superscripted. *)
 and ('t, 's) tokmap = (('t, 's) tree * [ `Ss | `Noss ]) TokMap.t
 
-(* When there is a choice in parsing, we arrange it so that no backtracking is required (except for a single token of lookahead).  We test all the possible next literal tokens, considering the possibility of a notation operator, field, or other term.  (Constructors and identifiers are considered special terms, and extracted during postprocessing.)  Fields cannot also be other terms, and we forbid symbols that occur in operators from also being variable names, so there is no need for backtracking. *)
+(* When there is a choice in parsing, we arrange it so that no backtracking is required (except for a single token of lookahead).  We test all the possible next literal tokens, considering the possibility of a notation operator or other term.  (Constructors and identifiers are considered special terms, and extracted during postprocessing.)  We forbid symbols that occur in operators from also being variable names, so there is no need for backtracking. *)
 and ('t, 's) branch = {
   ops : ('t, 's) tokmap;
   field : ('t, 's) tree option;
@@ -150,6 +150,7 @@ and (_, _, _, _) parse =
   (* These all store the whitespace occurring after them. *)
   | Placeholder : Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
   | Ident : string list * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
+  | HigherField : string * string list * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
   | Constr : string * string list * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
   | Field : string * string list * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
   | Superscript :
@@ -507,6 +508,9 @@ let rec split_ending_whitespace : type lt ls rt rs.
       | Ident (x, ws) ->
           let first, rest = Whitespace.split ws in
           ({ value = Ident (x, first); loc }, rest)
+      | HigherField (f, b, ws) ->
+          let first, rest = Whitespace.split ws in
+          ({ value = HigherField (f, b, first); loc }, rest)
       | Constr (c, suffix, ws) ->
           let first, rest = Whitespace.split ws in
           ({ value = Constr (c, suffix, first); loc }, rest)
@@ -538,7 +542,8 @@ let terms toks =
       term = Some (TokMap.of_list (List.map (fun (k, x) -> (k, (x, `Noss))) toks));
     }
 
-let field x = Inner { empty_branch with field = Some x }
+let[@warning "-32"] field x = Inner { empty_branch with field = Some x }
+
 let of_entry e = Inner { empty_branch with ops = e }
 
 let done_open n =
@@ -586,8 +591,8 @@ let lower : type t1 s1 t2 s2.
 
 let rec names : type t s. (t, s) tree -> string list = function
   | Inner { ops; field; term } ->
-      Option.fold ~none:[] ~some:names field
-      @ names_tmap ops
+      names_tmap ops
+      @ Option.fold ~none:[] ~some:names field
       @ Option.fold ~none:[] ~some:names_tmap term
   | Done_open (_, n) -> [ (find n).name ]
   | Done_closed n -> [ (find n).name ]

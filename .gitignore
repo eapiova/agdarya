@@ -24,6 +24,8 @@ setup.log
 
 # Dune generated files
 *.install
+*.nyo
+*.bak.*
 
 # Local OPAM switch
 _opam/

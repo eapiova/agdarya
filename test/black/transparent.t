@@ -1,34 +1,44 @@
 Transparency and translucency
 
-  $ narya - <<EOF
-  > axiom A : Type
-  > axiom a : A
-  > axiom B : Type
-  > axiom b : B
-  > def prod1 : Type ≔ sig ( fst : A, snd : B)
-  > axiom x1 : prod1
+  $ agdarya - <<EOF
+  > postulate A : Set
+  > postulate a : A
+  > postulate B : Set
+  > postulate b : B
+  > prod1 : Set
+  > prod1 = sig ( fst : A, snd : B)
+  > postulate x1 : prod1
   > echo x1
-  > def y1 : prod1 ≔ (a,b)
+  > y1 : prod1
+  > y1 = (a,b)
   > echo y1
-  > def prod2a : Type ≔ sig #(transparent) ( fst : A, snd : B)
-  > axiom x2a : prod2a
+  > prod2a : Set
+  > prod2a = sig #(transparent) ( fst : A, snd : B)
+  > postulate x2a : prod2a
   > echo x2a
-  > def y2a : prod2a ≔ (a,b)
+  > y2a : prod2a
+  > y2a = (a,b)
   > echo y2a
-  > def prod2b : Type ≔ sig #(transparent positional) ( fst : A, snd : B)
-  > axiom x2b : prod2b
+  > prod2b : Set
+  > prod2b = sig #(transparent positional) ( fst : A, snd : B)
+  > postulate x2b : prod2b
   > echo x2b
-  > def y2b : prod2b ≔ (a,b)
+  > y2b : prod2b
+  > y2b = (a,b)
   > echo y2b
-  > def prod3a : Type ≔ sig #(translucent) ( fst : A, snd : B)
-  > axiom x3a : prod3a
+  > prod3a : Set
+  > prod3a = sig #(translucent) ( fst : A, snd : B)
+  > postulate x3a : prod3a
   > echo x3a
-  > def y3a : prod3a ≔ (a,b)
+  > y3a : prod3a
+  > y3a = (a,b)
   > echo y3a
-  > def prod3b : Type ≔ sig #(translucent positional) ( fst : A, snd : B)
-  > axiom x3b : prod3b
+  > prod3b : Set
+  > prod3b = sig #(translucent positional) ( fst : A, snd : B)
+  > postulate x3b : prod3b
   > echo x3b
-  > def y3b : prod3b ≔ (a,b)
+  > y3b : prod3b
+  > y3b = (a,b)
   > echo y3b
   > EOF
   x1
@@ -37,13 +47,13 @@ Transparency and translucency
   y1
     : prod1
   
-  (fst ≔ x2a .fst, snd ≔ x2a .snd)
+  (fst ≔ x2a fst, snd ≔ x2a snd)
     : prod2a
   
   (fst ≔ a, snd ≔ b)
     : prod2a
   
-  (x2b .fst, x2b .snd)
+  (x2b fst, x2b snd)
     : prod2b
   
   (a, b)
@@ -61,4 +71,3 @@ Transparency and translucency
   (a, b)
     : prod3b
   
-

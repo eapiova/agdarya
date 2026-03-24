@@ -1,4 +1,4 @@
-  $ narya -v -parametric parametric_identity.ny
+  $ agdarya -v -parametric parametric_identity.ny
    ￫ info[I0000]
    ￮ constant Gel defined
   
@@ -6,7 +6,7 @@
    ￮ constant eq defined
   
    ￫ info[I0001]
-   ￮ axiom f assumed
+   ￮ postulate f assumed
   
    ￫ info[I0000]
    ￮ constant f_is_id defined

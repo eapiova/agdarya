@@ -10,7 +10,7 @@ module Trie = Yuujinchou.Trie
 
 (* Execution of files (and strings), including marshaling and unmarshaling, and managing file identifiers and imports. *)
 
-(* Compiled files are tagged with the git hash of the commit, so they will only be loaded by Narya built from the exact same commit.  This is overkill, since most commits don't change the marshaling format; but it guarantees automatically that we never try to load a file that has a different marshaling format, thereby avoiding segmentation faults.  A version of -1 means that we don't know our git commit, and therefore we never load or save compiled files. *)
+(* Compiled files are tagged with the git hash of the commit, so they will only be loaded by Agdarya built from the exact same commit.  This is overkill, since most commits don't change the marshaling format; but it guarantees automatically that we never try to load a file that has a different marshaling format, thereby avoiding segmentation faults.  A version of -1 means that we don't know our git commit, and therefore we never load or save compiled files. *)
 let __COMPILE_VERSION__ =
   Option.value ~default:(-1) (int_of_string_opt ("0x" ^ [%blob "version.txt"]))
 
@@ -107,6 +107,368 @@ module Loaded = struct
   let add_to_files filename trie globals file old_imports explicit =
     Effect.perform (Add_to_files (filename, { trie; globals; file; old_imports; explicit }))
 end
+
+type pending_defs = {
+  cmds : Parser.Command.t list;
+  existing : Core.Constant.t Parser.Command.StringsMap.t;
+}
+
+let ordinary_pending : pending_defs option ref = ref None
+
+let rec flush_pending_commands () =
+  match !ordinary_pending with
+  | None -> ()
+  | Some { cmds; existing } ->
+      ordinary_pending := None;
+      let defs = Parser.Command.defs_of_pending_commands cmds in
+      let exec_defs =
+        match Origin.current () with
+        | Instant _ -> Parser.Command.exec_defs_current
+        | Top | File _ -> Parser.Command.exec_defs in
+      ignore (exec_defs ~existing defs);
+      ()
+
+and enqueue_ordinary_command cmd =
+  let ordinary_source_head existing =
+    Parser.Command.ordinary_source_head ~prefer_ordinary:(fun name -> Parser.Command.StringsMap.mem name existing) cmd
+  in
+  (match (!ordinary_pending, Option.bind !ordinary_pending (fun pending -> ordinary_source_head pending.existing)) with
+  | Some { cmds; existing }, Some (name, _) when not (Parser.Command.StringsMap.mem name existing) ->
+      let shadows_existing_syntax =
+        Parser.Scope.lookup_field name <> None || Parser.Scope.lookup_constr name <> None
+      in
+      if
+        shadows_existing_syntax
+        ||
+        (Parser.Command.pending_commands_are_complete cmds
+        && not (Parser.Command.pending_commands_reference_name cmds name))
+      then flush_pending_commands ()
+  | _ -> ());
+  let pending =
+    match !ordinary_pending with
+    | Some pending -> pending
+    | None -> { cmds = []; existing = Parser.Command.StringsMap.empty } in
+  let existing =
+    match ordinary_source_head pending.existing with
+    | Some (name, loc) when not (Parser.Command.StringsMap.mem name pending.existing) ->
+        let const = Parser.Command.predeclare_constant ?loc name in
+        Parser.Command.StringsMap.add name const pending.existing
+    | _ -> pending.existing in
+  Parser.Command.predeclare_ordinary_syntax cmd existing;
+  ordinary_pending := Some { cmds = pending.cmds @ [ cmd ]; existing }
+
+let source_contents (source : Asai.Range.source) =
+  match source with
+  | `String { content; _ } -> content
+  | `File filename ->
+      In_channel.with_open_bin filename @@ fun chan ->
+      really_input_string chan (Int64.to_int (In_channel.length chan))
+
+let split_lines_preserving_newlines content =
+  let len = String.length content in
+  let rec go i j acc =
+    if j = len then
+      if i = len then List.rev acc else List.rev (String.sub content i (len - i) :: acc)
+    else if content.[j] = '\n' then
+      go (j + 1) (j + 1) (String.sub content i (j - i + 1) :: acc)
+    else go i (j + 1) acc
+  in
+  go 0 0 []
+
+let indent_of_line line =
+  let rec go i =
+    if i < String.length line && (line.[i] = ' ' || line.[i] = '\t') then go (i + 1) else i
+  in
+  go 0
+
+let starts_with s prefix =
+  let lp = String.length prefix in
+  String.length s >= lp && String.sub s 0 lp = prefix
+
+let is_word_boundary s i =
+  i >= String.length s
+  ||
+  match s.[i] with
+  | ' ' | '\t' | '\n' | '\r' | '(' | '{' | '"' -> true
+  | _ -> false
+
+let has_sig_or_clause_marker line =
+  let len = String.length line in
+  let rec go i =
+    i < len
+    &&
+    match line.[i] with
+    | ':' | '=' -> true
+    | _ -> go (i + 1)
+  in
+  go 0
+
+let reserved_command_keywords =
+  [
+    "postulate";
+    "echo";
+    "synth";
+    "notation";
+    "infixl";
+    "infixr";
+    "infix";
+    "import";
+    "export";
+    "section";
+    "end";
+    "data";
+    "record";
+    "display";
+    "solve";
+    "split";
+    "show";
+    "fmt";
+    "undo";
+    "quit";
+    "chdir";
+    "module";
+    "open";
+    "private";
+    "public";
+  ]
+
+let starts_reserved_command trimmed =
+  List.exists
+    (fun kw -> starts_with trimmed kw && is_word_boundary trimmed (String.length kw))
+    reserved_command_keywords
+
+type chunk_start_kind = [ `Header | `Sig_or_clause ]
+
+let command_start_kind line =
+  let indent = indent_of_line line in
+  let trimmed =
+    if indent >= String.length line then "" else String.sub line indent (String.length line - indent) in
+  if trimmed = "" then None
+  else if starts_with trimmed "{-#" then Some `Header
+  else if starts_reserved_command trimmed then Some `Header
+  else
+    match trimmed.[0] with
+    | '|' | ']' | ')' | '}' | ',' | '.' | '-' -> None
+    | _ -> if has_sig_or_clause_marker trimmed then Some `Sig_or_clause else None
+
+let is_command_start_line line = Option.is_some (command_start_kind line)
+
+let line_is_blank line =
+  let indent = indent_of_line line in
+  let trimmed =
+    if indent >= String.length line then "" else String.sub line indent (String.length line - indent) in
+  String.trim trimmed = ""
+
+type split_scan_state = {
+  block_comment_depth : int;
+  nesting_depth : int;
+  guillemet_depth : int;
+  in_string : bool;
+  escaped : bool;
+}
+
+let initial_split_scan_state =
+  { block_comment_depth = 0; nesting_depth = 0; guillemet_depth = 0; in_string = false; escaped = false }
+
+let utf8_guillemet_start = "\xC2\xAB"
+let utf8_guillemet_end = "\xC2\xBB"
+
+let starts_with_utf8 s i piece =
+  let lp = String.length piece in
+  i + lp <= String.length s && String.sub s i lp = piece
+
+let sanitize_line_for_split state line =
+  let len = String.length line in
+  let buf = Bytes.of_string line in
+  let blank_range i j =
+    for k = i to j - 1 do
+      if k < len && line.[k] <> '\n' then Bytes.set buf k ' '
+    done
+  in
+  let blank_rest i = blank_range i len in
+  let rec go i state =
+    if i >= len then state
+    else if state.block_comment_depth > 0 then
+      if i + 1 < len && line.[i] = '{' && line.[i + 1] = '-' then (
+        blank_range i (i + 2);
+        go (i + 2) { state with block_comment_depth = state.block_comment_depth + 1 })
+      else if i + 1 < len && line.[i] = '-' && line.[i + 1] = '}' then (
+        blank_range i (i + 2);
+        go (i + 2) { state with block_comment_depth = state.block_comment_depth - 1 })
+      else (
+        blank_range i (i + 1);
+        go (i + 1) state)
+    else if state.guillemet_depth > 0 then
+      if starts_with_utf8 line i utf8_guillemet_start then
+        go (i + 2) { state with guillemet_depth = state.guillemet_depth + 1 }
+      else if starts_with_utf8 line i utf8_guillemet_end then
+        go (i + 2) { state with guillemet_depth = state.guillemet_depth - 1 }
+      else
+        go (i + 1) state
+    else if state.in_string then (
+      blank_range i (i + 1);
+      if state.escaped then
+        go (i + 1) { state with escaped = false }
+      else
+        match line.[i] with
+        | '\\' -> go (i + 1) { state with escaped = true }
+        | '"' -> go (i + 1) { state with in_string = false }
+        | _ -> go (i + 1) state)
+    else if i + 2 < len && line.[i] = '{' && line.[i + 1] = '-' && line.[i + 2] = '#' then
+      go (i + 3) state
+    else if i + 1 < len && line.[i] = '{' && line.[i + 1] = '-' then (
+      blank_range i (i + 2);
+      go (i + 2) { state with block_comment_depth = 1 })
+    else if i + 1 < len && line.[i] = '-' && line.[i + 1] = '-' then (
+      blank_rest i;
+      state)
+    else if starts_with_utf8 line i utf8_guillemet_start then
+      go (i + 2) { state with guillemet_depth = 1 }
+    else if line.[i] = '"' then (
+      blank_range i (i + 1);
+      go (i + 1) { state with in_string = true; escaped = false })
+    else if line.[i] = '(' || line.[i] = '[' || line.[i] = '{' then
+      go (i + 1) { state with nesting_depth = state.nesting_depth + 1 }
+    else if line.[i] = ')' || line.[i] = ']' || line.[i] = '}' then
+      go (i + 1) { state with nesting_depth = max 0 (state.nesting_depth - 1) }
+    else
+      go (i + 1) state
+  in
+  let state = go 0 state in
+  (Bytes.to_string buf, state)
+
+let trimmed_last_char s =
+  let rec go i =
+    if i < 0 then None
+    else
+      match s.[i] with
+      | ' ' | '\t' | '\n' | '\r' -> go (i - 1)
+      | c -> Some c
+  in
+  go (String.length s - 1)
+
+let contains_substring s sub =
+  let ls = String.length s and lsub = String.length sub in
+  let rec go i =
+    i + lsub <= ls && (String.sub s i lsub = sub || go (i + 1))
+  in
+  lsub = 0 || go 0
+
+let first_nonblank_line s =
+  let rec go = function
+    | [] -> ""
+    | line :: lines ->
+        let indent = indent_of_line line in
+        let trimmed =
+          if indent >= String.length line then "" else String.sub line indent (String.length line - indent)
+        in
+        if String.trim trimmed = "" then go lines else trimmed
+  in
+  go (split_lines_preserving_newlines s)
+
+let chunk_expects_continuation current_kind buf =
+  match trimmed_last_char (Buffer.contents buf) with
+  | Some ('=' | ':') -> true
+  | _ -> (
+      match current_kind with
+      | `Sig_or_clause -> false
+      | `Header ->
+          let contents = Buffer.contents buf in
+          let first = first_nonblank_line contents in
+          ((starts_with first "record" && is_word_boundary first (String.length "record"))
+          || (starts_with first "data" && is_word_boundary first (String.length "data"))
+          || (starts_with first "module" && is_word_boundary first (String.length "module")))
+          && not (contains_substring contents "where"))
+
+let split_source_commands_with_boundaries content =
+  let lines = split_lines_preserving_newlines content in
+  let prelude = Buffer.create 128 in
+  let current = ref None in
+  let chunks = ref [] in
+  let state = ref initial_split_scan_state in
+  let flush_current () =
+    match !current with
+    | None -> ()
+    | Some (buf, indent, _) ->
+        ignore indent;
+        chunks := Buffer.contents buf :: !chunks;
+        current := None
+  in
+  List.iter
+    (fun line ->
+      let start_state = !state in
+      let sanitized, next_state = sanitize_line_for_split !state line in
+      state := next_state;
+      let indent = indent_of_line line in
+      let trimmed =
+        if indent >= String.length line then "" else String.sub line indent (String.length line - indent) in
+      let inside_construct =
+        start_state.block_comment_depth > 0
+        || start_state.guillemet_depth > 0
+        || start_state.in_string
+        || start_state.nesting_depth > 0 in
+      let start_kind =
+        if inside_construct then None
+        else
+          match command_start_kind sanitized with
+          | Some _ as kind -> kind
+          | None when starts_reserved_command trimmed -> Some `Header
+          | None -> None in
+      let starts = Option.is_some start_kind in
+      let blank = line_is_blank line && not inside_construct in
+      match !current with
+      | None ->
+          if blank then
+            ()
+          else if starts then (
+            let buf = Buffer.create (max 64 (String.length line)) in
+            Buffer.add_buffer buf prelude;
+            Buffer.clear prelude;
+            Buffer.add_string buf line;
+            current := Some (buf, indent, Option.get start_kind))
+          else (
+            Buffer.add_string prelude line)
+      | Some (buf, current_indent, current_kind) ->
+          if blank then (
+            if chunk_expects_continuation current_kind buf then
+              Buffer.add_string buf line
+            else (
+              flush_current ();
+              Buffer.clear prelude))
+          else if starts
+                  && (current_kind = `Header || indent <= current_indent)
+                  && not (chunk_expects_continuation current_kind buf)
+          then (
+            flush_current ();
+            let buf = Buffer.create (max 64 (String.length line)) in
+            Buffer.add_string buf line;
+            current := Some (buf, indent, Option.get start_kind))
+          else (
+            Buffer.add_string buf line))
+    lines;
+  flush_current ();
+  List.rev !chunks
+
+let split_source_commands content =
+  split_source_commands_with_boundaries content
+
+let chunk_start_kind chunk =
+  let lines = split_lines_preserving_newlines chunk in
+  let rec go state = function
+    | [] -> None
+    | line :: lines ->
+        let start_state = state in
+        let sanitized, next_state = sanitize_line_for_split state line in
+        let inside_construct =
+          start_state.block_comment_depth > 0
+          || start_state.guillemet_depth > 0
+          || start_state.in_string
+          || start_state.nesting_depth > 0 in
+        if line_is_blank line && not inside_construct then go next_state lines
+        else if inside_construct then go next_state lines
+        else command_start_kind sanitized
+  in
+  go initial_split_scan_state lines
 
 (* Save all the definitions from a given loaded file to a compiled disk file, along with other data such as the command-line type theory flags, the imported files, and the (supplied) export namespace. *)
 let marshal (file : File.t) (filename : FilePath.filename) (trie : Scope.trie) =
@@ -297,10 +659,78 @@ and load_string ?init_visible title content =
 and execute_source ~holes_allowed ?init_visible ?renderer file (source : Asai.Range.source) =
   Origin.with_file ~holes_allowed file @@ fun () ->
   Option.iter Scope.set_visible init_visible;
-  let p, src = Parser.Command.Parse.start_parse source in
-  Reporter.try_with
-    (fun () -> batch renderer p src `None [])
-    ~fatal:(fun d ->
+  let render_command renderer cdns ws cmd =
+    let new_cdns = Parser.Command.condense cmd in
+    let ws =
+      match renderer with
+      | Some render ->
+          let ws =
+            if cdns = `Bof || (cdns <> `None && cdns = new_cdns) then
+              Whitespace.normalize_no_blanks ws
+            else Whitespace.normalize 2 ws in
+          let space_before_starting_comment = if cdns = `Bof then Some 0 else None in
+          let pcmd, wcmd = Parser.Command.pp_command cmd in
+          render
+            (pp_ws ?space_before_starting_comment (if cdns = `Bof then `None else `Cut) ws ^^ pcmd);
+          wcmd
+      | None -> [] in
+    (new_cdns, ws)
+  in
+  let rec batch_fragment p src cdns ws =
+    match Parser.Command.Parse.final p with
+    | Eof -> (cdns, ws)
+    | Bof prews ->
+        let cdns, ws = if cdns = `None then (`Bof, prews) else (cdns, ws) in
+        let p, src = Parser.Command.Parse.restart_parse p src in
+        batch_fragment p src cdns ws
+    | cmd ->
+        let _ = execute_command cmd in
+        let new_cdns, ws = render_command renderer cdns ws cmd in
+        let p, src = Parser.Command.Parse.restart_parse p src in
+        batch_fragment p src new_cdns ws
+  in
+  let rec exec_chunks ?title cdns ws = function
+    | [] ->
+        flush_pending_commands ();
+        (match renderer with
+        | Some render -> render (pp_ws `Cut ws)
+        | None -> ())
+    | chunk :: chunks -> (
+        (match chunk_start_kind chunk with
+        | Some `Header -> flush_pending_commands ()
+        | Some `Sig_or_clause | None -> ());
+        let too_many = ref false in
+        let parsed = ref None in
+        Reporter.try_with
+          (fun () -> parsed := Some (Parser.Command.parse_single ?title chunk))
+          ~fatal:(fun d ->
+            match d.message with
+            | Too_many_commands -> too_many := true
+            | _ -> Reporter.fatal_diagnostic d);
+        if !too_many then
+          let src : Asai.Range.source = `String { content = chunk; title } in
+          let p, src = Parser.Command.Parse.start_parse ~or_echo:true src in
+          let new_cdns, ws = batch_fragment p src cdns ws in
+          exec_chunks ?title new_cdns ws chunks
+        else
+          match !parsed with
+          | Some (prews, Some cmd) ->
+              let ws = if cdns = `None then prews else ws in
+              let _ = execute_command cmd in
+              let new_cdns, ws = render_command renderer cdns ws cmd in
+              exec_chunks ?title new_cdns ws chunks
+          | Some (_, None) | None -> exec_chunks ?title cdns ws chunks)
+  in
+  let run_source () =
+    match source with
+    | `String { title; _ } ->
+        let chunks = split_source_commands_with_boundaries (source_contents source) in
+        exec_chunks ?title `None [] chunks
+    | `File name ->
+        let chunks = split_source_commands_with_boundaries (source_contents source) in
+        exec_chunks ~title:name `None [] chunks
+  in
+  Reporter.try_with run_source ~fatal:(fun d ->
       match d.message with
       | Quit _ ->
           let src =
@@ -313,8 +743,26 @@ and execute_source ~holes_allowed ?init_visible ?renderer file (source : Asai.Ra
 
 (* Parse, execute (if requested by Flags), and reformat (if requested by Flags) all the commands in a source. *)
 and batch renderer p src cdns ws =
+  let render_command renderer cdns ws cmd =
+    let new_cdns = Parser.Command.condense cmd in
+    let ws =
+      match renderer with
+      | Some render ->
+          let ws =
+            if cdns = `Bof || (cdns <> `None && cdns = new_cdns) then
+              Whitespace.normalize_no_blanks ws
+            else Whitespace.normalize 2 ws in
+          let space_before_starting_comment = if cdns = `Bof then Some 0 else None in
+          let pcmd, wcmd = Parser.Command.pp_command cmd in
+          render
+            (pp_ws ?space_before_starting_comment (if cdns = `Bof then `None else `Cut) ws ^^ pcmd);
+          wcmd
+      | None -> [] in
+    (new_cdns, ws)
+  in
   match Parser.Command.Parse.final p with
   | Eof -> (
+      flush_pending_commands ();
       match renderer with
       | Some render -> render (pp_ws `Cut ws)
       | None -> ())
@@ -322,22 +770,8 @@ and batch renderer p src cdns ws =
       let p, src = Parser.Command.Parse.restart_parse p src in
       batch renderer p src `Bof ws
   | cmd ->
-      let new_cdns = Parser.Command.condense cmd in
-      (* We discard the offset and hole information, since this is not used in interactive mode. *)
       let _ = execute_command cmd in
-      let ws =
-        match renderer with
-        | Some render ->
-            let ws =
-              if cdns = `Bof || (cdns <> `None && cdns = new_cdns) then
-                Whitespace.normalize_no_blanks ws
-              else Whitespace.normalize 2 ws in
-            let space_before_starting_comment = if cdns = `Bof then Some 0 else None in
-            let pcmd, wcmd = Parser.Command.pp_command cmd in
-            render
-              (pp_ws ?space_before_starting_comment (if cdns = `Bof then `None else `Cut) ws ^^ pcmd);
-            wcmd
-        | None -> [] in
+      let new_cdns, ws = render_command renderer cdns ws cmd in
       let p, src = Parser.Command.Parse.restart_parse p src in
       batch renderer p src new_cdns ws
 
@@ -345,4 +779,10 @@ and batch renderer p src cdns ws =
 and execute_command cmd =
   let action_taken () = Loading.modify (fun s -> { s with actions = true }) in
   let get_file file = load_file file false in
-  Parser.Command.execute ~action_taken ~get_file cmd
+  match cmd with
+  | Parser.Command.TypeSig _ | Parser.Command.Clause _ ->
+      enqueue_ordinary_command cmd;
+      (None, [])
+  | _ ->
+      flush_pending_commands ();
+      Parser.Command.execute ~action_taken ~get_file cmd

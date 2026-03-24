@@ -1,6 +1,6 @@
 (library
   (name util)
-  (public_name narya.util)
+  (public_name agdarya.util)
   (libraries bwd asai zarith)
   (instrumentation (backend landmarks --auto)))
 (env (_ (flags (:standard -w -37))))

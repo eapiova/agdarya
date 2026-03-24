@@ -1,116 +1,178 @@
-{` -*- narya-prog-args: ("-proofgeneral" "-parametric") -*- `}
+ {- -*- agdarya-prog-args: ("-proofgeneral" "-parametric") -*- -}
 
-axiom A : Type
+postulate A : Set
 
-axiom B : Type
+postulate B : Set
 
 echo B
 
-def id : Type → Type ≔ X ↦ X
+id : Set → Set
 
-axiom b : B
+id X = X
 
-axiom g : (A → B) → A → B
+postulate b : B
 
-def f : A → B ≔ g ¿ g f ! _ ↦ ? ʔ
+postulate g : (A → B) → A → B
 
-axiom a_very_long_variable : A
+f : A → B
 
-axiom a_very_long_function : A → A → A → A → A → A → A → B
+f = ?
 
-def f' : A → B ≔ ?
+postulate a_very_long_variable : A
 
-{` Check whether notations that were in scope at the time of a hole are still available when solving the hole even if they're no longer in scope at the current time, while notations defined later are not in scope for the hole. `}
+postulate a_very_long_function : A → A → A → A → A → A → A → B
+
+f' : A → B
+
+f' = ? {- Check whether notations that were in scope at the time of a hole are still available when solving the hole even if they're no longer in scope at the current time, while notations defined later are not in scope for the hole. -}
+
 section sec ≔
 
   notation "&" ≔ b
 
-  def f' : A → B ≔ ¿_ ↦ &ʔ
+  f' : A → B
+
+  f' = ?
 
 end
 
 notation "$" ≔ b
 
-def ℕ : Type ≔ data [ zero. : ℕ | suc. : ℕ → ℕ ]
+ℕ : Set
 
-def plus (m n : ℕ) : ℕ ≔ match n [ zero. ↦ ? | suc. n ↦ ? ]
+ℕ = data [ zero : ℕ | suc : ℕ → ℕ ]
 
-axiom P : ℕ → Type
+plus : (m n : ℕ) → ℕ
 
-def anop : ℕ → ℕ → (x : ℕ) → P x ≔ n n′ n ↦ ?
+plus m n = case n of λ { zero → ?; suc n → ?}
 
-{` The user's "n′" should not be shadowed by an auto-generated one `}
-def anop' : ℕ → ℕ → (x : ℕ) → P x ≔ n′ n n ↦ ?
+postulate P : ℕ → Set
 
-def anop'' : ℕ → ℕ → (x : ℕ) → P x ≔ n _ n ↦ ?
+anop : ℕ → ℕ → (x : ℕ) → P x
 
-{` Nor the user's 𝑥 be shadowed by an auto-generated one `}
-def anop''' : ℕ → ℕ → (x : ℕ) → P x ≔ 𝑥 _ n ↦ ?
+anop n n′ n = ? {- The user's "n′" should not be shadowed by an auto-generated one -}
 
-def Σ (A : Type) (B : A → Type) : Type ≔ sig ( fst : A, snd : B fst )
+anop' : ℕ → ℕ → (x : ℕ) → P x
 
-{` Here the type of the second hole is not the first hole but "pp .fst", since the first hole is potential and causes its case tree to be just stuck. `}
-def pp : Σ Type (X ↦ X) ≔ (?, ?)
+anop' n′ n n = ?
 
-{` But if we break the case tree, then the type of the second hole is the first hole. `}
-def pp' : Σ Type (X ↦ X) ≔ (id ?, ?)
+anop'' : ℕ → ℕ → (x : ℕ) → P x
 
-{` The out-of-scope variable "𝑥" that appears here is because record types are stored internally like codatatypes with all fields depending on a single variable, so we have to introduce that variable during typechecking. `}
-def foo : Type ≔ sig (
+anop'' n _ n = ? {- Nor the user's 𝑥 be shadowed by an auto-generated one -}
+
+anop''' : ℕ → ℕ → (x : ℕ) → P x
+
+anop''' 𝑥 _ n = ?
+
+Σ : (A : Set) → (B : A → Set) → Set
+
+Σ A B = sig ( fst : A, snd : B fst ) {- Here the type of the second hole is not the first hole but "pp fst", since the first hole is potential and causes its case tree to be just stuck. -}
+
+pp : Σ Set (X ↦ X)
+
+pp = (?, ?) {- But if we break the case tree, then the type of the second hole is the first hole. -}
+
+pp' : Σ Set (X ↦ X)
+
+pp' = (id ?, ?) {- The out-of-scope variable "𝑥" that appears here is because record types are stored internally like codatatypes with all fields depending on a single variable, so we have to introduce that variable during typechecking. -}
+
+foo : Set
+
+foo
+=
+  sig (
   bar : ℕ,
-{` It's important for ? to be its own token, so that it can be followed immediately by a comma. `}
+{- It's important for ? to be its own token, so that it can be followed immediately by a comma. -}
   baz : ? )
 
-def foo' : Type ≔ sig ( bar : Type, baz : (x : bar) → ? )
+foo' : Set
 
-def gel0 (A B : Type) : Id Type A B ≔ sig x y ↦ ( one : ? )
+foo' = sig ( bar : Set, baz : (x : bar) → ? )
 
-def gel1 (A B : Type) : Id Type A B ≔ sig x y ↦ ( one : Type, two : ? )
+gel0 : (A B : Set) → Id Set A B
 
-def gel2 (A B : Type) : Id Type A B ≔ sig x y ↦ ( one : ?, two : ? )
+gel0 A B = sig x y ↦ ( one : ? )
 
-def gel3 (A B : Type) : Id Type A B ≔ codata [
-| x .one : ?
-| x .two : ? ]
+gel1 : (A B : Set) → Id Set A B
 
-axiom C : A → Type
+gel1 A B = sig x y ↦ ( one : Set, two : ? )
 
-def AC : Type ≔ sig ( a : ℕ → A, c : C (a zero.) )
+gel2 : (A B : Set) → Id Set A B
 
-def ac : AC ≔ (a ≔ ?, c ≔ ?)
+gel2 A B = sig x y ↦ ( one : ?, two : ? )
 
-def ida : A → A ≔ x ↦ x
+gel3 : (A B : Set) → Id Set A B
 
-def ideqid : Id (A → A) ida ida
-  ≔ ((x ↦ x) : Id (A → A) ida ida → Id (A → A) ida ida) ({u} {u} u ↦ u)
+gel3 A B = codata [ one x : ? | two x : ? ]
 
-echo ideqid
+postulate C : A → Set
 
-{` TODO: Ideally, the user's "u′" should not be shadowed by an auto-generated one (although this matters a bit less than the one for contexts, since the user won't be using it to enter terms).  (This isn't about holes.) `}
-def ideqid' : Id (A → A) ida ida
-  ≔ ((x ↦ x) : Id (A → A) ida ida → Id (A → A) ida ida) ({u} {u} u′ ↦ u′)
+AC : Set
+
+AC = sig ( a : ℕ → A, c : C (a zero) )
+
+ac : AC
+
+ac = (a ≔ ?, c ≔ ?)
+
+ida : A → A
+
+ida x = x
+
+ideqid : Id (A → A) ida ida
+
+ideqid
+=
+  ((x ↦ x) : Id (A → A) ida ida → Id (A → A) ida ida) ({u} {u} u ↦ u)
+
+echo ideqid {- TODO: Ideally, the user's "u′" should not be shadowed by an auto-generated one (although this matters a bit less than the one for contexts, since the user won't be using it to enter terms).  (This isn't about holes.) -}
+
+ideqid' : Id (A → A) ida ida
+
+ideqid'
+=
+  ((x ↦ x) : Id (A → A) ida ida → Id (A → A) ida ida) ({u} {u} u′ ↦ u′)
 
 echo ideqid'
 
-def ideqid'' : Id (A → A) ida ida
-  ≔ ((x ↦ x) : Id (A → A) ida ida → Id (A → A) ida ida) ({u} {u} u ↦ ?)
+ideqid'' : Id (A → A) ida ida
 
-{` A kinetic hole `}
-def afam : Type → Type ≔ X ↦ id ?
+ideqid''
+=
+  ((x ↦ x) : Id (A → A) ida ida → Id (A → A) ida ida) ({u} {u} u ↦ ?) {- A kinetic hole -}
 
-{` This requires comparing a metavariable to equal itself when evaluated in equal environments. `}
-def idafam (X : Type) : afam X → afam X ≔ x ↦ x
+afam : Set → Set
 
-{` For testing hole splitting `}
+afam X = id ? {- This requires comparing a metavariable to equal itself when evaluated in equal environments. -}
 
-axiom f0 : A → B
-def f2 : Id ((x : A) → B) f0 f0 ≔ x ⤇ ?
+idafam : (X : Set) → afam X → afam X
 
-def prod : Type ≔ sig ( fst : A, snd : B )
-def p : prod ≔ ?
+idafam X x = x {- For testing hole splitting -}
 
-axiom p0 : prod
-def p2 : Id prod p0 p0 ≔ ?
+postulate f0 : A → B
 
-def prod' : Type ≔ codata [ x .fst : A | x .snd : B ]
-def p : prod' ≔ ?
+f2 : Id ((x : A) → B) f0 f0
+
+f2 = x ⤇ ?
+
+prod : Set
+
+prod = sig ( fst : A, snd : B )
+
+p : prod
+
+p = ?
+
+postulate p0 : prod
+
+p2 : Id prod p0 p0
+
+p2 = ?
+
+prod' : Set
+
+prod' = codata [ fst x : A | snd x : B ]
+
+p : prod'
+
+p = ?

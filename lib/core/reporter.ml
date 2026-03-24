@@ -81,7 +81,16 @@ module Code = struct
     | Invalid_variable : string list -> t
     | Invalid_numeral : string -> t
     | Invalid_constr : string -> t
+    | Constructor_dot_syntax_removed : string -> t
     | Invalid_field : string -> t
+    | Field_dot_syntax_removed : string -> t
+    | Standalone_field_name : string -> t
+    | Match_syntax_removed : t
+    | Embedded_data_syntax_removed : t
+    | Embedded_record_syntax_removed : t
+    | Unsupported_record_constructor_clause : t
+    | Def_syntax_removed : t
+    | Bracket_syntax_removed : t
     | Invalid_degeneracy : string -> t
     | Not_enough_lambdas : int -> t
     | Zero_dimensional_cube_abstraction : string -> t
@@ -293,7 +302,16 @@ module Code = struct
     | Invalid_variable _ -> Error
     | Invalid_numeral _ -> Error
     | Invalid_constr _ -> Error
+    | Constructor_dot_syntax_removed _ -> Error
     | Invalid_field _ -> Error
+    | Field_dot_syntax_removed _ -> Error
+    | Standalone_field_name _ -> Error
+    | Match_syntax_removed -> Error
+    | Embedded_data_syntax_removed -> Error
+    | Embedded_record_syntax_removed -> Error
+    | Unsupported_record_constructor_clause -> Error
+    | Def_syntax_removed -> Error
+    | Bracket_syntax_removed -> Error
     | Invalid_degeneracy _ -> Error
     | Not_enough_lambdas _ -> Error
     | Zero_dimensional_cube_abstraction _ -> Error
@@ -460,6 +478,15 @@ module Code = struct
     | Invalid_degeneracy _ -> "E0206"
     | No_relative_precedence _ -> "E0207"
     | Unrecognized_attribute -> "E0208"
+    | Constructor_dot_syntax_removed _ -> "E0209"
+    | Field_dot_syntax_removed _ -> "E0210"
+    | Standalone_field_name _ -> "E0211"
+    | Match_syntax_removed -> "E0212"
+    | Embedded_data_syntax_removed -> "E0213"
+    | Embedded_record_syntax_removed -> "E0214"
+    | Unsupported_record_constructor_clause -> "E0215"
+    | Def_syntax_removed -> "E0216"
+    | Bracket_syntax_removed -> "E0217"
     | Comment_end_in_string -> "E0250"
     | Cyclic_term -> "E0280"
     | Encoding_error -> "E0299"
@@ -647,6 +674,23 @@ module Code = struct
       | Invalid_variable str -> textf "invalid local variable name: %s" (String.concat "." str)
       | Invalid_field str -> textf "invalid field name: %s" str
       | Invalid_constr str -> textf "invalid constructor name: %s" str
+      | Constructor_dot_syntax_removed str ->
+          textf "constructor dot syntax removed; use bare name: %s" str
+      | Field_dot_syntax_removed str ->
+          textf "field dot syntax removed; use bare name, name⟨…⟩, or M.(name): %s" str
+      | Standalone_field_name str ->
+          textf "field '%s' cannot be used standalone; use M %s or M.(%s)" str str str
+      | Match_syntax_removed -> text "match syntax removed; use case … of λ { … }"
+      | Embedded_data_syntax_removed ->
+          text "embedded datatype syntax removed; use a top-level data … where { … } declaration"
+      | Embedded_record_syntax_removed ->
+          text "embedded record syntax removed; use a top-level record … where { field … } declaration"
+      | Unsupported_record_constructor_clause ->
+          text "record constructor clauses are not supported in A4; use field declarations only"
+      | Def_syntax_removed ->
+          text "def syntax removed; use a top-level signature followed by one or more clauses"
+      | Bracket_syntax_removed ->
+          text "standalone bracket syntax removed; use λ { … } for matching lambdas or record { … } for codata values"
       | Invalid_numeral str -> textf "invalid numeral: %s" str
       | Invalid_degeneracy str ->
           if str = "" then text "missing degeneracy" else textf "invalid degeneracy: %s" str
@@ -912,10 +956,10 @@ module Code = struct
       | Constant_assumed { name; parametric; holes } ->
           let p = if parametric then "" else "nonparametric " in
           if holes > 1 then
-            textf "%saxiom %a assumed, containing %d holes" p pp_printed (print name) holes
+            textf "%spostulate %a assumed, containing %d holes" p pp_printed (print name) holes
           else if holes = 1 then
-            textf "%saxiom %a assumed, containing 1 hole" p pp_printed (print name)
-          else textf "%saxiom %a assumed" p pp_printed (print name)
+            textf "%spostulate %a assumed, containing 1 hole" p pp_printed (print name)
+          else textf "%spostulate %a assumed" p pp_printed (print name)
       | Constant_defined { names; discrete; parametric; holes } -> (
           (* Nonparametricity trumps discreteness *)
           let prefix =
@@ -986,11 +1030,11 @@ module Code = struct
       | Locked_variable -> text "variable not available inside external degeneracy"
       | Locked_constant a ->
           textf
-            "constant %a is or uses a nonparametric axiom, can't appear inside an external degeneracy"
+            "constant %a is or uses a nonparametric postulate, can't appear inside an external degeneracy"
             pp_printed (print a)
       | Axiom_in_parametric_definition a ->
           textf
-            "constant %a is or uses a nonparametric axiom, can't be used in a parametric command"
+            "constant %a is or uses a nonparametric postulate, can't be used in a parametric command"
             pp_printed (print a)
       | Hole (n, ty) -> textf "@[<v 0>hole %s:@,%a@]" n pp_printed (print ty)
       | No_open_holes -> text "no open holes"
@@ -1040,7 +1084,7 @@ module Code = struct
       | Invalid_filename file -> textf "filename '%s' does not have 'ny' extension" file
       | Library_modified file ->
           textf
-            "library '%s'@ was@ already@ loaded@ in@ this@ session@ but@ has@ been@ modified@ since@ then:@ you@ must@ restart@ Narya@ to@ reload@ it"
+            "library '%s'@ was@ already@ loaded@ in@ this@ session@ but@ has@ been@ modified@ since@ then:@ you@ must@ restart@ Agdarya@ to@ reload@ it"
             file
       | Directory_changed dir -> textf "current directory changed to@ %s" dir
       | No_such_file file -> textf "error opening file: %s" file

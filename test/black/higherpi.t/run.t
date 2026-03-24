@@ -1,42 +1,42 @@
-  $ narya -v higherpi.ny -e "echo Id ((x : A) → B x) f g" -e "echo ((x : A) → B x)⁽ᵉᵉ⁾ f02 f12 f20 f21" -e "echo Id ((x : A) → B x)"
+  $ agdarya -v higherpi.ny -e "echo Id ((x : A) → B x) f g" -e "echo ((x : A) → B x)⁽ᵉᵉ⁾ f02 f12 f20 f21" -e "echo Id ((x : A) → B x)"
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom B assumed
+   ￮ postulate B assumed
   
    ￫ info[I0001]
-   ￮ axiom f assumed
+   ￮ postulate f assumed
   
    ￫ info[I0001]
-   ￮ axiom g assumed
+   ￮ postulate g assumed
   
    ￫ info[I0000]
    ￮ constant idok defined
   
    ￫ info[I0001]
-   ￮ axiom f00 assumed
+   ￮ postulate f00 assumed
   
    ￫ info[I0001]
-   ￮ axiom f01 assumed
+   ￮ postulate f01 assumed
   
    ￫ info[I0001]
-   ￮ axiom f10 assumed
+   ￮ postulate f10 assumed
   
    ￫ info[I0001]
-   ￮ axiom f11 assumed
+   ￮ postulate f11 assumed
   
    ￫ info[I0001]
-   ￮ axiom f02 assumed
+   ￮ postulate f02 assumed
   
    ￫ info[I0001]
-   ￮ axiom f12 assumed
+   ￮ postulate f12 assumed
   
    ￫ info[I0001]
-   ￮ axiom f20 assumed
+   ￮ postulate f20 assumed
   
    ￫ info[I0001]
-   ￮ axiom f21 assumed
+   ￮ postulate f21 assumed
   
    ￫ info[I0000]
    ￮ constant id2ok defined
@@ -45,19 +45,19 @@
    ￮ constant nidok defined
   
   {x₀ : A} {x₁ : A} (x₂ : Id A x₀ x₁) →⁽ᵉ⁾ Id B x₂ (f x₀) (g x₁)
-    : Type
+    : Set
   
   {x₀₀ : A} {x₀₁ : A} {x₀₂ : Id A x₀₀ x₀₁} {x₁₀ : A} {x₁₁ : A}
   {x₁₂ : Id A x₁₀ x₁₁} {x₂₀ : Id A x₀₀ x₁₀} {x₂₁ : Id A x₀₁ x₁₁}
   (x₂₂ : A⁽ᵉᵉ⁾ x₀₂ x₁₂ x₂₀ x₂₁)
   →⁽ᵉᵉ⁾ B⁽ᵉᵉ⁾ x₂₂ (f02 x₀₂) (f12 x₁₂) (f20 x₂₀) (f21 x₂₁)
-    : Type
+    : Set
   
   (x : Id A) ⇒ Id B x.2
-    : Type⁽ᵉ⁾ ((x : A) → B x) ((x : A) → B x)
+    : Set⁽ᵉ⁾ ((x : A) → B x) ((x : A) → B x)
   
 
-  $ narya higherpi.ny -e "echo (x₂ : refl A x₀ x₁) →⁽ᵉ⁾ refl B x₂ (f x₀) (g x₁)"
+  $ agdarya higherpi.ny -e "echo (x₂ : refl A x₀ x₁) →⁽ᵉ⁾ refl B x₂ (f x₀) (g x₁)"
    ￫ error[E0702]
    ￭ command-line exec string
    1 | echo (x₂ : refl A x₀ x₁) →⁽ᵉ⁾ refl B x₂ (f x₀) (g x₁)
@@ -65,12 +65,12 @@
   
   [1]
 
-  $ narya higherpi.ny -e "echo {x₀ x₁ : A} (x₂ : refl A x₀ x₁) →⁽ᵉ⁾ refl B x₂ (f x₀) (g x₁)"
+  $ agdarya higherpi.ny -e "echo {x₀ x₁ : A} (x₂ : refl A x₀ x₁) →⁽ᵉ⁾ refl B x₂ (f x₀) (g x₁)"
   {x₀ : A} {x₁ : A} (x₂ : Id A x₀ x₁) →⁽ᵉ⁾ Id B x₂ (f x₀) (g x₁)
-    : Type
+    : Set
   
 
-  $ narya higherpi.ny -e "echo {x₀ x₁ : A} {x₂ : refl A x₀ x₁} →⁽ᵉ⁾ refl B x₂ (f x₀) (g x₁)"
+  $ agdarya higherpi.ny -e "echo {x₀ x₁ : A} {x₂ : refl A x₀ x₁} →⁽ᵉ⁾ refl B x₂ (f x₀) (g x₁)"
    ￫ error[E0702]
    ￭ command-line exec string
    1 | echo {x₀ x₁ : A} {x₂ : refl A x₀ x₁} →⁽ᵉ⁾ refl B x₂ (f x₀) (g x₁)
@@ -78,7 +78,7 @@
   
   [1]
 
-  $ narya higherpi.ny -e "echo {x₀ x₁ : A} (x₂ : refl (B x₀) (f x₀) (f x₀)) →⁽ᵉ⁾ refl B x₂ (f x₀) (g x₁)"
+  $ agdarya higherpi.ny -e "echo {x₀ x₁ : A} (x₂ : refl (B x₀) (f x₀) (f x₀)) →⁽ᵉ⁾ refl B x₂ (f x₀) (g x₁)"
    ￫ error[E0706]
    ￭ command-line exec string
    1 | echo {x₀ x₁ : A} (x₂ : refl (B x₀) (f x₀) (f x₀)) →⁽ᵉ⁾ refl B x₂ (f x₀) (g x₁)
@@ -86,7 +86,7 @@
   
   [1]
 
-  $ narya higherpi.ny -e "echo {x₀ x₁ : A} (x₂ : A) →⁽ᵉ⁾ refl B x₂ (f x₀) (g x₁)"
+  $ agdarya higherpi.ny -e "echo {x₀ x₁ : A} (x₂ : A) →⁽ᵉ⁾ refl B x₂ (f x₀) (g x₁)"
    ￫ error[E0706]
    ￭ command-line exec string
    1 | echo {x₀ x₁ : A} (x₂ : A) →⁽ᵉ⁾ refl B x₂ (f x₀) (g x₁)
@@ -94,7 +94,7 @@
   
   [1]
 
-  $ narya higherpi.ny -e "echo {x₀ x₁ : A} (x₂ : Id A x₀ x₀) →⁽ᵉ⁾ refl B x₂ (f x₀) (g x₁)"
+  $ agdarya higherpi.ny -e "echo {x₀ x₁ : A} (x₂ : Id A x₀ x₀) →⁽ᵉ⁾ refl B x₂ (f x₀) (g x₁)"
    ￫ error[E0706]
    ￭ command-line exec string
    1 | echo {x₀ x₁ : A} (x₂ : Id A x₀ x₀) →⁽ᵉ⁾ refl B x₂ (f x₀) (g x₁)
@@ -102,7 +102,7 @@
   
   [1]
 
-  $ narya higherpi.ny -e "echo {x₀ x₁ : A} (x₂ : refl A x₀ x₁) →⁽ᵉ⁾ refl (B x₀) (f x₀) (g x₀)"
+  $ agdarya higherpi.ny -e "echo {x₀ x₁ : A} (x₂ : refl A x₀ x₁) →⁽ᵉ⁾ refl (B x₀) (f x₀) (g x₀)"
    ￫ error[E0706]
    ￭ command-line exec string
    1 | echo {x₀ x₁ : A} (x₂ : refl A x₀ x₁) →⁽ᵉ⁾ refl (B x₀) (f x₀) (g x₀)
@@ -110,7 +110,7 @@
   
   [1]
 
-  $ narya higherpi.ny -e "echo {x₀ x₁ : A} (x₂ : refl A x₀ x₁) →⁽ᵉ⁾ A"
+  $ agdarya higherpi.ny -e "echo {x₀ x₁ : A} (x₂ : refl A x₀ x₁) →⁽ᵉ⁾ A"
    ￫ error[E0706]
    ￭ command-line exec string
    1 | echo {x₀ x₁ : A} (x₂ : refl A x₀ x₁) →⁽ᵉ⁾ A
@@ -118,7 +118,7 @@
   
   [1]
 
-  $ narya higherpi.ny -e "echo (x : Id A) ⇒ A"
+  $ agdarya higherpi.ny -e "echo (x : Id A) ⇒ A"
    ￫ error[E0706]
    ￭ command-line exec string
    1 | echo (x : Id A) ⇒ A
@@ -126,14 +126,14 @@
   
   [1]
 
-  $ narya -e "echo refl ((X Y ↦ X → Y → Type) : Type → Type → Type)"
-  X Y ⤇ X.2 ⇒ Y.2 ⇒ Type⁽ᵉ⁾
-    : {𝑥₀ : Type} {𝑥₁ : Type} (𝑥₂ : Type⁽ᵉ⁾ 𝑥₀ 𝑥₁) {𝑦₀ : Type} {𝑦₁ : Type}
-      (𝑦₂ : Type⁽ᵉ⁾ 𝑦₀ 𝑦₁)
-      →⁽ᵉ⁾ Type⁽ᵉ⁾ (𝑥₀ → 𝑦₀ → Type) (𝑥₁ → 𝑦₁ → Type)
+  $ agdarya -e "echo refl ((X Y ↦ X → Y → Set) : Set → Set → Set)"
+  X Y ⤇ X.2 ⇒ Y.2 ⇒ Set⁽ᵉ⁾
+    : {𝑥₀ : Set} {𝑥₁ : Set} (𝑥₂ : Set⁽ᵉ⁾ 𝑥₀ 𝑥₁) {𝑦₀ : Set} {𝑦₁ : Set}
+      (𝑦₂ : Set⁽ᵉ⁾ 𝑦₀ 𝑦₁)
+      →⁽ᵉ⁾ Set⁽ᵉ⁾ (𝑥₀ → 𝑦₀ → Set) (𝑥₁ → 𝑦₁ → Set)
   
-  $ narya -variables 𝑎,𝑏 -e "axiom A : Type axiom B : Type axiom f : A → B axiom g : A → B echo Id (A → B) f g"
+  $ agdarya -variables 𝑎,𝑏 -e "postulate A : Set postulate B : Set postulate f : A → B postulate g : A → B echo Id (A → B) f g"
   {𝑎₀ : A} {𝑎₁ : A} (𝑎₂ : Id A 𝑎₀ 𝑎₁) →⁽ᵉ⁾ Id B (f 𝑎₀) (g 𝑎₁)
-    : Type
+    : Set
   
 

@@ -1,14 +1,14 @@
 Installation
 ============
 
-There are several ways to install Narya.
+There are several ways to install Agdarya.
 
-- If you are using Linux, and you don't want to edit or contribute to the Narya source code, the easiest way to run Narya is to use the :ref:`Static binary`.
+- If you are using Linux, and you don't want to edit or contribute to the Agdarya source code, the easiest way to run Agdarya is to use the :ref:`Static binary`.
 - If you are on Windows, and you have (or can install) Windows Subsystem for Linux (WSL), you can also use the :ref:`Static binary`.
-- If you are on MacOS, or you want to edit the Narya source code, you'll need :ref:`Compiling from source` instead.
-- You can also use an in-browser version called :ref:`Installing jsNarya` without installing anything, although its functionality is limited and the currently posted version is way out of date.
+- If you are on MacOS, or you want to edit the Agdarya source code, you'll need :ref:`Compiling from source` instead.
+- You can also use an in-browser version called :ref:`Installing jsAgdarya` without installing anything, although its functionality is limited and the currently posted version is way out of date.
 
-In addition to installing the basic Narya executable, the following are highly recommended:
+In addition to installing the basic Agdarya executable, the following are highly recommended:
 
 - The :ref:`Installing ProofGeneral mode` that runs inside Emacs.
 - :ref:`Installing ctags` for jumping to the definition of constants in a source tree.
@@ -20,33 +20,33 @@ We have tried to make the installation process as easy and painless as possible.
 Static binary
 -------------
 
-A statically compiled binary, built automatically with Nix from the up-to-date development version, can be downloaded `here <https://gwaithimirdain.github.io/narya/releases/narya-master-static.tar.gz>`_.  This ought to work on any Linux computer, including on Windows using WSL (see :ref:`On Windows`).
+A statically compiled binary, built automatically with Nix from the up-to-date development version, can be downloaded `here <https://gwaithimirdain.github.io/agdarya/releases/agdarya-master-static.tar.gz>`_.  This ought to work on any Linux computer, including on Windows using WSL (see :ref:`On Windows`).
 
 On Linux
 ^^^^^^^^
 
-After downloading and unpacking the `static distribution <https://gwaithimirdain.github.io/narya/releases/narya-master-static.tar.gz>`_, place the ``narya`` executable in a directory that's in your ``PATH`` (the "environment variable" that tells your shell or command prompt which directories to look in to find programs).  On some flavors of Linux, the directory ``~/bin`` is automatically in your path if it exists.  Thus, the first thing to try is (from the directory ``narya-XXXXXXX-YYYYMMDD`` created by extracting the static distribution):
+After downloading and unpacking the `static distribution <https://gwaithimirdain.github.io/agdarya/releases/agdarya-master-static.tar.gz>`_, place the ``agdarya`` executable in a directory that's in your ``PATH`` (the "environment variable" that tells your shell or command prompt which directories to look in to find programs).  On some flavors of Linux, the directory ``~/bin`` is automatically in your path if it exists.  Thus, the first thing to try is (from the directory ``agdarya-XXXXXXX-YYYYMMDD`` created by extracting the static distribution):
 
 .. code-block:: bash
 
   mkdir -p ~/bin
-  cp narya ~/bin
+  cp agdarya ~/bin
 
-Then restart your shell (i.e. terminal or command prompt) and try running ``narya``.  If that doesn't work, try logging out and back in again.  If that still doesn't work, try something like the following:
+Then restart your shell (i.e. terminal or command prompt) and try running ``agdarya``.  If that doesn't work, try logging out and back in again.  If that still doesn't work, try something like the following:
 
 .. code-block:: bash
 
   echo export PATH="\$HOME/bin:\$PATH" >>~/.bashrc
 
-and then once again restart your shell, or log out and back in again.  Once you can run Narya from the command prompt, proceed to :ref:`Installing ProofGeneral mode`.
+and then once again restart your shell, or log out and back in again.  Once you can run Agdarya from the command prompt, proceed to :ref:`Installing ProofGeneral mode`.
 
-To update to a newer version of Narya, simply download the most recent static distribution and copy the newer ``narya`` excecutable into your ``bin``, replacing the old one.  (You may also need to update :ref:`ProofGeneral <Installing ProofGeneral mode>`.)
+To update to a newer version of Agdarya, simply download the most recent static distribution and copy the newer ``agdarya`` excecutable into your ``bin``, replacing the old one.  (You may also need to update :ref:`ProofGeneral <Installing ProofGeneral mode>`.)
 
 
 On Windows
 ^^^^^^^^^^
 
-The easiest way to run Narya on Windows 11 is to use the static binary inside `Windows Subsystem for Linux <https://learn.microsoft.com/en-us/windows/wsl/install>`_.  To install WSL, open a command prompt and run
+The easiest way to run Agdarya on Windows 11 is to use the static binary inside `Windows Subsystem for Linux <https://learn.microsoft.com/en-us/windows/wsl/install>`_.  To install WSL, open a command prompt and run
 
 .. code-block:: none
 
@@ -62,9 +62,9 @@ to enter a Linux command prompt.  If you downloaded the static distribtion in Wi
 
 .. code-block:: none
 
-  wget https://gwaithimirdain.github.io/narya/releases/narya-master-static.tar.gz
-  tar -xzf narya-master-static.tar.gz
-  cd narya-xxxxxxx-YYYYMMDD
+  wget https://gwaithimirdain.github.io/agdarya/releases/agdarya-master-static.tar.gz
+  tar -xzf agdarya-master-static.tar.gz
+  cd agdarya-xxxxxxx-YYYYMMDD
 
 (for the appropriate directory name).  In either case you can then proceed with the :ref:`On Linux` instructions above (and then the later instructions for :ref:`Installing ProofGeneral mode`).  Note that when you run Emacs from the WSL command prompt, it should automatically pop up as a graphical window; you can run ``emacs &`` if you want to also continue using your command prompt while Emacs is running.
 
@@ -72,19 +72,19 @@ to enter a Linux command prompt.  If you downloaded the static distribtion in Wi
 On Mac
 ^^^^^^
 
-The static binary does not work on a Mac, but you can compile Narya from source as below.
+The static binary does not work on a Mac, but you can compile Agdarya from source as below.
 
 
 Compiling from source
 ---------------------
 
-If the static binary does not work for you (such as if you are on MacOS), or if you want to edit the Narya code, you will have to compile it yourself.  This requires a recent version of OCaml and various libraries.  Narya requires OCaml 5.3.0 or later.  You can set up a :ref:`Manual development environment` or look into :ref:`Compiling with nix`.
+If the static binary does not work for you (such as if you are on MacOS), or if you want to edit the Agdarya code, you will have to compile it yourself.  This requires a recent version of OCaml and various libraries.  Agdarya requires OCaml 5.3.0 or later.  You can set up a :ref:`Manual development environment` or look into :ref:`Compiling with nix`.
 
 
 Manual development environment
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Here are steps to manually set up a development environment in which you can compile Narya.
+Here are steps to manually set up a development environment in which you can compile Agdarya.
 
 1. Install `OCaml <https://ocaml.org/>`_ and its package manager `Opam <https://opam.ocaml.org/>`_.  How to do this this may vary depending on your operating system.  Make sure that the opam bin directory is permanently added to the ``PATH`` in your shell; if you run ``opam init`` (*not* ``opam init -y``) it will offer to do that for you.
 
@@ -108,40 +108,40 @@ Here are steps to manually set up a development environment in which you can com
 
     (& opam env) -split '\r?\n' | ForEach-Object { Invoke-Expression $_ }
 
-3. Download the Narya source code.  If you have (or install) `Git <https://git-scm.com/>`_ you can do this with:
+3. Download the Agdarya source code.  If you have (or install) `Git <https://git-scm.com/>`_ you can do this with:
 
   .. code-block:: bash
 
-    git clone https://github.com/gwaithimirdain/narya.git
+    git clone https://github.com/gwaithimirdain/agdarya.git
 
-  You can also download a `ZIP file <https://github.com/gwaithimirdain/narya/archive/refs/heads/master.zip>`_ and unpack it.
+  You can also download a `ZIP file <https://github.com/gwaithimirdain/agdarya/archive/refs/heads/master.zip>`_ and unpack it.
 
-4. Navigate to the root of the Narya source code (e.g. ``cd narya`` or ``cd narya-master``) and run the following commands:
+4. Navigate to the root of the Agdarya source code (e.g. ``cd agdarya`` or ``cd agdarya-master``) and run the following commands:
 
   .. code-block:: bash
 
-    dune build narya.opam
+    dune build agdarya.opam
     opam install . --deps-only
     dune build @install
     dune test
     dune install
 
-This will make the executable available in a directory such as ``$HOME/.opam/5.3.0/bin``.  If Opam was installed correctly using ``opam init``, this directory should already be in your ``PATH``, so that you can then run Narya in the future from any directory by simply typing ``narya``.
+This will make the executable available in a directory such as ``$HOME/.opam/5.3.0/bin``.  If Opam was installed correctly using ``opam init``, this directory should already be in your ``PATH``, so that you can then run Agdarya in the future from any directory by simply typing ``agdarya``.
 
-Alternatively, instead of running ``dune install``, you can run the executable directly from the Narya source directory with ``dune exec narya``.  In this case, to pass flags to the executable, put them after a ``--``.  For instance, ``dune exec narya -- test.ny -i`` loads the file ``test.ny`` and then enters interactive mode.
+Alternatively, instead of running ``dune install``, you can run the executable directly from the Agdarya source directory with ``dune exec agdarya``.  In this case, to pass flags to the executable, put them after a ``--``.  For instance, ``dune exec agdarya -- test.ny -i`` loads the file ``test.ny`` and then enters interactive mode.
 
-If any of the above steps don't work for you, or if you have any other problems or encounter any bugs, please let us know by `opening an issue on GitHub <https://github.com/gwaithimirdain/narya/issues/new/choose>`_.
+If any of the above steps don't work for you, or if you have any other problems or encounter any bugs, please let us know by `opening an issue on GitHub <https://github.com/gwaithimirdain/agdarya/issues/new/choose>`_.
 
 Compiling with nix
 ^^^^^^^^^^^^^^^^^^
 
-Narya can also be developed and installed with `Nix <https://nixos.org/>`_, which can automatically set up a development environment for you, and also build static binaries.  (However, Nix is not well-supported by the Narya developers, so you may be on your own.)
+Agdarya can also be developed and installed with `Nix <https://nixos.org/>`_, which can automatically set up a development environment for you, and also build static binaries.  (However, Nix is not well-supported by the Agdarya developers, so you may be on your own.)
 
 1. Get a version of nix with `flakes <https://nixos.wiki/wiki/flakes>`_ enabled, for instance via `determinate nix <https://github.com/DeterminateSystems/nix-installer>`_.
 
 2. Run ``nix develop`` to open a shell with all of the necessary dependencies for running ``dune build``. This may ask if you accept using a cache; you can say yes if you want to speed up the build process, or no if you want everything built on your own machine.
 
-3. To build a static executable that can be copied over to other Linux machines without problems (like the one mentioned above that is built automatically and hosted on github), run the following command in the Narya source directory.
+3. To build a static executable that can be copied over to other Linux machines without problems (like the one mentioned above that is built automatically and hosted on github), run the following command in the Agdarya source directory.
 
 .. code-block:: bash
 
@@ -153,7 +153,7 @@ Running just ``nix build`` instead will still build a static binary that will wo
 Building the Documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The most recent version of the documentation is automatically posted on `ReadtheDocs <https://narya.readthedocs.io/en/latest/>`_, so even if you are compiling Narya locally, it is not necessary to also build the documentation locally, unless you want to contribute to it or have it available offline.  To build the documentation locally, ensure you have the following dependencies installed:
+The documentation source lives in the repository under ``docs/source/``, so even if you are compiling Agdarya locally, it is not necessary to also build the documentation unless you want to contribute to it or have it available offline.  To build the documentation locally, ensure you have the following dependencies installed:
 
 1. *Sphinx*: The documentation generator.
 2. *Sphinx Read the Docs theme*: A popular theme for Sphinx-based documentation.
@@ -175,12 +175,12 @@ The output will be saved in the ``_build/html`` directory. You can open ``index.
 For more advanced configuration, refer to the `Sphinx documentation <https://www.sphinx-doc.org/>`_
 
 
-.. _Installing jsNarya:
+.. _Installing jsAgdarya:
 
-jsNarya
+jsAgdarya
 -------
 
-jsNarya is also a version of Narya that compiles to JavaScript and runs in a browser, although it is currently limited to the interactive mode with one startup file (:ref:`see here <jsNarya>`).  A somewhat outdated version of jsNarya can be accessed directly at `mikeshulman.github.io/jsnarya <https://mikeshulman.github.io/jsnarya>`_, not requiring installing or compiling anything locally.  Instructions for compiling and running jsNarya locally can be found in `js/README <https://github.com/gwaithimirdain/narya/blob/master/js/README.md>`_.
+jsAgdarya is also a version of Agdarya that compiles to JavaScript and runs in a browser, although it is currently limited to the interactive mode with one startup file (:ref:`see here <jsAgdarya>`).  A somewhat outdated version of jsAgdarya can be accessed directly at `mikeshulman.github.io/jsagdarya <https://mikeshulman.github.io/jsagdarya>`_, not requiring installing or compiling anything locally.  Instructions for compiling and running jsAgdarya locally can be found in `js/README <https://github.com/gwaithimirdain/agdarya/blob/master/js/README.md>`_.
 
 
 .. _Installing ProofGeneral mode:
@@ -188,12 +188,12 @@ jsNarya is also a version of Narya that compiles to JavaScript and runs in a bro
 ProofGeneral Mode
 -----------------
 
-`ProofGeneral <https://proofgeneral.github.io/>`_ is a generic development environment designed for proof assistants that runs inside the text editor Emacs.  Narya comes with a basic ProofGeneral mode that is the recommended way to use it.
+`ProofGeneral <https://proofgeneral.github.io/>`_ is a generic development environment designed for proof assistants that runs inside the text editor Emacs.  Agdarya comes with a basic ProofGeneral mode that is the recommended way to use it.
 
 Installing Emacs
 ^^^^^^^^^^^^^^^^
 
-To install the Narya ProofGeneral mode, first you'll need to install a relatively recent version of `Emacs <https://www.gnu.org/software/emacs/>`_.  Unfortunately, the version installable through the default package manager on many Linux distributions (such as ``apt`` on Debian/Ubuntu) is not recent enough.  However, on many modern Linux distributions (including WSL under Windows) you can install a more recent version of Emacs with
+To install the Agdarya ProofGeneral mode, first you'll need to install a relatively recent version of `Emacs <https://www.gnu.org/software/emacs/>`_.  Unfortunately, the version installable through the default package manager on many Linux distributions (such as ``apt`` on Debian/Ubuntu) is not recent enough.  However, on many modern Linux distributions (including WSL under Windows) you can install a more recent version of Emacs with
 
 .. code-block:: bash
 
@@ -215,10 +215,10 @@ When using Emacs, it is also *highly* recommended to change your keyboard layout
 - In Windows, install Microsoft `PowerToys <https://github.com/microsoft/PowerToys>`_.  Run it and navigate to the ``Keyboard Manager``, select ``Remap a Key``, and remap ``Caps Lock`` to ``Ctrl (Left)``.
 - In MacOS, go to System Preferences, navigate to a Keyboard section and look for a Modifier Keys option.
 
-Once Emacs is installed, you have two options for installing the Narya ProofGeneral mode:
+Once Emacs is installed, you have two options for installing the Agdarya ProofGeneral mode:
 
-- There is an :ref:`Automatic ProofGeneral installation` script that should usually be able to install ProofGeneral and the Narya ProofGeneral mode for you, once you have installed Emacs.
-- If this doesn't work, please submit a `bug report <https://github.com/gwaithimirdain/narya/issues>`_.  But while you wait for us to fix the problem, you can use :ref:`Manual ProofGeneral installation` instead.
+- There is an :ref:`Automatic ProofGeneral installation` script that should usually be able to install ProofGeneral and the Agdarya ProofGeneral mode for you, once you have installed Emacs.
+- If this doesn't work, please submit a `bug report <https://github.com/gwaithimirdain/agdarya/issues>`_.  But while you wait for us to fix the problem, you can use :ref:`Manual ProofGeneral installation` instead.
 
 
 .. _Automatic ProofGeneral installation:
@@ -226,13 +226,13 @@ Once Emacs is installed, you have two options for installing the Narya ProofGene
 Automatic installation
 ^^^^^^^^^^^^^^^^^^^^^^
 
-Narya comes with a shell script that should install ProofGeneral, and the ProofGeneral Narya mode, on any machine where Emacs is already installed, including Linux, Windows with WSL, and MacOS.  The script is called ``install-pg.sh``; it is included in the static distribution, while in the source repository it is in the subdirectory ``dist``.  In either case, navigate to the directory that contains the script and run it with:
+Agdarya comes with a shell script that should install ProofGeneral, and the ProofGeneral Agdarya mode, on any machine where Emacs is already installed, including Linux, Windows with WSL, and MacOS.  The script is called ``install-pg.sh``; it is included in the static distribution, while in the source repository it is in the subdirectory ``dist``.  In either case, navigate to the directory that contains the script and run it with:
 
 .. code-block:: bash
 
   ./install-pg.sh
 
-Pay attention to the output of the script!  If it reports any errors, or if it doesn't report any errors but the ProofGeneral mode doesn't seem to work as advertised, please report a bug on `GitHub <https://github.com/gwaithimirdain/narya>`_.  In the meantime, you can follow the instructions for :ref:`Manual ProofGeneral installation`.
+Pay attention to the output of the script!  If it reports any errors, or if it doesn't report any errors but the ProofGeneral mode doesn't seem to work as advertised, please report a bug on `GitHub <https://github.com/gwaithimirdain/agdarya>`_.  In the meantime, you can follow the instructions for :ref:`Manual ProofGeneral installation`.
 
 If the script doesn't report any errors, then it will end by instructing you to add some lines to the file ``.emacs`` in your home directory.  This will include the following, which are not necessary but highly recommended to improve the experience of using ProofGeneral:
 
@@ -244,7 +244,7 @@ If the script doesn't report any errors, then it will end by instructing you to 
 
 Depending on your operating system and version of Emacs, the script may also instruct you to add additional lines to ``.emacs``.  Please do as it says, unless those lines are already there.  (It doesn't do this automatically to avoid the danger of disrupting any personal Emacs configuration you may have already done.)
 
-You will need to re-run the installation script every time Emacs, ProofGeneral, or Narya is updated.  This will be the case until the Narya ProofGeneral mode stabilizes and we can get it incorporated in the ProofGeneral distribution.
+You will need to re-run the installation script every time Emacs, ProofGeneral, or Agdarya is updated.  This will be the case until the Agdarya ProofGeneral mode stabilizes and we can get it incorporated in the ProofGeneral distribution.
 
 Once ProofGeneral is installed and working, you can proceed with further :ref:`Configuration`.
 
@@ -254,27 +254,27 @@ Once ProofGeneral is installed and working, you can proceed with further :ref:`C
 Manual installation
 ^^^^^^^^^^^^^^^^^^^
 
-If the automatic ProofGeneral installer doesn't work for you, you can follow these steps to install Narya's ProofGeneral mode manually.
+If the automatic ProofGeneral installer doesn't work for you, you can follow these steps to install Agdarya's ProofGeneral mode manually.
 
 1. Install `Emacs <https://www.gnu.org/software/emacs/>`_ and ProofGeneral.  The recommended way to install ProofGeneral is from `MELPA <https://melpa.org/>`_ using Emacs' package manager, as described at the `ProofGeneral page <https://proofgeneral.github.io/>`_.
 
-2. Ensure that Emacs can find the Narya executable, by typing ``M-!`` in Emacs (that is, hold the meta key, which is usually ``Alt``, and type the ``!`` character, which depending on your keyboard layout might involve another modifier key such as ``Shift``), then entering ``narya``.  If the result is ``command not found``, you have a problem.  This happens most often on MacOS, where some versions of Emacs take their environment variables from somewhere else by default.  One solution to this is to install the package `exec-path-from-shell <https://github.com/purcell/exec-path-from-shell>`_.  To do this, type ``M-x package-install``, hit return, then enter ``exec-path-from-shell``, hit return, and wait for it to install.  (If that doesn't work, you may need to run ``M-x package-initialize`` and/or ``M-x package-refresh-contents`` first.)  Then add the following line to the ``.emacs`` file in your home directory:
+2. Ensure that Emacs can find the Agdarya executable, by typing ``M-!`` in Emacs (that is, hold the meta key, which is usually ``Alt``, and type the ``!`` character, which depending on your keyboard layout might involve another modifier key such as ``Shift``), then entering ``agdarya``.  If the result is ``command not found``, you have a problem.  This happens most often on MacOS, where some versions of Emacs take their environment variables from somewhere else by default.  One solution to this is to install the package `exec-path-from-shell <https://github.com/purcell/exec-path-from-shell>`_.  To do this, type ``M-x package-install``, hit return, then enter ``exec-path-from-shell``, hit return, and wait for it to install.  (If that doesn't work, you may need to run ``M-x package-initialize`` and/or ``M-x package-refresh-contents`` first.)  Then add the following line to the ``.emacs`` file in your home directory:
 
    .. code-block:: elisp
 
       (exec-path-from-shell-initialize)
 
-   Then try ``M-! narya`` again.  If it still doesn't work, please `report a bug <https://github.com/gwaithimirdain/narya>`_.
+   Then try ``M-! agdarya`` again.  If it still doesn't work, please `report a bug <https://github.com/gwaithimirdain/agdarya>`_.
 
 3. Find the ProofGeneral installation directory, which may be something like ``$HOME/.emacs.d/elpa/proof-general-XXXXXXXX-XXXX``.
 
-4. In this directory, create a subdirectory called ``narya`` and copy (or, better, symlink) the ``.el`` files in the ``proofgeneral`` directory of the Narya repository into that subdirectory.  If you are using the static distribution, the ``.el`` files are included there as well.
+4. In this directory, create a subdirectory called ``agdarya`` and copy (or, better, symlink) the ``.el`` files in the ``proofgeneral`` directory of the Agdarya repository into that subdirectory.  If you are using the static distribution, the ``.el`` files are included there as well.
 
 5. Edit the file ``proof-site.el`` in the subdirectory ``generic`` of the ProofGeneral installation directory and add this line
 
   .. code-block:: none
 
-    (narya "Narya" "ny" nil (".nyo"))
+    (agdarya "Agdarya" "ny" nil (".nyo"))
 
   to the list of proof assistants in the definition of the variable ``proof-assistant-table-default``.
 
@@ -282,7 +282,7 @@ If the automatic ProofGeneral installer doesn't work for you, you can follow the
 
 7. Restart Emacs.
 
-You will have to repeat these steps whenever the Narya ProofGeneral mode is updated (unless you symlinked the files instead of copying them, in which case restarting Emacs will suffice); whenever ProofGeneral is updated; and whenever Emacs is updated.
+You will have to repeat these steps whenever the Agdarya ProofGeneral mode is updated (unless you symlinked the files instead of copying them, in which case restarting Emacs will suffice); whenever ProofGeneral is updated; and whenever Emacs is updated.
 
 Once ProofGeneral is installed and working, you can proceed with further :ref:`Configuration`.
 
@@ -292,11 +292,11 @@ Installing ctags
 
 `Universal Ctags <https://ctags.io/>`_ is a command-line program that reads all the source files in a project and generates a "tags file" containing the location of every definition in those files.  The tags file can then be read by Emacs to enable commands for jumping to the location where a given constant was defined.
 
-Narya comes with a "language definition" file for Universal Ctags, enabling it to generate tags files for Narya source code.  This is not perfect (e.g. it doesn't know about :ref:`Import modifiers`), so it won't always be able to find definitions correctly.  But it can still be very useful, until we implement an analogous feature in a more sophisticated way.
+Agdarya comes with a "language definition" file for Universal Ctags, enabling it to generate tags files for Agdarya source code.  This is not perfect (e.g. it doesn't know about :ref:`Import modifiers`), so it won't always be able to find definitions correctly.  But it can still be very useful, until we implement an analogous feature in a more sophisticated way.
 
-The automatic installation script ``install-pg.sh`` will also attempt to install the ctags language definition file in the correct place.  If it fails, or if you are doing a manual installation, you can do this yourself by copying (or symlinking) the file ``narya.ctags`` (included in the binary distribution, or in the directory ``ctags`` of the source tree) into the directory ``$HOME/.ctags.d`` (which you can create if it doesn't exist).
+The automatic installation script ``install-pg.sh`` will also attempt to install the ctags language definition file in the correct place.  If it fails, or if you are doing a manual installation, you can do this yourself by copying (or symlinking) the file ``agdarya.ctags`` (included in the binary distribution, or in the directory ``ctags`` of the source tree) into the directory ``$HOME/.ctags.d`` (which you can create if it doesn't exist).
 
-You will also have to install Universal Ctags.  (There are other programs that generate tags files, but Narya's language definition file is designed for Universal Ctags.)  On Linux or WSL you can use a package manager such as
+You will also have to install Universal Ctags.  (There are other programs that generate tags files, but Agdarya's language definition file is designed for Universal Ctags.)  On Linux or WSL you can use a package manager such as
 
 .. code-block:: bash
 
@@ -304,17 +304,17 @@ You will also have to install Universal Ctags.  (There are other programs that g
 
 On MacOS, you may be able to use `homebrew <https://formulae.brew.sh/formula/universal-ctags>`_ (e.g. ``brew install universal-ctags``) or `build manually <https://docs.ctags.io/en/latest/osx.html>`_.
 
-Note that while Universal Ctags provides an executable called ``ctags`` that generates tags files, it is not the only package that does.  In particular, some distributions of Emacs also install an executable called ``ctags``.  However, the ``ctags`` executables provided by other packages do not understand the Narya language definition file, and therefore in particular will not correctly parse comments and ``section`` commands in Narya files.  You can check that your ``ctags`` is Universal Ctags by running
+Note that while Universal Ctags provides an executable called ``ctags`` that generates tags files, it is not the only package that does.  In particular, some distributions of Emacs also install an executable called ``ctags``.  However, the ``ctags`` executables provided by other packages do not understand the Agdarya language definition file, and therefore in particular will not correctly parse comments and ``section`` commands in Agdarya files.  You can check that your ``ctags`` is Universal Ctags by running
 
 .. code-block:: bash
 
    ctags --version
 
-and look for ``Universal Ctags`` in the output.  If you have installed Universal Ctags but running ``ctags`` doesn't give you Universal Ctags, you'll need to figure out what's wrong and fix it; feel free to contact the Narya developers for help, and let us know about your experience so we can update this documentation for other users.  So far we are aware of the following causes and solutions of this:
+and look for ``Universal Ctags`` in the output.  If you have installed Universal Ctags but running ``ctags`` doesn't give you Universal Ctags, you'll need to figure out what's wrong and fix it; feel free to contact the Agdarya developers for help, and let us know about your experience so we can update this documentation for other users.  So far we are aware of the following causes and solutions of this:
 
 - The `Emacs-mac port <https://github.com/railwaycat/homebrew-emacsmacport?tab=readme-ov-file>`_ for MacOS has a ``--with-ctags`` option that installs the Emacs version of ``ctags``.  The fix is to (re)install it without that option.
 
-In addition, if you have Emacs version 30.1 or newer, it is recommended to add the following lines to your ``$HOME/.emacs`` file, which will tell Emacs to automatically run Universal Ctags on all Narya files in a given project.
+In addition, if you have Emacs version 30.1 or newer, it is recommended to add the following lines to your ``$HOME/.emacs`` file, which will tell Emacs to automatically run Universal Ctags on all Agdarya files in a given project.
 
 .. code-block:: lisp
 
@@ -328,7 +328,7 @@ If your version of Emacs is older than this, you can instead manually create the
 
    find . -name '*.ny' | ctags -e -L -
 
-in the base directory of your Narya project.  You'll have to do this again whenever you add new definitions to a file that you want Ctags to be able to find.  The option ``-e`` instructs ``ctags`` to produce a tags file in the correct format for Emacs.  (You may also have an executable called ``etags``, which may or may not be equivalent to ``ctags -e``; in general ``ctags -e`` is more reliable as long as you have installed Universal Ctags.)
+in the base directory of your Agdarya project.  You'll have to do this again whenever you add new definitions to a file that you want Ctags to be able to find.  The option ``-e`` instructs ``ctags`` to produce a tags file in the correct format for Emacs.  (You may also have an executable called ``etags``, which may or may not be equivalent to ``ctags -e``; in general ``ctags -e`` is more reliable as long as you have installed Universal Ctags.)
 
 For information on using the tags file, see :ref:`Ctags`.
 
@@ -336,15 +336,15 @@ For information on using the tags file, see :ref:`Ctags`.
 Configuration
 -------------
 
-Once Narya and its ProofGeneral mode are installed, you can run
+Once Agdarya and its ProofGeneral mode are installed, you can run
 
 .. code-block:: bash
 
   emacs
 
-Then whenever you create or open a ``.ny`` file in Emacs, Narya ProofGeneral should automatically start.  The first time you do this, look in the minibuffer (at the bottom of the screen) for any errors or warning messages that may indicate a problem with the installation of Narya, Emacs, or ProofGeneral.  For usage instructions, see :ref:`ProofGeneral mode`.  You should also familiarize yourself with the standard syntax for `Emacs key sequences <https://www.gnu.org/software/emacs/manual/html_node/emacs/User-Input.html>`_ such as ``C-c C-M-a``.
+Then whenever you create or open a ``.ny`` file in Emacs, Agdarya ProofGeneral should automatically start.  The first time you do this, look in the minibuffer (at the bottom of the screen) for any errors or warning messages that may indicate a problem with the installation of Agdarya, Emacs, or ProofGeneral.  For usage instructions, see :ref:`ProofGeneral mode`.  You should also familiarize yourself with the standard syntax for `Emacs key sequences <https://www.gnu.org/software/emacs/manual/html_node/emacs/User-Input.html>`_ such as ``C-c C-M-a``.
 
-Note that you can only use ProofGeneral with one proof assistant per Emacs session: if you want to switch between (say) Narya and Rocq, you need to restart Emacs each time, or open a separate instance of it for each proof assistant.
+Note that you can only use ProofGeneral with one proof assistant per Emacs session: if you want to switch between (say) Agdarya and Rocq, you need to restart Emacs each time, or open a separate instance of it for each proof assistant.
 
 There are also a few additional configuration actions that are highly recommended for usability.
 
@@ -358,19 +358,19 @@ Here are some other ProofGeneral customization options that are highly recommend
 
 - ``proof-three-window-mode-policy``: Assuming your screen is significantly wider than it is tall, as most computer screens are, it is highly recommended to set this to ``Horizontal (two columns)``, so that the goals and response buffers do not take up vertical space.  (The configuration option ``proof-three-window-enable`` must also be set to on (``non-nil``), although this is usually the default so you shouldn't have to touch it.)
 
-- ``narya-prog-args``: If you want to pass command-line options to alter the behavior of Narya, such as options like ``-parametric`` that modify the type theory, at present the only way to do this is to change this variable.  You can do that globally with ``customize-variable``, or locally in particular ``ny`` files with Emacs file-local variables.  If you do change this variable, make sure to keep the argument ``-proofgeneral`` in it, which is necessary to put Narya into the correct mode for interacting with ProofGeneral.  As an example, to set the option ``-parametric`` locally in a file, you can insert the following as its first line:
+- ``agdarya-prog-args``: If you want to pass command-line options to alter the behavior of Agdarya, such as options like ``-parametric`` that modify the type theory, at present the only way to do this is to change this variable.  You can do that globally with ``customize-variable``, or locally in particular ``ny`` files with Emacs file-local variables.  If you do change this variable, make sure to keep the argument ``-proofgeneral`` in it, which is necessary to put Agdarya into the correct mode for interacting with ProofGeneral.  As an example, to set the option ``-parametric`` locally in a file, you can insert the following as its first line:
 
   .. code-block:: none
 
-     {` -*- narya-prog-args: ("-proofgeneral" "-parametric") -*- `}
+     {` -*- agdarya-prog-args: ("-proofgeneral" "-parametric") -*- `}
 
-  This file-local approach does have some pitfalls.  For instance, if you start processing one file, then retract it completely and start processing another file, ProofGeneral does not restart Narya, so the flags passed by the first file will remain in effect.  You must also agree every time you open a file like this to execute the "unsafe" file-local variable, or else mark it as permanently trusted -- and don't mark it as permanently untrusted, or it'll stop working completely.
+  This file-local approach does have some pitfalls.  For instance, if you start processing one file, then retract it completely and start processing another file, ProofGeneral does not restart Agdarya, so the flags passed by the first file will remain in effect.  You must also agree every time you open a file like this to execute the "unsafe" file-local variable, or else mark it as permanently trusted -- and don't mark it as permanently untrusted, or it'll stop working completely.
 
 
 Entering Unicode characters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-When coding with Narya in Emacs, you will often want an *input mode* that enables special key sequences for inserting Unicode characters, usually using TeX-style keyboard shortcuts starting with a backslash.  Narya does not have its own input mode yet; we recommend the ``TeX`` or ``Agda`` input modes (to be described in a moment).
+When coding with Agdarya in Emacs, you will often want an *input mode* that enables special key sequences for inserting Unicode characters, usually using TeX-style keyboard shortcuts starting with a backslash.  Agdarya does not have its own input mode yet; we recommend the ``TeX`` or ``Agda`` input modes (to be described in a moment).
 
 To select an input-mode, type ``C-\``, enter the name of the input-mode (see below) and hit enter.  You'll have to do this separately in every buffer, but after you've done it once, Emacs remembers the last input-mode you selected so that a single ``C-\`` will toggle that input-mode on and off.  Each input-mode has a one-character indicator that will be displayed in the lower-left corner of the Emacs window when that mode is selected.  If you want to select a different input-mode instead, type ``C-u C-\`` and Emacs will prompt you again for the input-mode name.
 
@@ -384,7 +384,7 @@ To select an input-mode, type ``C-\``, enter the name of the input-mode (see bel
   * For subscript characters, type ``_`` and then the ordinary character.
   * For superscript characters, type ``^`` and then the ordinary character.
 
-  Note that these particular characters will be automatically converted from their ASCII versions (namely, ``->``, ``:=``, ``|->``, and ``...``) to their Unicode equivalents by Narya's reformatter (assuming ``display chars`` is set to ``unicode``, as it is by default), so it is not necessary to enter them manually.  But you will probably want to enter other Unicode characters at some point as well.
+  Note that these particular characters will be automatically converted from their ASCII versions (namely, ``->``, ``:=``, ``|->``, and ``...``) to their Unicode equivalents by Agdarya's reformatter (assuming ``display chars`` is set to ``unicode``, as it is by default), so it is not necessary to enter them manually.  But you will probably want to enter other Unicode characters at some point as well.
 
 - A fancier input mode called ``Agda`` ships with the proof assistant Agda, indicated by the character ``Π``.  The most convenient way to obtain this mode is to install Agda and its `Emacs mode <https://agda.readthedocs.io/en/latest/getting-started/installation.html#install-agda-mode>`_.  When this mode is enabled, you can use the following shortcuts (and many others):
 
@@ -401,11 +401,11 @@ To select an input-mode, type ``C-\``, enter the name of the input-mode (see bel
 Unicode fonts
 ^^^^^^^^^^^^^
 
-By default, Narya uses Unicode characters for many purposes.  Some of these can be turned off, but it is highly recommended that you keep them on and make sure you have sufficient fonts installed to display them.  Traditionally, source code is displayed using a *monospace* font in which all characters have the same width.  Some monospace fonts that are recommended for use with proof assistants that use Unicode characters are `DejaVu Sans Mono <https://dejavu-fonts.github.io/>`_ and `Mononoki <https://madmalik.github.io/mononoki/>`_.
+By default, Agdarya uses Unicode characters for many purposes.  Some of these can be turned off, but it is highly recommended that you keep them on and make sure you have sufficient fonts installed to display them.  Traditionally, source code is displayed using a *monospace* font in which all characters have the same width.  Some monospace fonts that are recommended for use with proof assistants that use Unicode characters are `DejaVu Sans Mono <https://dejavu-fonts.github.io/>`_ and `Mononoki <https://madmalik.github.io/mononoki/>`_.
 
 The rest of this section is opinionated and entirely optional.
 
-I find that many Unicode characters with mathematical meaning are difficult to see clearly in a monospace font.  I believe the main argument for a monospace font is so that indentation and vertical alignment can be used to visually structure the code; but this can be achieved with a variable-width font as long as indentations are only ever calculated as constant offsets from the *first* non-space character on a line.  The Narya :ref:`Code formatter` has this property, so I recommend using a variable-width font at least for mathematical Unicode characters.  (A monospace font is fine, and familiar-looking, for ordinary alphanumerics and ASCII symbols.)
+I find that many Unicode characters with mathematical meaning are difficult to see clearly in a monospace font.  I believe the main argument for a monospace font is so that indentation and vertical alignment can be used to visually structure the code; but this can be achieved with a variable-width font as long as indentations are only ever calculated as constant offsets from the *first* non-space character on a line.  The Agdarya :ref:`Code formatter` has this property, so I recommend using a variable-width font at least for mathematical Unicode characters.  (A monospace font is fine, and familiar-looking, for ordinary alphanumerics and ASCII symbols.)
 
 Some variable-width fonts containing good-looking mathematical Unicode symbols are:
 

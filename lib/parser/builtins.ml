@@ -62,18 +62,18 @@ let () =
   make universe
     {
       name = "universe";
-      tree = Closed_entry (eop (Ident [ "Type" ]) (Done_closed universe));
+      tree = Closed_entry (eop Set (Done_closed universe));
       processor =
         (fun _ obs loc ->
           match obs with
-          | [ Token (Ident [ "Type" ], _) ] -> { value = Synth UU; loc }
+          | [ Token (Set, _) ] -> { value = Synth UU; loc }
           | _ -> invalid ?loc "universe");
       pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "universe"));
       (* Universes are never part of case trees. *)
       print_term =
         Some
           (function
-          | [ Token (Ident [ "Type" ], (wstype, _)) ] -> (string "Type", wstype)
+          | [ Token (Set, (wstype, _)) ] -> (string "Set", wstype)
           | _ -> invalid "universe");
       print_case = None;
       is_case = (fun _ -> false);
@@ -122,13 +122,19 @@ let () =
    Abstraction
  ******************** *)
 
-(* Abstractions (and cube abstractions) are encoded as a right-associative infix operator that inspects its left-hand argument deeply before processing it, expecting it to look like an application spine of variables, and then instead binds those variables in its right-hand argument. *)
+(* Ordinary abstractions use Agda-style prefix syntax λ vars → body.  We keep the old
+   x ↦ body form as a legacy parse-only alias for now, to make the surface migration
+   incremental while the rest of the syntax still moves.  Cube abstractions remain on ⤇. *)
 
 type (_, _, _) identity +=
-  | Abs : (No.strict opn, No.minus_omega, No.nonstrict opn) identity
+  | Abs : (closed, No.minus_omega, No.nonstrict opn) identity
+  | Legacy_abs : (No.strict opn, No.minus_omega, No.nonstrict opn) identity
   | Cubeabs : (No.strict opn, No.minus_omega, No.nonstrict opn) identity
 
-let abs : (No.strict opn, No.minus_omega, No.nonstrict opn) notation = (Abs, Infixr No.minus_omega)
+let abs : (closed, No.minus_omega, No.nonstrict opn) notation = (Abs, Prefixr No.minus_omega)
+
+let legacyabs : (No.strict opn, No.minus_omega, No.nonstrict opn) notation =
+  (Legacy_abs, Infixr No.minus_omega)
 
 let cubeabs : (No.strict opn, No.minus_omega, No.nonstrict opn) notation =
   (Cubeabs, Infixr No.minus_omega)
@@ -241,6 +247,10 @@ let rec raw_lam : type a b ab.
 let process_abs cube ctx obs _loc =
   (* The loc argument isn't used here since we can deduce the locations of each lambda by merging its variables with its body. *)
   match obs with
+  | [ Token (Lambda, _); Term vars; Token (Arrow, (_, mloc)); Term body ] when cube = `Normal ->
+      let (Extctx (ab, data, ctx)) = get_vars ctx vars in
+      let cube = locate `Normal mloc in
+      raw_lam ctx cube ab data (process ctx body)
   | [ Term vars; Token (tok, (_, mloc)); Term body ]
     when (tok = DblMapsto && cube = `Cube) || (tok = Mapsto && cube = `Normal) ->
       let (Extctx (ab, data, ctx)) = get_vars ctx vars in
@@ -253,6 +263,118 @@ let process_abs cube ctx obs _loc =
 
 (* Abstractions are printed bundled with let-bindings. *)
 
+let rec constructor_name_of_parse : wrapped_parse -> string option = function
+  | Wrap { value = Ident ([ c ], _); _ } -> Some c
+  | Wrap { value = Constr (c, _, _); _ } -> Some c
+  | Wrap { value = App { fn; _ }; _ } -> constructor_name_of_parse (Wrap fn)
+  | Wrap { value = Notn (n, d); _ } when name n = "ascription" -> (
+      match args d with
+      | Term tel :: _ -> constructor_name_of_parse (Wrap tel)
+      | _ -> None)
+  | _ -> None
+
+let rec local_constructors_of_data_obs = function
+  | [ Token (RBracket, _) ] -> []
+  | Token (Op "|", _) :: Term tel :: obs ->
+      let tel =
+        match tel.value with
+        | Notn (n, d) when name n = "ascription" -> (
+            match args d with
+            | Term tel :: _ -> Wrap tel
+            | _ -> Wrap tel)
+        | _ -> Wrap tel in
+      let rest = local_constructors_of_data_obs obs in
+      (match constructor_name_of_parse tel with
+      | Some c -> ([ c ], Constr.intern c) :: rest
+      | None -> rest)
+  | _ -> []
+
+let rec local_constructors_of_obs = function
+  | Token _ -> []
+  | Ss_token _ -> []
+  | Term tm -> local_constructors_of_term (Wrap tm)
+
+and local_constructors_of_term : wrapped_parse -> (string list * Constr.t) list = function
+  | Wrap { value = Notn (n, d); _ } -> (
+      let nested = List.concat_map local_constructors_of_obs (args d) in
+      if name n = "data" then
+        match args d with
+        | [ Token (Data, _); Token (LBracket, _); Token (RBracket, _) ] -> nested
+        | Token (Data, _) :: Token (LBracket, _) :: obs ->
+            local_constructors_of_data_obs (must_start_with (Op "|") obs) @ nested
+        | _ -> nested
+      else nested)
+  | Wrap { value = App { fn; arg; _ }; _ } ->
+      local_constructors_of_term (Wrap fn) @ local_constructors_of_term (Wrap arg)
+  | Wrap { value = Superscript (Some tm, _, _); _ } -> local_constructors_of_term (Wrap tm)
+  | _ -> []
+
+let rec local_fields_of_obs = function
+  | Token _ -> []
+  | Ss_token _ -> []
+  | Term tm -> local_fields_of_term (Wrap tm)
+
+and local_fields_of_term : wrapped_parse -> string list = function
+  | Wrap { value = Notn (n, d); _ } ->
+      let nested = List.concat_map local_fields_of_obs (args d) in
+      if name n = "codata" then
+        match args d with
+        | [ Token (Codata, _); Token (LBracket, _); Token (RBracket, _) ] -> nested
+        | Token (Codata, _) :: Token (LBracket, _) :: obs -> local_fields_of_codata_obs obs @ nested
+        | _ -> nested
+      else if name n = "record" then
+        match args d with
+        | [ Token (Sig, _); Token (LParen, _); Token (RParen, _) ] -> nested
+        | Token (Sig, _) :: Token (LParen, _) :: obs -> local_fields_of_codata_obs obs @ nested
+        | _ -> nested
+      else if name n = "comatch" then
+        match args d with
+        | [ Token (Record, _); Token (LBrace, _); Token (RBrace, _) ] -> nested
+        | Token (Record, _) :: Token (LBrace, _) :: obs -> local_fields_of_comatch_obs obs @ nested
+        | _ -> nested
+      else nested
+  | Wrap { value = App { fn; arg; _ }; _ } ->
+      local_fields_of_term (Wrap fn) @ local_fields_of_term (Wrap arg)
+  | Wrap { value = Superscript (Some tm, _, _); _ } -> local_fields_of_term (Wrap tm)
+  | _ -> []
+
+and local_fields_of_codata_obs = function
+  | [ Token (RBracket, _) ] | [ Token (RParen, _) ] -> []
+  | Token (Op "|", _) :: Term tm :: Token (Colon, _) :: Term _ :: obs -> (
+      let rest = local_fields_of_codata_obs obs in
+      match tm.value with
+      | App { fn = { value = Ident ([ fld ], _); _ }; arg = { value = Ident _; _ }; _ }
+      | App { fn = { value = Ident ([ fld ], _); _ }; arg = { value = Placeholder _; _ }; _ }
+      | App { fn = { value = HigherField (fld, _, _); _ }; arg = { value = Ident _; _ }; _ }
+      | App { fn = { value = HigherField (fld, _, _); _ }; arg = { value = Placeholder _; _ }; _ }
+        when Lexer.valid_field fld && not (Lexer.all_digits fld) ->
+          fld :: rest
+      | _ -> rest)
+  | Term tm :: Token (Colon, _) :: Term _ :: obs -> (
+      let rest = local_fields_of_codata_obs obs in
+      match tm.value with
+      | App { fn = { value = Ident ([ fld ], _); _ }; arg = { value = Ident _; _ }; _ }
+      | App { fn = { value = Ident ([ fld ], _); _ }; arg = { value = Placeholder _; _ }; _ }
+      | App { fn = { value = HigherField (fld, _, _); _ }; arg = { value = Ident _; _ }; _ }
+      | App { fn = { value = HigherField (fld, _, _); _ }; arg = { value = Placeholder _; _ }; _ }
+        when Lexer.valid_field fld && not (Lexer.all_digits fld) ->
+          fld :: rest
+      | _ -> rest)
+  | Token (Op ",", _) :: obs -> local_fields_of_codata_obs obs
+  | _ -> []
+
+and local_fields_of_comatch_obs = function
+  | [ Token (RBrace, _) ] -> []
+  | Token (Op ";", _) :: obs -> local_fields_of_comatch_obs obs
+  | Term tm :: Token (Op "=", _) :: Term _ :: obs -> (
+      let rest = local_fields_of_comatch_obs obs in
+      match tm.value with
+      | Ident ([ fld ], _) | HigherField (fld, _, _) when Lexer.valid_field fld && not (Lexer.all_digits fld)
+        ->
+          fld :: rest
+      | _ -> rest)
+  | _ -> []
+
 (* ********************
    Let-binding
  ******************** *)
@@ -261,9 +383,14 @@ let process_abs cube ctx obs _loc =
 
 type (_, _, _) identity +=
   | Let : (closed, No.minus_omega, No.nonstrict opn) identity
+  | Legacy_let : (closed, No.minus_omega, No.nonstrict opn) identity
   | Letrec : (closed, No.minus_omega, No.nonstrict opn) identity
+  | Legacy_letrec : (closed, No.minus_omega, No.nonstrict opn) identity
 
 let letin : (closed, No.minus_omega, No.nonstrict opn) notation = (Let, Prefixr No.minus_omega)
+let legacyletin : (closed, No.minus_omega, No.nonstrict opn) notation = (Legacy_let, Prefixr No.minus_omega)
+
+let is_let_eq = function Token.Coloneq | Token.Op "=" -> true | _ -> false
 
 let process_let : type n.
     (string option, n) Bwv.t -> observation list -> Asai.Range.t option -> n check located =
@@ -274,31 +401,38 @@ let process_let : type n.
    Term x;
    Token (Colon, _);
    Term ty;
-   Token (Coloneq, _);
+   Token (tok, _);
    Term tm;
    Token (In, _);
    Term body;
-  ] ->
+  ] when is_let_eq tok ->
       let x = get_var x in
+      let local_constrs = local_constructors_of_term (Wrap tm) in
       let ty = process ctx ty in
       let tm = process ctx tm in
-      let body = process (Bwv.snoc ctx x) body in
+      let body =
+        Scope.with_local_constrs local_constrs (fun () -> process (Bwv.snoc ctx x) body)
+      in
       let v : n synth located = { value = Asc (tm, ty); loc = Range.merge_opt ty.loc tm.loc } in
       { value = Synth (Let (x, v, body)); loc }
-  | [ Token (Let, _); Term x; Token (Coloneq, _); Term tm; Token (In, _); Term body ] ->
+  | [ Token (Let, _); Term x; Token (tok, _); Term tm; Token (In, _); Term body ]
+    when is_let_eq tok ->
       let x = get_var x in
+      let local_constrs = local_constructors_of_term (Wrap tm) in
       let term = process_synth ctx tm "value of let" in
-      let body = process (Bwv.snoc ctx x) body in
+      let body =
+        Scope.with_local_constrs local_constrs (fun () -> process (Bwv.snoc ctx x) body)
+      in
       { value = Synth (Let (x, term, body)); loc }
   | _ -> invalid "let"
 
-let letin_tree =
+let letin_tree tok notn =
   Closed_entry
     (eop Let
        (terms
           [
-            (Coloneq, term In (Done_closed letin));
-            (Colon, term Coloneq (term In (Done_closed letin)));
+            (tok, term In (Done_closed notn));
+            (Colon, term tok (term In (Done_closed notn)));
           ]))
 
 (* ********************
@@ -306,6 +440,8 @@ let letin_tree =
  ******************** *)
 
 let letrec : (closed, No.minus_omega, No.nonstrict opn) notation = (Letrec, Prefixr No.minus_omega)
+let legacyletrec : (closed, No.minus_omega, No.nonstrict opn) notation =
+  (Legacy_letrec, Prefixr No.minus_omega)
 
 type (_, _) letrec_terms =
   | Letrec_terms :
@@ -324,17 +460,26 @@ let rec process_letrec_terms : type c a.
     (c, a) letrec_terms =
  fun ctx obs terms c ->
   match obs with
-  | Token (And, _) :: Term x :: Token (Colon, _) :: Term ty :: Token (Coloneq, _) :: Term tm :: rest
-    ->
+  | Token (And, _) :: Term x :: Token (Colon, _) :: Term ty :: Token (tok, _) :: Term tm :: rest
+    when is_let_eq tok ->
       let x = get_var x in
-      let ty = process ctx ty in
+      let ty =
+        match ty.value with
+        | Placeholder _ -> locate_opt ty.loc Infer_type
+        | _ -> process ctx ty
+      in
       let (Letrec_terms (tel, Suc cb, terms, body)) =
         process_letrec_terms (Snoc (ctx, x)) rest (Snoc (terms, Wrap tm)) (N.suc c) in
       Letrec_terms (Ext (x, ty, tel), cb, terms, body)
   | [ Token (In, _); Term body ] ->
       let (Fplus cb) = Fwn.fplus c in
-      let body = process ctx body in
-      let terms = Bwv.mmap (fun [ Wrap t ] -> process ctx t) [ terms ] in
+      let local_constrs =
+        List.concat_map local_constructors_of_term (Bwv.to_list_map (fun x -> x) terms)
+      in
+      let body, terms =
+        Scope.with_local_constrs local_constrs @@ fun () ->
+        ( process ctx body,
+          Bwv.mmap (fun [ Wrap t ] -> process ctx t) [ terms ] ) in
       Letrec_terms (Emp, cb, Bwv.prepend cb terms [], body)
   | _ -> invalid "let-rec"
 
@@ -346,11 +491,11 @@ let process_letrec ctx obs loc =
       locate (Synth (Letrec (tys, tms, body))) loc
   | _ -> invalid "let-rec"
 
-let rec letrec_terms () =
+let rec letrec_terms tok notn =
   term Colon
-    (term Coloneq (terms [ (And, Lazy (lazy (letrec_terms ()))); (In, Done_closed letrec) ]))
+    (term tok (terms [ (And, Lazy (lazy (letrec_terms tok notn))); (In, Done_closed notn) ]))
 
-let letrec_tree = Closed_entry (eop Let (op Rec (letrec_terms ())))
+let letrec_tree tok notn = Closed_entry (eop Let (op Rec (letrec_terms tok notn)))
 
 (* ****************************************
    Printing abstractions and let-bindings
@@ -360,10 +505,12 @@ let letrec_tree = Closed_entry (eop Let (op Rec (letrec_terms ())))
 let rec get_abslets heads obs =
   match obs with
   (* Abstraction *)
+  | [ Token (Lambda, (wslambda, _)); Term vars; Token (Arrow, (wsarrow, _)); Term body ] ->
+      get_abslets_of_parse (Snoc (heads, `Abs (Wrap vars, `Prefix (wslambda, wsarrow)))) (Wrap body)
   | [ Term vars; Token (Mapsto, (wsmapsto, _)); Term body ] ->
-      get_abslets_of_parse (Snoc (heads, `Abs (Wrap vars, Token.Mapsto, wsmapsto))) (Wrap body)
+      get_abslets_of_parse (Snoc (heads, `Abs (Wrap vars, `Legacy (Token.Mapsto, wsmapsto)))) (Wrap body)
   | [ Term vars; Token (DblMapsto, (wsmapsto, _)); Term body ] ->
-      get_abslets_of_parse (Snoc (heads, `Abs (Wrap vars, DblMapsto, wsmapsto))) (Wrap body)
+      get_abslets_of_parse (Snoc (heads, `Abs (Wrap vars, `Legacy (DblMapsto, wsmapsto)))) (Wrap body)
   (* Let-binding *)
   | Token _ :: _ -> (
       (* First we pull off the "let", "let rec", or "and" tokens and the variable name. *)
@@ -382,13 +529,13 @@ let rec get_abslets heads obs =
       (* Finally we pull the bound value. *)
       match obs with
       (* If we're at an "in", this is the end of this "let". *)
-      | [ Token (Coloneq, (wscoloneq, _)); Term tm; Token (In, (wsin, _)); Term body ] ->
+      | [ Token ((Coloneq | Op "=" as eq), (wseq, _)); Term tm; Token (In, (wsin, _)); Term body ] ->
           get_abslets_of_parse
-            (Snoc (heads, `Let (toks, x, ty, wscoloneq, Wrap tm, Some wsin)))
+            (Snoc (heads, `Let (toks, x, ty, eq, wseq, Wrap tm, Some wsin)))
             (Wrap body)
       (* Otherwise, we must be at an "and", so we continue inspecting this observation list. *)
-      | Token (Coloneq, (wscoloneq, _)) :: Term tm :: rest ->
-          get_abslets (Snoc (heads, `Let (toks, x, ty, wscoloneq, Wrap tm, None))) rest
+      | Token ((Coloneq | Op "=" as eq), (wseq, _)) :: Term tm :: rest ->
+          get_abslets (Snoc (heads, `Let (toks, x, ty, eq, wseq, Wrap tm, None))) rest
       | _ -> invalid "let")
   | _ -> invalid "abstraction"
 
@@ -396,9 +543,12 @@ let rec get_abslets heads obs =
 and get_abslets_of_parse heads (Wrap body) =
   match body.value with
   | Notn ((Abs, _), d) -> get_abslets heads (args d)
+  | Notn ((Legacy_abs, _), d) -> get_abslets heads (args d)
   | Notn ((Cubeabs, _), d) -> get_abslets heads (args d)
   | Notn ((Let, _), d) -> get_abslets heads (args d)
+  | Notn ((Legacy_let, _), d) -> get_abslets heads (args d)
   | Notn ((Letrec, _), d) -> get_abslets heads (args d)
+  | Notn ((Legacy_letrec, _), d) -> get_abslets heads (args d)
   | _ -> (heads, Wrap body)
 
 (* Given the argument list of an abstraction or let-binding, convert all the prefixes to PPrint documents and arrange them for printing.  Specifically, we convert the heterogeneous list of data returned by get_abslets into a list of PPrint documents.  In addition, we split off the first few abstractions and also the last few, so that the first few can be the intro, and all the trailing abstractions and the body can be flowed together on one line if they fit, and retain the preceding whitespace of each trailing abstraction so we can decide later whether it should be breaking.  We also return the trailing whitespace and the body (as yet unprinted). *)
@@ -413,14 +563,24 @@ let pp_abslets obs :
     Bwd.fold_left
       (fun (introabs, heads, trailabs, prews) abslet ->
         match abslet with
-        | `Abs (Wrap vars, mapsto, wsmapsto) -> (
+        | `Abs (Wrap vars, kind) -> (
             let pvars, wsvars = pp_term vars in
             (* Printing a variable list as an application spine, with its hanging indent if it wraps, is just fine. *)
-            let head = pvars ^^ pp_ws `Nobreak wsvars ^^ Token.pp mapsto in
+            let head, nextws =
+              match kind with
+              | `Prefix (wslambda, wsarrow) ->
+                  ( Token.pp Lambda
+                    ^^ pp_ws `Nobreak wslambda
+                    ^^ pvars
+                    ^^ pp_ws `Nobreak wsvars
+                    ^^ Token.pp Arrow,
+                    Some wsarrow )
+              | `Legacy (mapsto, wsmapsto) ->
+                  (pvars ^^ pp_ws `Nobreak wsvars ^^ Token.pp mapsto, Some wsmapsto) in
             match heads with
-            | Bwd.Emp -> (Snoc (introabs, (prews, head)), heads, trailabs, Some wsmapsto)
-            | Snoc _ -> (introabs, heads, Snoc (trailabs, (prews, head)), Some wsmapsto))
-        | `Let (toks, Wrap x, ty, wscoloneq, Wrap tm, wsin) ->
+            | Bwd.Emp -> (Snoc (introabs, (prews, head)), heads, trailabs, nextws)
+            | Snoc _ -> (introabs, heads, Snoc (trailabs, (prews, head)), nextws))
+        | `Let (toks, Wrap x, ty, eq, wseq, Wrap tm, wsin) ->
             let kws = concat_map (fun (tok, ws) -> Token.pp tok ^^ pp_ws `Nobreak ws) toks in
             let px, wx = pp_term x in
             (* The type of an explicitly typed let-binding is always displayed in term mode, with a wrapping break allowed before the colon. *)
@@ -432,7 +592,7 @@ let pp_abslets obs :
                   (group (pp_ws `Break wx ^^ Token.pp Colon ^^ pp_ws `Nobreak wscolon ^^ pty), wty)
               | None -> (empty, wx) in
             let var_and_ty = group (hang 2 (kws ^^ px ^^ gty)) in
-            let coloneq = pp_ws `Break wty ^^ Token.pp Coloneq ^^ pp_ws `Nobreak wscoloneq in
+            let eqdoc = pp_ws `Break wty ^^ Token.pp eq ^^ pp_ws `Nobreak wseq in
             let get_in wtm =
               match wsin with
               | Some wsin -> (group (pp_ws `Break wtm ^^ Token.pp In), wsin)
@@ -444,14 +604,14 @@ let pp_abslets obs :
                 let gin, wsin = get_in wtm in
                 ( optional (pp_ws `Break) prews
                   ^^ group
-                       (var_and_ty ^^ group (nest 2 (coloneq ^^ group (hang 2 itm))) ^^ ptm ^^ gin),
+                       (var_and_ty ^^ group (nest 2 (eqdoc ^^ group (hang 2 itm))) ^^ ptm ^^ gin),
                   wsin )
               else
                 (* If the term is not a case tree, then we display it in term mode, and the principal breaking points are before the colon (if any), before the coloneq, and before the "in" (though that will be rare, since "in" is so short). *)
                 let ptm, wtm = pp_term tm in
                 let gin, wsin = get_in wtm in
                 ( optional (pp_ws `Break) prews
-                  ^^ group (var_and_ty ^^ nest 2 (coloneq ^^ group (hang 2 ptm) ^^ gin)),
+                  ^^ group (var_and_ty ^^ nest 2 (eqdoc ^^ group (hang 2 ptm) ^^ gin)),
                   wsin ) in
             ( introabs,
               Snoc
@@ -557,6 +717,7 @@ let pp_abslet_case triv obs =
 
 (* An abstraction should be printed as a case tree if its body is. *)
 let abs_is_case = function
+  | [ Token (Lambda, _); _; Token (Arrow, _); Term body ] -> is_case body
   | [ _; _; Term body ] -> is_case body
   | _ -> invalid "abstraction"
 
@@ -564,9 +725,19 @@ let () =
   make abs
     {
       name = "abstraction";
-      tree = Open_entry (eop Mapsto (done_open abs));
+      tree = Closed_entry (eop Lambda (term Arrow (Done_closed abs)));
       processor = (fun ctx obs loc -> process_abs `Normal ctx obs loc);
       pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "abstraction"));
+      print_term = Some pp_abslet_term;
+      print_case = Some pp_abslet_case;
+      is_case = abs_is_case;
+    };
+  make legacyabs
+    {
+      name = "legacy_abstraction";
+      tree = Open_entry (eop Mapsto (done_open legacyabs));
+      processor = (fun ctx obs loc -> process_abs `Normal ctx obs loc);
+      pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "legacy abstraction"));
       print_term = Some pp_abslet_term;
       print_case = Some pp_abslet_case;
       is_case = abs_is_case;
@@ -584,7 +755,7 @@ let () =
   make letin
     {
       name = "let";
-      tree = letin_tree;
+      tree = letin_tree (Op "=") letin;
       processor = (fun ctx obs loc -> process_let ctx obs loc);
       pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "let"));
       print_term = Some pp_abslet_term;
@@ -592,14 +763,150 @@ let () =
       (* However, a let-binding is always printed as a case tree. *)
       is_case = (fun _ -> true);
     };
+  make legacyletin
+    {
+      name = "legacy_let";
+      tree = letin_tree Coloneq legacyletin;
+      processor = (fun ctx obs loc -> process_let ctx obs loc);
+      pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "legacy let"));
+      print_term = Some pp_abslet_term;
+      print_case = Some pp_abslet_case;
+      is_case = (fun _ -> true);
+    };
   make letrec
     {
       name = "letrec";
-      tree = letrec_tree;
+      tree = letrec_tree (Op "=") letrec;
       processor = process_letrec;
       pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "let rec"));
       print_term = Some pp_abslet_term;
       print_case = Some pp_abslet_case;
+      is_case = (fun _ -> true);
+    };
+  make legacyletrec
+    {
+      name = "legacy_letrec";
+      tree = letrec_tree Coloneq legacyletrec;
+      processor = process_letrec;
+      pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "legacy let rec"));
+      print_term = Some pp_abslet_term;
+      print_case = Some pp_abslet_case;
+      is_case = (fun _ -> true);
+    }
+
+(* ********************
+   Do notation
+   ******************** *)
+
+type (_, _, _) identity += Do_notation : (closed, No.plus_omega, closed) identity
+
+let do_notation : (closed, No.plus_omega, closed) notation = (Do_notation, Outfix)
+
+let rec do_entries () =
+  terms
+    [
+      (Bind, term (Op ";") (Lazy (lazy (do_entries ()))));
+      (RBrace, Done_closed do_notation);
+    ]
+
+let process_do_binder : type lt ls rt rs.
+    (lt, ls, rt, rs) parse located -> string option =
+ fun { value; loc } ->
+  with_loc loc @@ fun () ->
+  match value with
+  | Ident ([ x ], _) when Lexer.valid_var x -> Some x
+  | Ident (xs, _) -> fatal (Invalid_variable xs)
+  | Placeholder _ -> None
+  | _ -> fatal Parse_error
+
+let rec process_do_entries : type n.
+    (string option, n) Bwv.t -> observation list -> Asai.Range.t option -> n check located =
+ fun ctx obs loc ->
+  match obs with
+  | Term body :: Token (RBrace, _) :: [] -> process ctx body
+  | Term binder :: Token (Bind, _) :: Term tm :: Token (Op ";", _) :: obs ->
+      let binder_loc = binder.loc in
+      let binder = process_do_binder binder in
+      let cbind =
+        process_identifier ctx loc [ "_>>=_" ]
+        |> fun ({ value; _ } as tm) ->
+        match value with
+        | Synth _ -> tm
+        | _ -> fatal ?loc:tm.loc (Nonsynthesizing "do-notation bind operator") in
+      let ctm = process ctx tm in
+      let cbody = process_do_entries (Bwv.snoc ctx binder) obs loc in
+      let lam =
+        locate_opt loc
+          (Lam
+             {
+               name = locate_opt binder_loc binder;
+               cube = locate_opt None `Normal;
+               implicit = `Explicit;
+               dom = None;
+               body = cbody;
+             })
+      in
+      let first =
+        locate_opt loc
+          (Synth
+             (App
+                ( cbind,
+                  locate_opt ctm.loc (Some ctm.value),
+                  locate_opt None `Explicit )))
+      in
+        locate_opt loc
+        (Synth
+           (App
+              ( first,
+                locate_opt lam.loc (Some lam.value),
+                locate_opt None `Explicit )))
+  | _ -> invalid ?loc "do"
+
+and process_do : type n.
+    (string option, n) Bwv.t -> observation list -> Asai.Range.t option -> n check located =
+ fun ctx obs loc ->
+  match obs with
+  | Token (Do, _) :: Token (LBrace, _) :: obs -> process_do_entries ctx obs loc
+  | _ -> invalid ?loc "do"
+
+let rec pp_do_entries prews accum obs : document * Whitespace.t list =
+  match obs with
+  | Term body :: Token (RBrace, (wsrbrace, _)) :: [] ->
+      let pbody, wbody = pp_term body in
+      ( accum ^^ optional (pp_ws `Nobreak) prews ^^ pbody ^^ pp_ws `None wbody ^^ Token.pp RBrace,
+        wsrbrace )
+  | Term binder :: Token (Bind, (wsbind, _)) :: Term tm :: Token (Op ";", (wssemi, _)) :: obs ->
+      let pbinder, wbinder = pp_term binder in
+      let ptm, wtm = pp_term tm in
+      pp_do_entries (Some wssemi)
+        ( accum
+        ^^ optional (pp_ws `Nobreak) prews
+        ^^ pbinder
+        ^^ pp_ws `Break wbinder
+        ^^ Token.pp Bind
+        ^^ pp_ws `Break wsbind
+        ^^ ptm
+        ^^ pp_ws `None wtm
+        ^^ Token.pp (Op ";") )
+        obs
+  | _ -> invalid "do"
+
+let pp_do _obs =
+  function
+  | Token (Do, (wsdo, _)) :: Token (LBrace, (wslbrace, _)) :: obs ->
+      let body, ws = pp_do_entries None empty obs in
+      (Token.pp Do ^^ pp_ws `Nobreak wsdo ^^ Token.pp LBrace, pp_ws `Break wslbrace ^^ body, ws)
+  | _ -> invalid "do"
+
+let () =
+  make do_notation
+    {
+      name = "do";
+      tree = Closed_entry (eop Do (op LBrace (do_entries ())));
+      processor = process_do;
+      pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "do"));
+      print_term = None;
+      print_case = Some pp_do;
       is_case = (fun _ -> true);
     }
 
@@ -1027,8 +1334,8 @@ let () =
 let rec tuple_fields () =
   Inner
     {
-      empty_branch with
       ops = singleton RParen (Done_closed Postprocess.parens);
+      field = None;
       term =
         Some
           (oflist
@@ -1221,47 +1528,91 @@ let () =
 type (_, _, _) identity +=
   | Implicit_match : (closed, No.plus_omega, closed) identity
   | Explicit_match : (closed, No.plus_omega, closed) identity
+  | Implicit_case : (closed, No.plus_omega, closed) identity
+  | Explicit_case : (closed, No.plus_omega, closed) identity
   | Matchlam : (closed, No.plus_omega, closed) identity
+  | Legacy_brackets : (closed, No.plus_omega, closed) identity
 
 let implicit_mtch : (closed, No.plus_omega, closed) notation = (Implicit_match, Outfix)
 let explicit_mtch : (closed, No.plus_omega, closed) notation = (Explicit_match, Outfix)
+let implicit_case : (closed, No.plus_omega, closed) notation = (Implicit_case, Outfix)
+let explicit_case : (closed, No.plus_omega, closed) notation = (Explicit_case, Outfix)
 let mtchlam : (closed, No.plus_omega, closed) notation = (Matchlam, Outfix)
+let legacy_brackets : (closed, No.plus_omega, closed) notation = (Legacy_brackets, Outfix)
 
-(* Here are the basic match notation trees. *)
+(* Here are the basic match/case notation trees. *)
 
-let rec mtch_branches notn bar_ok end_ok comma_ok =
+let rec mtch_branches endtok notn bar_ok end_ok comma_ok =
   Inner
     {
-      empty_branch with
       ops =
         oflist
-          ((if end_ok then [ (Token.RBracket, Done_closed notn) ] else [])
-          @ if bar_ok then [ (Op "|", mtch_branches notn false false comma_ok) ] else []);
+          ((if end_ok then [ (endtok, Done_closed notn) ] else [])
+          @ if bar_ok then [ (Token.Op "|", mtch_branches endtok notn false false comma_ok) ] else []);
+      field = None;
       term =
         Some
           (oflist
-             ((if comma_ok then [ (Token.Op ",", patterns notn) ] else [])
-             @ [ (Mapsto, body notn comma_ok); (DblMapsto, body notn comma_ok) ]));
+             ((if comma_ok then [ (Token.Op ",", patterns endtok notn) ] else [])
+             @ [ (Mapsto, body endtok notn comma_ok); (DblMapsto, body endtok notn comma_ok) ]));
     }
 
-and body notn comma_ok =
+and body endtok notn comma_ok =
   terms
-    [
-      (Op "|", Lazy (lazy (mtch_branches notn false false comma_ok))); (RBracket, Done_closed notn);
-    ]
+    [ (Token.Op "|", Lazy (lazy (mtch_branches endtok notn false false comma_ok))); (endtok, Done_closed notn) ]
 
-and patterns notn =
+and patterns endtok notn =
   terms
     [
-      (Token.Op ",", Lazy (lazy (patterns notn)));
-      (Mapsto, body notn true);
-      (DblMapsto, body notn true);
+      (Token.Op ",", Lazy (lazy (patterns endtok notn)));
+      (Mapsto, body endtok notn true);
+      (DblMapsto, body endtok notn true);
     ]
 
 let rec discriminees () =
   terms
     [
-      (LBracket, mtch_branches implicit_mtch true true true); (Op ",", Lazy (lazy (discriminees ())));
+      (LBracket, mtch_branches RBracket implicit_mtch true true true);
+      (Token.Op ",", Lazy (lazy (discriminees ())));
+    ]
+
+let rec case_discriminees () =
+  terms [ (Of, case_after_of implicit_case true); (Token.Op ",", Lazy (lazy (case_discriminees ()))); ]
+
+and case_after_of notn comma_ok =
+  Inner
+    {
+      ops =
+        oflist
+          [
+            (Lambda, op LBrace (case_branches notn comma_ok));
+            (LBrace, case_branches notn comma_ok);
+          ];
+      field = None;
+      term = None;
+    }
+
+and case_branches notn comma_ok =
+  Inner
+    {
+      ops = singleton RBrace (Done_closed notn);
+      field = None;
+      term =
+        Some
+          (oflist
+             ((if comma_ok then [ (Token.Op ",", case_patterns notn) ] else [])
+             @ [ (Arrow, case_body notn comma_ok); (DblMapsto, case_body notn comma_ok) ]));
+    }
+
+and case_body notn comma_ok =
+  terms [ (Token.Op ";", Lazy (lazy (case_branches notn comma_ok))); (RBrace, Done_closed notn) ]
+
+and case_patterns notn =
+  terms
+    [
+      (Token.Op ",", Lazy (lazy (case_patterns notn)));
+      (Arrow, case_body notn true);
+      (DblMapsto, case_body notn true);
     ]
 
 type pattern = Matchpattern.t
@@ -1556,6 +1907,7 @@ let rec get_discriminees :
   | Term tm :: Token (Op ",", _) :: obs ->
       let Wrap xs, obs = get_discriminees obs in
       (Wrap (Left (Wrap tm) :: xs), obs)
+  | Term tm :: (Token (Of, _) :: _ as obs) -> (Wrap [ Left (Wrap tm) ], obs)
   | Term tm :: obs -> (Wrap [ Left (Wrap tm) ], obs)
   | _ -> invalid "match"
 
@@ -1625,19 +1977,19 @@ let rec pp_patterns accum obs =
       (accum ^^ ppat, wpat, obs)
   | _ -> invalid "(co)match 1"
 
-let rec pp_branches first triv accum prews obs : document * Whitespace.t list =
+let rec pp_branches endtok first triv accum prews obs : document * Whitespace.t list =
   match obs with
-  | [ Token (RBracket, (wsrbrack, _)) ] ->
+  | [ Token (tok, (wsrbrack, _)) ] when tok = endtok ->
       ( accum
         ^^ ifflat (optional (pp_ws `Nobreak) prews) (optional (pp_ws `None) prews)
-        ^^ Token.pp RBracket,
+        ^^ Token.pp endtok,
         wsrbrack )
   | Token (Op "|", (wsbar, _)) :: obs -> (
       let ppats, wpats, obs = pp_patterns empty obs in
       match obs with
       | Token (mapsto, (wsmapsto, _)) :: Term body :: obs ->
           let ibody, pbody, wbody = pp_case `Nontrivial body in
-          pp_branches false triv
+          pp_branches endtok false triv
             (accum
             ^^ optional (pp_ws `Break) prews
                (* Don't print the starting bar if we're in flat mode. *)
@@ -1677,18 +2029,58 @@ let rec pp_discriminees accum prews obs : document * Whitespace.t list * observa
   | Term x :: (Token (Return, _) :: _ as obs) ->
       let px, wx = pp_term x in
       (accum ^^ pp_ws `Break prews ^^ px, wx, obs)
+  | Term x :: (Token (Of, _) :: _ as obs) ->
+      let px, wx = pp_term x in
+      (accum ^^ pp_ws `Break prews ^^ px, wx, obs)
   | Term x :: (Token (LBracket, _) :: _ as obs) ->
       let px, wx = pp_term x in
       (accum ^^ pp_ws `Break prews ^^ px, wx, obs)
   | _ -> invalid "(co)match 4"
 
+let canonical_case_branches obs =
+  match List.rev obs with
+  | Token ((RBracket | RBrace), ws) :: revobs -> List.rev (Token (RBrace, ws) :: revobs)
+  | _ -> obs
+
+let canonicalize_case_branches obs =
+  let rec go first = function
+    | [ Token (RBracket, ws) ] -> [ Token (RBrace, ws) ]
+    | [ Token (RBrace, ws) ] -> [ Token (RBrace, ws) ]
+    | Token (Op "|", _) :: obs when first -> go false obs
+    | Token (Op "|", ws) :: obs -> Token (Op ";", ws) :: go false obs
+    | Token (Mapsto, ws) :: obs -> Token (Arrow, ws) :: go false obs
+    | obs :: rest -> obs :: go false rest
+    | [] -> []
+  in
+  go true obs
+
+let rec pp_case_branches obs : document * Whitespace.t list =
+  match obs with
+  | [ Token (RBrace, (wsrbrace, _)) ] -> (Token.pp RBrace, wsrbrace)
+  | _ ->
+      let ppats, _wpats, obs = pp_patterns empty obs in
+      match obs with
+      | Token ((Arrow | DblMapsto) as arrow, _) :: Term body :: Token (Op ";", _) :: obs ->
+          let ibody, pbody, _wbody = pp_case `Nontrivial body in
+          let prest, wclose = pp_case_branches obs in
+          ( group (nest 2 (align ppats ^^ blank 1 ^^ Token.pp arrow ^^ break 1 ^^ ibody) ^^ pbody)
+            ^^ Token.pp (Op ";")
+            ^^ break 1
+            ^^ prest,
+            wclose )
+      | Token ((Arrow | DblMapsto) as arrow, _) :: Term body :: [ Token (RBrace, (wsrbrace, _)) ] ->
+          let ibody, pbody, _wbody = pp_case `Nontrivial body in
+          ( group (nest 2 (align ppats ^^ blank 1 ^^ Token.pp arrow ^^ break 1 ^^ ibody) ^^ pbody)
+            ^^ Token.pp RBrace,
+            wsrbrace )
+      | _ -> invalid "(co)match case 1"
+
 (* Print an implicit match, explicit match, matching lambda, or comatch, with possible multiple discriminees and possible 'return'.  We can combine comatches with matches because a "field" is just a term that can be printed like a pattern.  Always nontrivial. *)
 let pp_match triv = function
-  | Token (Match, (wsmatch, _)) :: obs -> (
-      let pdisc, wdisc, obs = pp_discriminees (Token.pp Match) wsmatch obs in
+  | Token ((Match | Case), (wscase, _)) :: obs -> (
+      let pdisc, wdisc, obs = pp_discriminees (Token.pp Case) wscase obs in
       let pret, wret, obs =
         match obs with
-        (* The motive is parsed as an abstraction sub-notation *)
         | Token (Return, (wsreturn, _)) :: Term motive :: Token (LBracket, (wslbrack, _)) :: obs ->
             let pmotive, wmotive = pp_term motive in
             ( pp_ws `Break wdisc
@@ -1696,28 +2088,265 @@ let pp_match triv = function
               ^^ pp_ws `Nobreak wsreturn
               ^^ pmotive
               ^^ pp_ws `Nobreak wmotive
-              ^^ Token.pp LBracket,
+              ^^ Token.pp Of
+              ^^ blank 1
+              ^^ Token.pp Lambda
+              ^^ blank 1
+              ^^ Token.pp LBrace,
               wslbrack,
               obs )
-        | Token (LBracket, (wslbrack, _)) :: obs ->
-            (pp_ws `Nobreak wdisc ^^ Token.pp LBracket, wslbrack, obs)
+        | Token (Return, (wsreturn, _)) :: Term motive :: Token (Of, _) :: Token (LBrace, (wslbrack, _)) :: obs ->
+            let pmotive, wmotive = pp_term motive in
+            ( pp_ws `Break wdisc
+              ^^ Token.pp Return
+              ^^ pp_ws `Nobreak wsreturn
+              ^^ pmotive
+              ^^ pp_ws `Nobreak wmotive
+              ^^ Token.pp Of
+              ^^ blank 1
+              ^^ Token.pp Lambda
+              ^^ blank 1
+              ^^ Token.pp LBrace,
+              wslbrack,
+              obs )
+        | Token (Return, (wsreturn, _)) :: Term motive :: Token (Of, _) :: Token (Lambda, _) :: Token (LBrace, (wslbrack, _)) :: obs ->
+            let pmotive, wmotive = pp_term motive in
+            ( pp_ws `Break wdisc
+              ^^ Token.pp Return
+              ^^ pp_ws `Nobreak wsreturn
+              ^^ pmotive
+              ^^ pp_ws `Nobreak wmotive
+              ^^ Token.pp Of
+              ^^ blank 1
+              ^^ Token.pp Lambda
+              ^^ blank 1
+              ^^ Token.pp LBrace,
+              wslbrack,
+              obs )
+        | Token (LBracket, (wslbrack, _)) :: obs
+        | Token (Of, _) :: Token (LBrace, (wslbrack, _)) :: obs
+        | Token (Of, _) :: Token (Lambda, _) :: Token (LBrace, (wslbrack, _)) :: obs ->
+            ( pp_ws `Break wdisc
+              ^^ Token.pp Of
+              ^^ blank 1
+              ^^ Token.pp Lambda
+              ^^ blank 1
+              ^^ Token.pp LBrace,
+              wslbrack,
+              obs )
         | _ -> invalid "(co)match 5" in
+      let obs = canonicalize_case_branches obs in
       match obs with
-      | [ Token (RBracket, (wsrbrack, _)) ] ->
-          (* The empty match fits all on one line *)
-          ( align (group (hang 2 pdisc) ^^ pret ^^ pp_ws `Nobreak wret ^^ Token.pp RBracket),
+      | [ Token (RBrace, (wsrbrace, _)) ] ->
+          ( align (group (hang 2 pdisc) ^^ pret ^^ pp_ws `Nobreak wret ^^ Token.pp RBrace),
             empty,
-            wsrbrack )
+            wsrbrace )
       | _ ->
-          let pbranches, wbranches =
-            pp_branches true `Nontrivial empty None (must_start_with (Op "|") obs) in
+          let pbranches, wbranches = pp_case_branches obs in
           (align (group (hang 2 pdisc) ^^ pret), group (pp_ws `Break wret ^^ pbranches), wbranches))
   | Token (LBracket, (wslbrack, _)) :: obs ->
-      let pbranches, wbranches = pp_branches true triv empty None (must_start_with (Op "|") obs) in
+      let obs =
+        match obs with
+        | Token (Op "|", _) :: _ | [ Token (RBracket, _) ] -> obs
+        | _ -> Token (Op "|", ([], None)) :: obs
+      in
+      let pbranches, wbranches =
+        pp_branches RBracket true triv empty None (must_start_with (Op "|") obs)
+      in
       ( Token.pp LBracket,
         group (pp_ws (if triv = `Trivial then `Nobreak else `Break) wslbrack ^^ pbranches),
         wbranches )
   | _ -> invalid "(co)match 6"
+
+let normalize_case_branches obs =
+  let rec go = function
+    | [] -> []
+    | Token (RBrace, ws) :: obs -> Token (RBracket, ws) :: go obs
+    | Token (Arrow, ws) :: obs -> Token (Mapsto, ws) :: go obs
+    | Token (Token.Op ";", ws) :: obs -> Token (Token.Op "|", ws) :: go obs
+    | obs :: rest -> obs :: go rest
+  in
+  match obs with
+  | [ Token (RBrace, ws) ] -> [ Token (RBracket, ws) ]
+  | _ -> Token (Token.Op "|", ([], None)) :: go obs
+
+let bracketize_case_branches obs = normalize_case_branches obs
+
+let extract_case_branches obs =
+  match obs with
+  | Token (Of, _) :: Token (LBrace, _) :: obs
+  | Token (Of, _) :: Token (Lambda, _) :: Token (LBrace, _) :: obs ->
+      Some (normalize_case_branches obs)
+  | _ -> None
+
+let pp_mtchlam _triv = function
+  | Token (Lambda, (wslambda, _)) :: Token (LBrace, (wslbrace, _)) :: obs ->
+      let obs = canonicalize_case_branches obs in
+      (match obs with
+      | [ Token (RBrace, (wsrbrace, _)) ] ->
+          ( Token.pp Lambda
+            ^^ pp_ws `Nobreak wslambda
+            ^^ Token.pp LBrace
+            ^^ pp_ws `Nobreak wslbrace
+            ^^ Token.pp RBrace,
+            empty,
+            wsrbrace )
+      | _ ->
+          let pbranches, wbranches = pp_case_branches obs in
+          ( Token.pp Lambda ^^ pp_ws `Nobreak wslambda ^^ Token.pp LBrace,
+            pp_ws `Break wslbrace ^^ pbranches,
+            wbranches ))
+  | _ -> invalid "matching lambda"
+
+let pp_legacy_brackets _triv obs =
+  let obs = normalize_case_branches obs in
+  match obs with
+  | [ Token (RBrace, (wsrbrace, _)) ] ->
+      (Token.pp LBracket, empty ^^ Token.pp RBracket, wsrbrace)
+  | _ ->
+      let pbranches, wbranches = pp_case_branches obs in
+      (Token.pp LBracket, pbranches, wbranches)
+
+let pp_legacy_brackets_term _obs =
+  (PPrint.group (Token.pp LBracket ^^ PPrint.utf8string "…" ^^ Token.pp RBracket), [])
+
+let process_mtchlam_branches ctx obs loc =
+  match obs with
+  | [ Token (RBracket, _) ] -> locate Empty_co_match loc
+  | Token (Op "|", _) :: obs -> (
+      let Wrap pats, cube, obs = get_any_patterns obs in
+      match obs with
+      | Term body :: obs ->
+          let n = Vec.length pats in
+          let (Bplus an) = Raw.Indexed.bplus n in
+          let ctx, xs = Matchscope.exts an (Matchscope.make ctx) in
+          let branches = get_branches ctx n obs in
+          let mtch, highers =
+            process_branches ctx
+              (Vec.mmap (fun [ i ] -> Either.Right i) [ xs ])
+              Emp
+              ((ctx, pats, cube, Wrap body) :: branches)
+              loc `Implicit in
+          let mtch =
+            match (mtch.value, highers) with
+            | Synth (Match data), _ -> locate_opt mtch.loc (Synth (Match { data with highers }))
+            | _, [] -> mtch
+            | _, _ :: _ -> fatal (Anomaly "process_branches didn't produce a match") in
+          Raw.lams an (Vec.init (fun () -> (unlocated None, ())) n ()) mtch loc
+      | _ -> invalid "match")
+  | _ -> invalid "match"
+
+let process_mtchlam_obs ctx obs loc =
+  match obs with
+  | Token (Lambda, _) :: Token (LBrace, _) :: obs ->
+      process_mtchlam_branches ctx (normalize_case_branches obs) loc
+  | _ -> invalid "match"
+
+let process_implicit_match_obs ctx obs loc =
+  let ctx = Matchscope.make ctx in
+  match obs with
+  | Token ((Match | Case), _) :: obs -> (
+      let Wrap xs, obs = get_discriminees obs in
+      let branches =
+        match obs with
+        | [ Token (LBracket, _); Token (RBracket, _) ] -> []
+        | Token (LBracket, _) :: obs ->
+            get_branches ctx (Vec.length xs) (must_start_with (Op "|") obs)
+        | _ -> (
+            match extract_case_branches obs with
+            | Some [ Token (RBracket, _) ] -> []
+            | Some obs -> get_branches ctx (Vec.length xs) (must_start_with (Op "|") obs)
+            | None -> invalid "implicit_match") in
+      let mtch, highers = process_branches ctx xs Emp branches loc `Implicit in
+      match (mtch.value, highers) with
+      | Synth (Match data), _ -> locate_opt mtch.loc (Synth (Match { data with highers }))
+      | _, [] -> mtch
+      | _, _ :: _ -> fatal (Anomaly "process_branches didn't produce a match"))
+  | _ -> invalid "implicit_match"
+
+let process_explicit_match_obs ctx obs loc =
+  let ctx = Matchscope.make ctx in
+  match obs with
+  | Token ((Match | Case), _)
+    :: Term tm
+    :: Token (Return, _)
+    :: Term ({ value = (Notn (((Abs | Legacy_abs), _), n) as m); _ } as motive)
+    :: Token (LBracket, _)
+    :: obs -> (
+      let branches =
+        match obs with
+        | [ Token (RBracket, _) ] -> []
+        | _ -> get_branches ctx Fwn.one (must_start_with (Op "|") obs) in
+      let sort =
+        match (m, args n) with
+        | Notn ((Abs, _), _), [ Token (Lambda, _); Term vars; Token (Arrow, _); Term { value = Placeholder _; _ } ] ->
+            let (Extctx (mn, _, _)) = get_vars (Matchscope.names ctx) vars in
+            `Nondep ({ value = N.to_int (N.plus_right mn); loc = vars.loc } : int located)
+        | Notn ((Legacy_abs, _), _), [ Term vars; Token (Mapsto, _); Term { value = Placeholder _; _ } ] ->
+            let (Extctx (mn, _, _)) = get_vars (Matchscope.names ctx) vars in
+            `Nondep ({ value = N.to_int (N.plus_right mn); loc = vars.loc } : int located)
+        | _, _ -> `Explicit (Wrap motive) in
+      let mtch, highers = process_branches ctx [ Left (Wrap tm) ] Emp branches loc sort in
+      match (mtch.value, highers) with
+      | Synth (Match data), _ -> locate_opt mtch.loc (Synth (Match { data with highers }))
+      | _, [] -> mtch
+      | _, _ :: _ -> fatal (Anomaly "process_branches didn't produce a match"))
+  | Token ((Match | Case), _)
+    :: Term tm
+    :: Token (Return, _)
+    :: Term ({ value = (Notn (((Abs | Legacy_abs), _), n) as m); _ } as motive)
+    :: Token (Of, _)
+    :: Token (LBrace, _)
+    :: obs -> (
+      let obs = bracketize_case_branches obs in
+      let branches =
+        match obs with
+        | [ Token (RBracket, _) ] -> []
+        | _ -> get_branches ctx Fwn.one (must_start_with (Op "|") obs) in
+      let sort =
+        match (m, args n) with
+        | Notn ((Abs, _), _), [ Token (Lambda, _); Term vars; Token (Arrow, _); Term { value = Placeholder _; _ } ] ->
+            let (Extctx (mn, _, _)) = get_vars (Matchscope.names ctx) vars in
+            `Nondep ({ value = N.to_int (N.plus_right mn); loc = vars.loc } : int located)
+        | Notn ((Legacy_abs, _), _), [ Term vars; Token (Mapsto, _); Term { value = Placeholder _; _ } ] ->
+            let (Extctx (mn, _, _)) = get_vars (Matchscope.names ctx) vars in
+            `Nondep ({ value = N.to_int (N.plus_right mn); loc = vars.loc } : int located)
+        | _, _ -> `Explicit (Wrap motive) in
+      let mtch, highers = process_branches ctx [ Left (Wrap tm) ] Emp branches loc sort in
+      match (mtch.value, highers) with
+      | Synth (Match data), _ -> locate_opt mtch.loc (Synth (Match { data with highers }))
+      | _, [] -> mtch
+      | _, _ :: _ -> fatal (Anomaly "process_branches didn't produce a match"))
+  | Token ((Match | Case), _)
+    :: Term tm
+    :: Token (Return, _)
+    :: Term ({ value = (Notn (((Abs | Legacy_abs), _), n) as m); _ } as motive)
+    :: Token (Of, _)
+    :: Token (Lambda, _)
+    :: Token (LBrace, _)
+    :: obs -> (
+      let obs = bracketize_case_branches obs in
+      let branches =
+        match obs with
+        | [ Token (RBracket, _) ] -> []
+        | _ -> get_branches ctx Fwn.one (must_start_with (Op "|") obs) in
+      let sort =
+        match (m, args n) with
+        | Notn ((Abs, _), _), [ Token (Lambda, _); Term vars; Token (Arrow, _); Term { value = Placeholder _; _ } ] ->
+            let (Extctx (mn, _, _)) = get_vars (Matchscope.names ctx) vars in
+            `Nondep ({ value = N.to_int (N.plus_right mn); loc = vars.loc } : int located)
+        | Notn ((Legacy_abs, _), _), [ Term vars; Token (Mapsto, _); Term { value = Placeholder _; _ } ] ->
+            let (Extctx (mn, _, _)) = get_vars (Matchscope.names ctx) vars in
+            `Nondep ({ value = N.to_int (N.plus_right mn); loc = vars.loc } : int located)
+        | _, _ -> `Explicit (Wrap motive) in
+      let mtch, highers = process_branches ctx [ Left (Wrap tm) ] Emp branches loc sort in
+      match (mtch.value, highers) with
+      | Synth (Match data), _ -> locate_opt mtch.loc (Synth (Match { data with highers }))
+      | _, [] -> mtch
+      | _, _ :: _ -> fatal (Anomaly "process_branches didn't produce a match"))
+  | Token ((Match | Case), _) :: _ :: Token (Return, _) :: Term nonabs :: _ ->
+      fatal ?loc:nonabs.loc Parse_error
+  | _ -> invalid "match"
 
 let () =
   (* Implicit matches can be multiple and deep matches, with multiple discriminees and multiple patterns. *)
@@ -1725,25 +2354,18 @@ let () =
     {
       name = "implicit match";
       tree = Closed_entry (eop Match (discriminees ()));
-      processor =
-        (fun ctx obs loc ->
-          let ctx = Matchscope.make ctx in
-          match obs with
-          | Token (Match, _) :: obs -> (
-              let Wrap xs, obs = get_discriminees obs in
-              let branches =
-                match obs with
-                | [ Token (LBracket, _); Token (RBracket, _) ] -> []
-                | Token (LBracket, _) :: obs ->
-                    get_branches ctx (Vec.length xs) (must_start_with (Op "|") obs)
-                | _ -> invalid "implicit_match" in
-              let mtch, highers = process_branches ctx xs Emp branches loc `Implicit in
-              match (mtch.value, highers) with
-              | Synth (Match data), _ -> locate_opt mtch.loc (Synth (Match { data with highers }))
-              | _, [] -> mtch
-              | _, _ :: _ -> fatal (Anomaly "process_branches didn't produce a match"))
-          | _ -> invalid "implicit_match");
+      processor = (fun ctx obs loc -> process_implicit_match_obs ctx obs loc);
       pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "match"));
+      print_term = None;
+      print_case = Some pp_match;
+      is_case = (fun _ -> true);
+    };
+  make implicit_case
+    {
+      name = "implicit case";
+      tree = Closed_entry (eop Case (case_discriminees ()));
+      processor = (fun ctx obs loc -> process_implicit_match_obs ctx obs loc);
+      pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "case"));
       print_term = None;
       print_case = Some pp_match;
       is_case = (fun _ -> true);
@@ -1757,83 +2379,50 @@ let () =
           (eop Match
              (Inner
                 {
-                  empty_branch with
+                  ops = TokMap.empty;
+                  field = None;
                   term =
                     Some
                       (singleton Return
                          (* The motive is parsed as an abstraction sub-notation *)
-                         (term LBracket (mtch_branches explicit_mtch true true false)));
+                         (term LBracket (mtch_branches RBracket explicit_mtch true true false)));
                 }));
-      processor =
-        (fun ctx obs loc ->
-          let ctx = Matchscope.make ctx in
-          match obs with
-          | Token (Match, _)
-            :: Term tm
-            :: Token (Return, _) (* The motive is parsed as an abstraction sub-notation *)
-            :: Term ({ value = Notn ((Abs, _), n); _ } as motive)
-            :: Token (LBracket, _)
-            :: obs -> (
-              let branches =
-                match obs with
-                | [ Token (RBracket, _) ] -> []
-                | _ -> get_branches ctx Fwn.one (must_start_with (Op "|") obs) in
-              let sort =
-                match args n with
-                | [ Term vars; Token (Mapsto, _); Term { value = Placeholder _; _ } ] ->
-                    let (Extctx (mn, _, _)) = get_vars (Matchscope.names ctx) vars in
-                    `Nondep ({ value = N.to_int (N.plus_right mn); loc = vars.loc } : int located)
-                | _ -> `Explicit (Wrap motive) in
-              let mtch, highers = process_branches ctx [ Left (Wrap tm) ] Emp branches loc sort in
-              match (mtch.value, highers) with
-              | Synth (Match data), _ -> locate_opt mtch.loc (Synth (Match { data with highers }))
-              | _, [] -> mtch
-              | _, _ :: _ -> fatal (Anomaly "process_branches didn't produce a match"))
-          | Token (Match, _) :: _ :: Token (Return, _) :: Term nonabs :: Token (LBracket, _) :: _ ->
-              fatal ?loc:nonabs.loc Parse_error
-          | _ -> invalid "match");
+      processor = (fun ctx obs loc -> process_explicit_match_obs ctx obs loc);
       pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "match"));
       print_term = None;
       print_case = Some pp_match;
       is_case = (fun _ -> true);
     };
-  (* Empty matches [ ] are not allowed for mtchlam, because they are parsed separately as empty_co_match. *)
+  make explicit_case
+    {
+      name = "explicit case";
+      tree =
+        Closed_entry
+          (eop Case
+             (Inner
+                {
+                  ops = TokMap.empty;
+                  field = None;
+                  term =
+                    Some
+                      (singleton Return
+                         (* The motive is parsed as an abstraction sub-notation *)
+                         (term Of (case_after_of explicit_case false)));
+                }));
+      processor = (fun ctx obs loc -> process_explicit_match_obs ctx obs loc);
+      pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "case"));
+      print_term = None;
+      print_case = Some pp_match;
+      is_case = (fun _ -> true);
+    };
   make mtchlam
     {
       name = "matchlam";
-      tree = Closed_entry (eop LBracket (mtch_branches mtchlam true false true));
-      processor =
-        (fun ctx obs loc ->
-          (* Empty matching lambdas are a different notation, empty_co_match, so here there must be at least one branch. *)
-          match obs with
-          | Token (LBracket, _) :: Token (Op "|", _) :: obs | Token (LBracket, _) :: obs -> (
-              (* We get the *number* of patterns from the first branch. *)
-              let Wrap pats, cube, obs = get_any_patterns obs in
-              match obs with
-              | Term body :: obs ->
-                  let n = Vec.length pats in
-                  let (Bplus an) = Raw.Indexed.bplus n in
-                  let ctx, xs = Matchscope.exts an (Matchscope.make ctx) in
-                  let branches = get_branches ctx n obs in
-                  let mtch, highers =
-                    process_branches ctx
-                      (Vec.mmap (fun [ i ] -> Either.Right i) [ xs ])
-                      Emp
-                      ((ctx, pats, cube, Wrap body) :: branches)
-                      loc `Implicit in
-                  let mtch =
-                    match (mtch.value, highers) with
-                    | Synth (Match data), _ ->
-                        locate_opt mtch.loc (Synth (Match { data with highers }))
-                    | _, [] -> mtch
-                    | _, _ :: _ -> fatal (Anomaly "process_branches didn't produce a match") in
-                  (* NB: Raw.lams produces only explicit lambdas.  Pattern-matching lambdas can't be used for implicit ones. *)
-                  Raw.lams an (Vec.init (fun () -> (unlocated None, ())) n ()) mtch loc
-              | _ -> invalid "match")
-          | _ -> invalid "match");
+      tree = Closed_entry (eop Lambda (op LBrace (case_branches mtchlam true)));
+      processor = (fun ctx obs loc -> process_mtchlam_obs ctx obs loc);
       pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "matching abstraction"));
       print_term = None;
-      print_case = Some pp_match;
+      print_case = Some pp_mtchlam;
       is_case = (fun _ -> true);
     }
 
@@ -1846,8 +2435,22 @@ type (_, _, _) identity += Comatch : (closed, No.plus_omega, closed) identity
 let comatch : (closed, No.plus_omega, closed) notation = (Comatch, Outfix)
 
 let rec comatch_fields () =
-  let rest = terms [ (Op "|", Lazy (lazy (comatch_fields ()))); (RBracket, Done_closed comatch) ] in
-  field (ops [ (Mapsto, rest); (DblMapsto, rest) ])
+  Inner
+    {
+      ops = singleton RBrace (Done_closed comatch);
+      field = None;
+      term =
+        Some
+          (singleton (Op "=")
+             (terms [ (Op ";", Lazy (lazy (comatch_fields ()))); (RBrace, Done_closed comatch) ]));
+    }
+
+let comatch_field_name tm =
+  match tm with
+  | Wrap { value = Ident ([ fld ], _); loc } when Lexer.valid_field fld && not (Lexer.all_digits fld) ->
+      Some (fld, [], loc)
+  | Wrap { value = HigherField (fld, pbij, _); loc } -> Some (fld, expand_compact_suffix pbij, loc)
+  | _ -> None
 
 let rec process_comatch : type n.
     ((string * string list) option, [ `Normal | `Cube ] located * n check located) Abwd.t
@@ -1857,58 +2460,77 @@ let rec process_comatch : type n.
     Asai.Range.t option ->
     n check located =
  fun (flds, found) ctx obs loc ->
+ match obs with
+  | [ Token (RBrace, _) ] -> { value = Raw.Struct (Noeta, flds); loc }
+  | Token (Op ";", _) :: obs -> process_comatch (flds, found) ctx obs loc
+  | Term fldtm :: Token (Op "=", (_, eqloc)) :: Term tm :: obs -> (
+      match comatch_field_name (Wrap fldtm) with
+      | Some (fld, pbij, fldloc) ->
+          let tm = process ctx tm in
+          if StringsSet.mem (fld, pbij) found then
+            fatal ?loc:fldloc (Duplicate_method_in_comatch (fld, pbij))
+          else
+            process_comatch
+              ( Abwd.add (Some (fld, pbij)) (locate `Normal eqloc, tm) flds,
+                StringsSet.add (fld, pbij) found )
+              ctx obs loc
+      | None -> fatal ?loc:fldtm.loc Invalid_method_in_comatch)
+  | _ -> invalid "comatch"
+
+let rec pp_comatch_fields prews accum obs : document * Whitespace.t list =
   match obs with
-  | [ Token (RBracket, _) ] -> { value = Raw.Struct (Noeta, flds); loc }
-  | Token (Op "|", _)
-    :: Term { value = Field (fld, pbij, _); loc = fldloc }
-    :: Token (mapsto, (_, mloc))
-    :: Term tm
-    :: obs ->
-      let tm = process ctx tm in
-      if StringsSet.mem (fld, pbij) found then
-        (* Comatches can't have unlabeled fields *)
-        fatal ?loc:fldloc (Duplicate_method_in_comatch (fld, pbij))
-      else
-        let cube =
-          match mapsto with
-          | Mapsto -> locate `Normal mloc
-          | DblMapsto -> locate `Cube mloc
-          | _ -> invalid "comatch" in
-        process_comatch
-          (Abwd.add (Some (fld, pbij)) (cube, tm) flds, StringsSet.add (fld, pbij) found)
-          ctx obs loc
+  | [ Token (RBrace, (wsrbrace, _)) ] ->
+      (accum ^^ optional (pp_ws `Nobreak) prews ^^ Token.pp RBrace, wsrbrace)
+  | Token (Op ";", (wssemi, _)) :: obs ->
+      pp_comatch_fields (Some wssemi)
+        (accum ^^ optional (pp_ws `None) prews ^^ Token.pp (Op ";"))
+        obs
+  | Term fld :: Token (Op "=", (wseq, _)) :: Term body :: obs ->
+      let pfld, wsfld = pp_term fld in
+      let ibody, pbody, wbody = pp_case `Nontrivial body in
+      pp_comatch_fields (Some wbody)
+        (accum
+        ^^ optional (pp_ws `Break) prews
+        ^^ ifflat
+             (group
+                (nest 2
+                   (pfld ^^ pp_ws `Nobreak wsfld ^^ Token.pp (Op "=") ^^ pp_ws `Break wseq ^^ ibody)))
+             (group
+                (nest 2
+                   (pfld ^^ pp_ws `Nobreak wsfld ^^ Token.pp (Op "=") ^^ pp_ws `Break wseq ^^ ibody)))
+        ^^ nest 2 pbody)
+        obs
+  | _ -> invalid "comatch"
+
+let pp_comatch _triv = function
+  | [ Token (Record, (wsrecord, _)); Token (LBrace, (wslbrace, _)); Token (RBrace, (wsrbrace, _)) ]
+    ->
+      ( Token.pp Record
+        ^^ pp_ws `Nobreak wsrecord
+        ^^ Token.pp LBrace
+        ^^ pp_ws `Nobreak wslbrace
+        ^^ Token.pp RBrace,
+        empty,
+        wsrbrace )
+  | Token (Record, (wsrecord, _)) :: Token (LBrace, (wslbrace, _)) :: obs ->
+      let fields, ws = pp_comatch_fields None empty obs in
+      (Token.pp Record ^^ pp_ws `Nobreak wsrecord ^^ Token.pp LBrace, pp_ws `Break wslbrace ^^ fields, ws)
   | _ -> invalid "comatch"
 
 let () =
   make comatch
     {
       name = "comatch";
-      tree =
-        Closed_entry
-          (eop LBracket
-             (Inner
-                {
-                  empty_branch with
-                  ops = singleton (Op "|") (comatch_fields ());
-                  field =
-                    (let rest =
-                       terms
-                         [
-                           (Op "|", Lazy (lazy (comatch_fields ()))); (RBracket, Done_closed comatch);
-                         ] in
-                     Some (ops [ (Mapsto, rest); (DblMapsto, rest) ]));
-                }));
+      tree = Closed_entry (eop Record (op LBrace (comatch_fields ())));
       processor =
         (fun ctx obs loc ->
           match obs with
-          (* We strip off the starting bracket and make sure there is an initial bar, so that process_comatch can treat each clause uniformly. *)
-          | Token (LBracket, _) :: obs ->
-              let obs = must_start_with (Op "|") obs in
+          | Token (Record, _) :: Token (LBrace, _) :: obs ->
               process_comatch (Abwd.empty, StringsSet.empty) ctx obs loc
           | _ -> invalid "comatch");
       pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "comatch"));
       print_term = None;
-      print_case = Some pp_match;
+      print_case = Some pp_comatch;
       is_case = (fun _ -> true);
     }
 
@@ -1925,15 +2547,22 @@ let () =
     {
       name = "empty_co_match";
       tree = Closed_entry (eop LBracket (op RBracket (Done_closed empty_co_match)));
-      processor = (fun _ _ loc -> { value = Empty_co_match; loc });
-      pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "empty (co)match"));
-      print_term = None;
-      print_case =
-        Some
-          (fun _triv -> function
-            | [ Token (LBracket, (wslbrack, _)); Token (RBracket, (wsrbrack, _)) ] ->
-                (Token.pp LBracket ^^ pp_ws `Nobreak wslbrack ^^ Token.pp RBracket, empty, wsrbrack)
-            | _ -> invalid "empty_co_match");
+      processor = (fun _ _ _ -> fatal Bracket_syntax_removed);
+      pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "legacy empty (co)match"));
+      print_term = Some pp_legacy_brackets_term;
+      print_case = None;
+      is_case = (fun _ -> true);
+    }
+
+let () =
+  make legacy_brackets
+    {
+      name = "legacy_brackets";
+      tree = Closed_entry (eop LBracket (mtch_branches RBracket legacy_brackets true false true));
+      processor = (fun _ _ _ -> fatal Bracket_syntax_removed);
+      pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "legacy bracket syntax"));
+      print_term = Some pp_legacy_brackets_term;
+      print_case = None;
       is_case = (fun _ -> true);
     }
 
@@ -1948,11 +2577,11 @@ let codata : (closed, No.plus_omega, closed) notation = (Codata, Outfix)
 let rec codata_fields bar_ok =
   Inner
     {
-      empty_branch with
       ops =
         (if bar_ok then
            oflist [ (Op "|", Lazy (lazy (codata_fields false))); (RBracket, Done_closed codata) ]
          else TokMap.empty);
+      field = None;
       term =
         Some
           (singleton Colon
@@ -1968,6 +2597,49 @@ let process_codata_field : type n lt ls rt rs lt' ls' rt' rs' et.
     Field.wrapped * n Raw.codatafield =
  fun eta flds ctx tm ty ->
   match tm.value with
+  | App
+      {
+        fn = { value = Ident ([ fstr ], _); loc = fldloc };
+        arg = { value = ((Ident ([ _ ], _) | Placeholder _) as x); loc = xloc };
+        _;
+      } ->
+      with_loc tm.loc @@ fun () ->
+      if not (Lexer.valid_field fstr) || Lexer.all_digits fstr then fatal ?loc:fldloc (Invalid_field fstr);
+      let x =
+        match x with
+        | Ident ([ x ], _) when Lexer.valid_var x -> Some x
+        | Placeholder _ -> None
+        | Ident (x, _) -> fatal ?loc:xloc (Invalid_variable x)
+        | _ -> fatal ?loc:xloc Parse_error in
+      let fld = Field.intern fstr D.zero in
+      (match Abwd.find_opt (Field.Wrap fld) flds with
+      | Some _ -> fatal ?loc:fldloc (duplicate_field_in_type eta fld)
+      | None ->
+          let ty = process (Bwv.snoc ctx x) ty in
+          (Field.Wrap fld, Raw.Codatafield (x, ty)))
+  | App
+      {
+        fn = { value = HigherField (fstr, fdstr, _); loc = fldloc };
+        arg = { value = x; loc = xloc };
+        _;
+      } ->
+      with_loc tm.loc @@ fun () ->
+      if not (Lexer.valid_field fstr) then fatal ?loc:fldloc (Invalid_field fstr);
+      let x =
+        match x with
+        | Ident ([ x ], _) when Lexer.valid_var x -> Some x
+        | Placeholder _ -> None
+        | Ident (x, _) -> fatal ?loc:xloc (Invalid_variable x)
+        | _ -> fatal ?loc:xloc Parse_error in
+      (match dim_of_string (String.concat "" fdstr) with
+      | Some (Any fdim) -> (
+          let fld = Field.intern fstr fdim in
+          match Abwd.find_opt (Field.Wrap fld) flds with
+          | Some _ -> fatal ?loc:fldloc (duplicate_field_in_type eta fld)
+          | None ->
+              let ty = process (Bwv.snoc ctx x) ty in
+              (Field.Wrap fld, Raw.Codatafield (x, ty)))
+      | None -> fatal (Invalid_field (fstr ^ "⟨" ^ String.concat "," fdstr ^ "⟩")))
   | App
       { fn = { value = x; loc = xloc }; arg = { value = Field (fstr, fdstr, _); loc = fldloc }; _ }
     -> (
@@ -1991,16 +2663,20 @@ let process_codata_field : type n lt ls rt rs lt' ls' rt' rs' et.
   | _ -> fatal ?loc:tm.loc Parse_error
 
 let rec process_codata : type n.
+    string list ->
     (Field.wrapped, n Raw.codatafield) Abwd.t ->
     (string option, n) Bwv.t ->
     observation list ->
     Asai.Range.t option ->
     n check located =
- fun flds ctx obs loc ->
+ fun local_fields flds ctx obs loc ->
   match obs with
   | [ Token (RBracket, _) ] -> { value = Raw.Codata flds; loc }
   | Token (Op "|", _) :: Term tm :: Token (Colon, _) :: Term ty :: obs ->
-      process_codata (Snoc (flds, process_codata_field Noeta flds ctx tm ty)) ctx obs loc
+      let fld =
+        Scope.with_local_fields local_fields (fun () -> process_codata_field Noeta flds ctx tm ty)
+      in
+      process_codata local_fields (Snoc (flds, fld)) ctx obs loc
   | _ -> invalid "codata 1"
 
 let rec pp_codata_fields first prews accum obs : document * Whitespace.t list =
@@ -2064,7 +2740,8 @@ let () =
           | [ Token (Codata, _); Token (LBracket, _); Token (RBracket, _) ] ->
               { value = Raw.Codata Emp; loc }
           | Token (Codata, _) :: Token (LBracket, _) :: obs ->
-              process_codata Emp ctx (must_start_with (Op "|") obs) loc
+              let obs = must_start_with (Op "|") obs in
+              process_codata (local_fields_of_codata_obs obs) Emp ctx obs loc
           | _ -> invalid "codata 4");
       pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "codata"));
       print_term = None;
@@ -2083,8 +2760,8 @@ let record : (closed, No.plus_omega, closed) notation = (Record, Outfix)
 let rec record_fields () =
   Inner
     {
-      empty_branch with
       ops = singleton RParen (Done_closed record);
+      field = None;
       term =
         Some
           (singleton Colon
@@ -2112,17 +2789,21 @@ let rec process_tel : type a.
   | _ -> invalid "record"
 
 let rec process_self_record : type n.
+    string list ->
     (Field.wrapped, n Raw.codatafield) Abwd.t ->
     (string option, n) Bwv.t ->
     observation list ->
     Asai.Range.t option ->
     n check located =
- fun flds ctx obs loc ->
+ fun local_fields flds ctx obs loc ->
   match obs with
   | [ Token (RParen, _) ] -> { value = Raw.SelfRecord flds; loc }
-  | Token (Op ",", _) :: obs -> process_self_record flds ctx obs loc
+  | Token (Op ",", _) :: obs -> process_self_record local_fields flds ctx obs loc
   | Term tm :: Token (Colon, _) :: Term ty :: obs ->
-      process_self_record (Snoc (flds, process_codata_field Eta flds ctx tm ty)) ctx obs loc
+      let fld =
+        Scope.with_local_fields local_fields (fun () -> process_codata_field Eta flds ctx tm ty)
+      in
+      process_self_record local_fields (Snoc (flds, fld)) ctx obs loc
   | _ -> invalid "self record"
 
 let process_record ctx obs loc =
@@ -2157,7 +2838,7 @@ let process_record ctx obs loc =
       let (Any_tel tel) = process_tel ctx StringSet.empty obs in
       Range.locate (Raw.Record (locate_opt x.loc (namevec_of_vec ac vars), tel, opacity)) loc
   | Token (LParen, _) :: (Term { value = App _; _ } :: _ as obs) ->
-      process_self_record Emp ctx obs loc
+      process_self_record (local_fields_of_codata_obs obs) Emp ctx obs loc
   | Token (LParen, _) :: obs ->
       let ctx = Bwv.snoc ctx None in
       let (Any_tel tel) = process_tel ctx StringSet.empty obs in
@@ -2257,7 +2938,6 @@ let () =
           (eop Sig
              (Inner
                 {
-                  empty_branch with
                   ops =
                     oflist
                       [
@@ -2267,11 +2947,12 @@ let () =
                             (term RParen
                                (Inner
                                   {
-                                    empty_branch with
                                     ops = singleton LParen (record_fields ());
+                                    field = None;
                                     term = Some (singleton Mapsto (op LParen (record_fields ())));
                                   })) );
                       ];
+                  field = None;
                   term = Some (singleton Mapsto (op LParen (record_fields ())));
                 }));
       processor = (fun ctx obs loc -> process_record ctx obs loc);
@@ -2292,11 +2973,11 @@ let data : (closed, No.plus_omega, closed) notation = (Data, Outfix)
 let rec data_constrs bar_ok =
   Inner
     {
-      empty_branch with
       ops =
         (if bar_ok then
            oflist [ (Op "|", Lazy (lazy (data_constrs false))); (RBracket, Done_closed data) ]
          else TokMap.empty);
+      field = None;
       term =
         Some (oflist [ (Op "|", Lazy (lazy (data_constrs false))); (RBracket, Done_closed data) ]);
     }
@@ -2309,6 +2990,7 @@ let rec constr_tel :
  fun tel accum ->
   match tel with
   (* Found all the arguments and reached the constructor. *)
+  | Term { value = Ident ([ c ], _); loc } -> ({ value = Constr.intern c; loc }, [], accum)
   | Term { value = Constr (c, suffix, _); loc } -> ({ value = Constr.intern c; loc }, suffix, accum)
   (* Each argument set is given with its type in parentheses. *)
   | Term { value = App { fn; arg = { value = Notn ((Parens, _), n); loc = _ }; _ }; loc = _ } -> (
@@ -2360,28 +3042,30 @@ let rec process_data : type n.
     Asai.Range.t option ->
     n check located =
  fun constrs ctx obs loc ->
-  match obs with
-  (* Found all the constructors, done *)
-  | [ Token (RBracket, _) ] -> { value = Raw.Data constrs; loc }
-  (* Found the next constructor *)
-  | Token (Op "|", _) :: Term tel :: obs -> (
-      (* The constructor might have an explicit type given by a colon. *)
-      let Wrap tel, ty =
-        match tel with
-        | { value = Notn ((Asc, _), n); loc = _ } -> (
-            match args n with
-            | [ Term tel; Token (Colon, _); Term ty ] -> (Wrap tel, Some (Wrap ty))
-            | _ -> invalid "data")
-        | _ -> (Wrap tel, None) in
-      let c, suffix, tel_args = constr_tel (Term tel) [] in
-      match Abwd.find_opt c.value constrs with
-      | Some _ -> fatal ?loc:c.loc (Duplicate_constructor_in_data c.value)
-      | None ->
-          let dc = process_dataconstr ctx suffix tel_args ty in
-          process_data
-            (Abwd.add c.value ({ value = dc; loc = tel.loc } : n dataconstr located) constrs)
-            ctx obs loc)
-  | _ -> invalid "data"
+  let local_constrs = local_constructors_of_data_obs obs in
+  Scope.with_local_constrs local_constrs (fun () ->
+      match obs with
+      (* Found all the constructors, done *)
+      | [ Token (RBracket, _) ] -> locate (Raw.Data constrs) loc
+      (* Found the next constructor *)
+      | Token (Op "|", _) :: Term tel :: obs -> (
+          (* The constructor might have an explicit type given by a colon. *)
+          let Wrap tel, ty =
+            match tel with
+            | { value = Notn ((Asc, _), n); loc = _ } -> (
+                match args n with
+                | [ Term tel; Token (Colon, _); Term ty ] -> (Wrap tel, Some (Wrap ty))
+                | _ -> invalid "data")
+            | _ -> (Wrap tel, None) in
+          let c, suffix, tel_args = constr_tel (Term tel) [] in
+          match Abwd.find_opt c.value constrs with
+          | Some _ -> fatal ?loc:c.loc (Duplicate_constructor_in_data c.value)
+          | None ->
+              let dc = process_dataconstr ctx suffix tel_args ty in
+              process_data
+                (Abwd.add c.value (locate dc tel.loc : n dataconstr located) constrs)
+                ctx obs loc)
+      | _ -> invalid "data")
 
 let rec pp_data_constrs first prews accum obs =
   match obs with
@@ -2528,9 +3212,13 @@ let install () =
     Situation.add Postprocess.parens;
     Situation.add Postprocess.braces;
     Situation.add letin;
+    Situation.add legacyletin;
     Situation.add letrec;
+    Situation.add legacyletrec;
+    Situation.add do_notation;
     Situation.add asc;
     Situation.add abs;
+    Situation.add legacyabs;
     Situation.add cubeabs;
     Situation.add arrow;
     Situation.add dblarrow;
@@ -2540,8 +3228,11 @@ let install () =
     Situation.add Postprocess.dot;
     Situation.add implicit_mtch;
     Situation.add explicit_mtch;
+    Situation.add implicit_case;
+    Situation.add explicit_case;
     Situation.add mtchlam;
     Situation.add empty_co_match;
+    Situation.add legacy_brackets;
     Situation.add codata;
     Situation.add record;
     Situation.add data;

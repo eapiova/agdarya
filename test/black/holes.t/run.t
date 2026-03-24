@@ -1,21 +1,21 @@
-  $ narya -parametric -v holes.ny
+  $ agdarya -parametric -v holes.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom B assumed
+   ￮ postulate B assumed
   
   B
-    : Type
+    : Set
   
    ￫ info[I0000]
    ￮ constant id defined
   
    ￫ info[I0001]
-   ￮ axiom b assumed
+   ￮ postulate b assumed
   
    ￫ info[I0001]
-   ￮ axiom g assumed
+   ￮ postulate g assumed
   
    ￫ info[I0000]
    ￮ constant f defined, containing 1 hole
@@ -27,10 +27,10 @@
      A → B
   
    ￫ info[I0001]
-   ￮ axiom a_very_long_variable assumed
+   ￮ postulate a_very_long_variable assumed
   
    ￫ info[I0001]
-   ￮ axiom a_very_long_function assumed
+   ￮ postulate a_very_long_function assumed
   
    ￫ info[I0000]
    ￮ constant f' defined, containing 1 hole
@@ -81,12 +81,12 @@
      
      m : ℕ
      n : ℕ
-     n′ ≔ suc. n : ℕ (not in scope)
+     n′ ≔ suc n : ℕ (not in scope)
      ----------------------------------------------------------------------
      ℕ
   
    ￫ info[I0001]
-   ￮ axiom P assumed
+   ￮ postulate P assumed
   
    ￫ info[I0000]
    ￮ constant anop defined, containing 1 hole
@@ -146,13 +146,13 @@
    ￮ hole ?9:
      
      ----------------------------------------------------------------------
-     Type
+     Set
   
    ￫ info[I3003]
    ￮ hole ?10:
      
      ----------------------------------------------------------------------
-     pp .fst
+     pp fst
   
    ￫ info[I0000]
    ￮ constant pp' defined, containing 2 holes
@@ -161,7 +161,7 @@
    ￮ hole ?11:
      
      ----------------------------------------------------------------------
-     Type
+     Set
   
    ￫ info[I3003]
    ￮ hole ?12:
@@ -177,7 +177,7 @@
      
      bar : ℕ
      ----------------------------------------------------------------------
-     Type
+     Set
   
    ￫ info[I0000]
    ￮ constant foo' defined, containing 1 hole
@@ -185,10 +185,10 @@
    ￫ info[I3003]
    ￮ hole ?14:
      
-     bar : Type
+     bar : Set
      x : bar
      ----------------------------------------------------------------------
-     Type
+     Set
   
    ￫ info[I0000]
    ￮ constant gel0 defined, containing 1 hole
@@ -196,12 +196,12 @@
    ￫ info[I3003]
    ￮ hole ?15:
      
-     A : Type
-     B : Type
+     A : Set
+     B : Set
      x : A
      y : B
      ----------------------------------------------------------------------
-     Type
+     Set
   
    ￫ info[I0000]
    ￮ constant gel1 defined, containing 1 hole
@@ -209,13 +209,13 @@
    ￫ info[I3003]
    ￮ hole ?16:
      
-     A : Type
-     B : Type
+     A : Set
+     B : Set
      x : A
      y : B
-     one : Type
+     one : Set
      ----------------------------------------------------------------------
-     Type
+     Set
   
    ￫ info[I0000]
    ￮ constant gel2 defined, containing 2 holes
@@ -223,23 +223,23 @@
    ￫ info[I3003]
    ￮ hole ?17:
      
-     A : Type
-     B : Type
+     A : Set
+     B : Set
      x : A
      y : B
      ----------------------------------------------------------------------
-     Type
+     Set
   
    ￫ info[I3003]
    ￮ hole ?18:
      
-     A : Type
-     B : Type
+     A : Set
+     B : Set
      x : A
      y : B
      one : ?17{…}
      ----------------------------------------------------------------------
-     Type
+     Set
   
    ￫ info[I0000]
    ￮ constant gel3 defined, containing 2 holes
@@ -247,27 +247,27 @@
    ￫ info[I3003]
    ￮ hole ?19:
      
-     A : Type
-     B : Type
+     A : Set
+     B : Set
      x.0 : A
      x.1 : B
      x.2 : gel3 A B x.0 x.1
      ----------------------------------------------------------------------
-     Type
+     Set
   
    ￫ info[I3003]
    ￮ hole ?20:
      
-     A : Type
-     B : Type
+     A : Set
+     B : Set
      x.0 : A
      x.1 : B
      x.2 : gel3 A B x.0 x.1
      ----------------------------------------------------------------------
-     Type
+     Set
   
    ￫ info[I0001]
-   ￮ axiom C assumed
+   ￮ postulate C assumed
   
    ￫ info[I0000]
    ￮ constant AC defined
@@ -285,7 +285,7 @@
    ￮ hole ?22:
      
      ----------------------------------------------------------------------
-     C (ac .a 0)
+     C (ac a 0)
   
    ￫ info[I0000]
    ￮ constant ida defined
@@ -293,13 +293,13 @@
    ￫ info[I0000]
    ￮ constant ideqid defined
   
-  {u} {u′} u″ ↦ u″
+  λ u u′ u″ → u″
     : {𝑥₀ : A} {𝑥₁ : A} (𝑥₂ : Id A 𝑥₀ 𝑥₁) →⁽ᵉ⁾ Id A 𝑥₀ 𝑥₁
   
    ￫ info[I0000]
    ￮ constant ideqid' defined
   
-  {u} {u′} u′′ ↦ u′′
+  λ u u′ u′′ → u′′
     : {𝑥₀ : A} {𝑥₁ : A} (𝑥₂ : Id A 𝑥₀ 𝑥₁) →⁽ᵉ⁾ Id A 𝑥₀ 𝑥₁
   
    ￫ info[I0000]
@@ -320,15 +320,15 @@
    ￫ info[I3003]
    ￮ hole ?24:
      
-     X : Type
+     X : Set
      ----------------------------------------------------------------------
-     Type
+     Set
   
    ￫ info[I0000]
    ￮ constant idafam defined
   
    ￫ info[I0001]
-   ￮ axiom f0 assumed
+   ￮ postulate f0 assumed
   
    ￫ info[I0000]
    ￮ constant f2 defined, containing 1 hole
@@ -355,7 +355,7 @@
      prod
   
    ￫ info[I0001]
-   ￮ axiom p0 assumed
+   ￮ postulate p0 assumed
   
    ￫ info[I0000]
    ￮ constant p2 defined, containing 1 hole
@@ -371,10 +371,11 @@
   
    ￫ warning[E2100]
    ￭ $TESTCASE_ROOT/holes.ny
-   110 | def p : prod ≔ ?
-       ^ previous definition
-   116 | def p : prod' ≔ ?
-       ^ redefining constant: p
+   1 | p : prod'
+     ^ redefining constant: p
+   ￭ $TESTCASE_ROOT/holes.ny
+   1 | p : prod
+     ^ previous definition
   
    ￫ info[I0000]
    ￮ constant p defined, containing 1 hole
@@ -390,17 +391,17 @@
   
   [1]
 
-  $ narya -v -dtt dtt-holes.ny
+  $ agdarya -v -dtt dtt-holes.ny
    ￫ info[I0000]
    ￮ constant f defined
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/dtt-holes.ny
-   6 | def g (X : Type) : Type⁽ᵈ⁾ X ≔ (f ?)⁽ᵈ⁾
+   1 | g X = (f ?)⁽ᵈ⁾
      ^ term synthesized type
-         Type⁽ᵈ⁾ ?0{…}
+         Set⁽ᵈ⁾ ?0{…}
        but is being checked against type
-         Type⁽ᵈ⁾ X
+         Set⁽ᵈ⁾ X
        unequal head terms:
          ?0{…}
        does not equal
@@ -410,9 +411,9 @@
 
 Holes in echo:
 
-  $ narya -e 'echo (? : Type)'
+  $ agdarya -e 'echo (? : Set)'
   ?0{…}
-    : Type
+    : Set
   
    ￫ error[E3002]
    ￮ command-line exec string contains open holes
@@ -421,12 +422,13 @@ Holes in echo:
 
 No holes in imported file
 
-  $ echo 'def A : Type := ?' >to_import.ny
+  $ echo 'A : Set' >to_import.ny
+  $ echo 'A = ?' >>to_import.ny
 
-  $ narya -e 'import "to_import"'
+  $ agdarya -e 'import "to_import"'
    ￫ error[E2002]
    ￭ $TESTCASE_ROOT/to_import.ny
-   1 | def A : Type := ?
+   1 | A = ?
      ^ imported file '$TESTCASE_ROOT/to_import.ny' cannot contain holes
   
   [1]

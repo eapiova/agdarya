@@ -6,7 +6,7 @@ open Repl
 
 let () =
   run @@ fun () ->
-  assume "A" "Type";
+  assume "A" "Set";
   assume "foo" "A → A → A";
   let foo = Option.get (Scope.lookup [ "foo" ]) in
   let _ =
@@ -17,6 +17,7 @@ let () =
            fixity = Infix No.zero;
            pattern = Var (("x", `Nobreak, []), Var_nil ((Op "&", `Break, []), ("y", [])));
            key = `Constant foo;
+           binder = None;
            val_vars = [ "y"; "x" ];
          }) in
   assume "a" "A";

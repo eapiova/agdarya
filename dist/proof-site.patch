@@ -4,7 +4,7 @@
        (easycrypt "EasyCrypt" "ec" "\\.eca?\\'")
        (phox "PhoX" "phx" nil (".phi" ".pho"))
        (qrhl "qRHL" "qrhl")
-+      (narya "Narya" "ny" nil (".nyo"))
++      (agdarya "Agdarya" "ny" nil (".nyo"))
  
        ;; Cut-and-paste management only
  

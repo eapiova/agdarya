@@ -329,6 +329,7 @@ module F = struct
     | Record (_, _, _) -> fprintf ppf "Record(?)"
     | SelfRecord _ -> fprintf ppf "SelfRecord(?)"
     | Refute (_, _) -> fprintf ppf "Refute(?)"
+    | Infer_type -> fprintf ppf "Infer_type"
     | Hole _ -> fprintf ppf "Hole"
     | Realize x -> fprintf ppf "Realize %a" check x
     | ImplicitApp (fn, args) ->
@@ -374,7 +375,7 @@ module F = struct
     | Act (_, _, _) -> fprintf ppf "Act(?)"
     | Match { tm; sort = _; branches = br; refutables = _; highers = _ } ->
         fprintf ppf "Match (%a, (%a))" synth tm.value branches br
-    | UU -> fprintf ppf "Type"
+    | UU -> fprintf ppf "Set"
     | Fail _ -> fprintf ppf "Error"
     | ImplicitSApp (fn, _, arg) -> fprintf ppf "ImplicitSApp(%a, %a)" synth fn.value synth arg.value
     | SFirst (tms, arg) ->

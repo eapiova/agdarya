@@ -1,4 +1,4 @@
-  $ narya -v vec.ny
+  $ agdarya -v vec.ny
    ￫ info[I0000]
    ￮ constant ℕ defined
   
@@ -12,10 +12,10 @@
    ￮ constant Vec_ind defined
   
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ info[I0000]
    ￮ constant id00 defined
@@ -48,19 +48,19 @@
    ￮ constant concat defined
   
    ￫ info[I0001]
-   ￮ axiom a0 assumed
+   ￮ postulate a0 assumed
   
    ￫ info[I0001]
-   ￮ axiom a1 assumed
+   ￮ postulate a1 assumed
   
    ￫ info[I0001]
-   ￮ axiom a2 assumed
+   ￮ postulate a2 assumed
   
    ￫ info[I0001]
-   ￮ axiom a3 assumed
+   ￮ postulate a3 assumed
   
    ￫ info[I0001]
-   ￮ axiom a4 assumed
+   ￮ postulate a4 assumed
   
    ￫ info[I0000]
    ￮ constant ra01 defined

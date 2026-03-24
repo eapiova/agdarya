@@ -14,20 +14,48 @@ open Printable
 open Range
 open Readback
 module StringMap = Map.Make (String)
+let notation_args = args
 
 let mktok (tok : Token.t) = Token (tok, ([], None))
 let wstok (tok : Token.t) = Either.Left (tok, ([], None))
 let sstok (tok : Token.t) (ss : string) = Either.Right ((tok, ([], None)), [ (unlocated ss, []) ])
 
+let higher_field_name = function
+  | [ ""; fld; suffix ] when Lexer.valid_field fld && not (Lexer.all_digits fld) ->
+      Some (fld, suffix)
+  | _ -> None
+
+let unparse_name ws name =
+  match higher_field_name name with
+  | Some (fld, suffix) -> unlocated (HigherField (fld, [ suffix ], ws))
+  | None -> unlocated (Ident (name, ws))
+
+let pp_name name =
+  match higher_field_name name with
+  | Some (fld, suffix) -> Print.pp_field fld [ suffix ]
+  | None -> PPrint.utf8string (String.concat "." name)
+
+(* A "delayed" result of unparsing that needs only to know the tightness intervals to produce a result. *)
+type unparser = {
+  unparse :
+    'lt 'ls 'rt 'rs.
+    ('lt, 'ls) No.iinterval -> ('rt, 'rs) No.iinterval -> ('lt, 'ls, 'rt, 'rs) parse located;
+}
+
 (* If the head of an application spine is a constant or constructor, and it has an associated notation, and there are enough of the supplied arguments to instantiate the notation, split off that many arguments and return the notation, those arguments permuted to match the order of the pattern variables in the notation, the symbols to intersperse with them, and the remaining arguments. *)
 let get_notation head args =
   let open Monad.Ops (Monad.Maybe) in
-  let* { keys = _; notn; pat_vars; val_vars; inner_symbols } =
+  let* { keys = _; notn; binder; pat_vars; val_vars; inner_symbols } =
     match head with
     | `Term (Const c) -> Scope.Situation.unparse (`Constant c)
     | `Constr c -> Scope.Situation.unparse (`Constr (c, Bwd.length args))
     (* TODO: Can we associate notations to Fields too? *)
     | _ -> None in
+  let* () =
+    match binder with
+    | None -> Some ()
+    | Some _ -> None
+  in
   (* There's probably a more efficient way to do this that doesn't involve converting to and from forwards lists, but this way is more natural and easier to understand, and I think this is unlikely to be a performance bottleneck. *)
   let rec take_labeled labels elts acc =
     match (labels, elts) with
@@ -42,6 +70,155 @@ let get_notation head args =
   match (head, rest) with
   | `Constr _, _ :: _ -> None
   | _ -> return (notn, first, inner_symbols, Bwd.of_list rest)
+
+type binder_unparse = {
+  user_notn : User.notation;
+  slot_terms : (wrapped_parse * wrapped_parse) list;
+  body : wrapped_parse;
+  rest : unparser Bwd.t;
+}
+
+let rec take_labeled labels elts acc =
+  match (labels, elts) with
+  | [], _ -> Some (acc, elts)
+  | _ :: _, [] -> None
+  | k :: labels, x :: elts -> take_labeled labels elts (acc |> StringMap.add k x)
+
+let destruct_explicit_abs (Wrap tm : wrapped_parse) =
+  let open Monad.Ops (Monad.Maybe) in
+  match tm.value with
+  | Notn ((Abs, _), d) -> (
+      match notation_args d with
+      | [ Token (Lambda, _); Term vars; Token (Arrow, _); Term body ] ->
+          Some (User.binder_var_spine vars, (Wrap body : wrapped_parse))
+      | _ -> None)
+  | Notn ((Legacy_abs, _), d) -> (
+      match notation_args d with
+      | [ Term vars; Token (Mapsto, _); Term body ] ->
+          Some (User.binder_var_spine vars, (Wrap body : wrapped_parse))
+      | _ -> None)
+  | _ -> None
+
+let wrap_binder_vars (vars : string option located list) =
+  let mkvar (x : string option located) =
+    match x.value with
+    | Some x -> unlocated (Ident ([ x ], []))
+    | None -> unlocated (Placeholder [])
+  in
+  match vars with
+  | [] -> fatal (Anomaly "missing binder variables in unparse")
+  | first :: rest ->
+      (Wrap
+         (List.fold_left
+            (fun fn x ->
+              let left_ok = No.le_refl No.plus_omega in
+              let right_ok = No.le_refl No.plus_omega in
+              unlocated (App { fn; arg = mkvar x; left_ok; right_ok }))
+            (mkvar first) rest)
+        : wrapped_parse)
+
+let rec take_list n xs acc =
+  if n <= 0 then Some (List.rev acc, xs)
+  else
+    match xs with
+    | [] -> None
+    | x :: xs -> take_list (n - 1) xs (x :: acc)
+
+let same_binder_vars xs ys =
+  List.length xs = List.length ys
+  && List.for_all2
+       (fun (x : string option located) (y : string option located) -> x.value = y.value)
+       xs ys
+
+let get_binder_notation head args =
+  let open Monad.Ops (Monad.Maybe) in
+  let* user_notn =
+    match head with
+    | `Term (Const c) -> Scope.Situation.unparse (`Constant c)
+    | _ -> None
+  in
+  let* binder = user_notn.binder in
+  match user_notn.notn with
+  | Wrap (_, ((Prefix _) as _fixity)) ->
+      let* first, rest = take_labeled user_notn.val_vars (Bwd.to_list args) StringMap.empty in
+      let* body_unparser = (StringMap.find_opt binder.body_var first : unparser option) in
+      let* all_body_vars, body =
+        destruct_explicit_abs
+          (Wrap (body_unparser.unparse No.Interval.entire No.Interval.entire) : wrapped_parse)
+      in
+      (match binder.slots with
+      | [ slot ] ->
+          let* dom = (StringMap.find_opt slot.User.dom_var first : unparser option) in
+          let vars = wrap_binder_vars all_body_vars in
+          Some
+            {
+              user_notn;
+              slot_terms =
+                [ (vars, (Wrap (dom.unparse No.Interval.entire No.Interval.entire) : wrapped_parse)) ];
+              body;
+              rest = Bwd.of_list rest;
+            }
+      | first_slot :: later_slots ->
+          let* first_dom = (StringMap.find_opt first_slot.User.dom_var first : unparser option) in
+          let* later =
+            let rec go acc = function
+              | [] -> Some (List.rev acc)
+              | slot :: slots ->
+                  let* dom = (StringMap.find_opt slot.User.dom_var first : unparser option) in
+                  let* prefix_vars, dom_body =
+                    destruct_explicit_abs
+                      (Wrap (dom.unparse No.Interval.entire No.Interval.entire) : wrapped_parse)
+                  in
+                  go ((prefix_vars, dom_body) :: acc) slots
+            in
+            go [] later_slots
+          in
+          let prefix_counts = List.map (fun (vars, _) -> List.length vars) later in
+          let rec strictly_increasing prev = function
+            | [] -> Some ()
+            | x :: xs when x > prev -> strictly_increasing x xs
+            | _ -> None
+          in
+          let* () = strictly_increasing 0 prefix_counts in
+          let total = List.length all_body_vars in
+          let last_prefix =
+            match List.rev prefix_counts with
+            | [] -> 0
+            | x :: _ -> x
+          in
+          let* () = if total > last_prefix then Some () else None in
+          let* () =
+            if List.for_all2
+                 (fun (prefix_vars, _) count ->
+                   match take_list count all_body_vars [] with
+                   | Some (body_prefix, _) -> same_binder_vars prefix_vars body_prefix
+                   | None -> false)
+                 later prefix_counts
+            then Some ()
+            else None
+          in
+          let counts = prefix_counts @ [ total ] in
+          let* slot_vars =
+            let rec split prev counts vars acc =
+              match counts with
+              | [] -> (
+                  match vars with
+                  | [] -> Some (List.rev acc)
+                  | _ :: _ -> None)
+              | count :: counts ->
+                  let* group, vars = take_list (count - prev) vars [] in
+                  split count counts vars (group :: acc)
+            in
+            split 0 counts all_body_vars []
+          in
+          let dom_terms =
+            (Wrap (first_dom.unparse No.Interval.entire No.Interval.entire) : wrapped_parse)
+            :: List.map snd later
+          in
+          let slot_terms = List.map2 (fun vars dom -> (wrap_binder_vars vars, dom)) slot_vars dom_terms in
+          Some { user_notn; slot_terms; body; rest = Bwd.of_list rest }
+      | [] -> None)
+  | Wrap _ -> fatal (Anomaly "binder notation must be prefix")
 
 (* Put parentheses around a term. *)
 let parenthesize tm =
@@ -59,13 +236,6 @@ let parenthesize_maybe (tm : ('lt, 'ls, 'rt, 'rs) parse located) =
   match tm.value with
   | Notn ((Postprocess.Parens, _), _) -> tm
   | _ -> parenthesize tm
-
-(* A "delayed" result of unparsing that needs only to know the tightness intervals to produce a result. *)
-type unparser = {
-  unparse :
-    'lt 'ls 'rt 'rs.
-    ('lt, 'ls) No.iinterval -> ('rt, 'rs) No.iinterval -> ('lt, 'ls, 'rt, 'rs) parse located;
-}
 
 let observations_of_symbols :
     unparser list ->
@@ -277,9 +447,9 @@ let rec unparse : type n lt ls rt rs s.
   | Var x -> unlocated (Ident (Names.lookup vars x, []))
   | Const c -> (
       match Scope.Situation.unparse (`Constant c) with
-      | Some { keys = _; notn = Wrap notn; pat_vars = []; val_vars = []; inner_symbols } ->
+      | Some { keys = _; notn = Wrap notn; pat_vars = []; val_vars = []; inner_symbols; _ } ->
           unparse_notation notn [] inner_symbols li ri
-      | _ -> unlocated (Ident (Scope.name_of c, [])))
+      | _ -> unparse_name [] (Scope.name_of c))
   | Meta (v, _) ->
       unlocated (Ident ([ (if Display.metas () == `Numbered then Meta.name v else "?") ], []))
   (* NB: We don't currently print the arguments of a metavariable. *)
@@ -293,7 +463,7 @@ let rec unparse : type n lt ls rt rs s.
         {
           unparse =
             (fun _ _ ->
-              unlocated (outfix ~notn:universe ~inner:(Single (wstok (Ident [ "Type" ])))));
+              unlocated (outfix ~notn:universe ~inner:(Single (wstok Set))));
         }
         (deg_zero n) li ri
   | Inst (ty, tyargs) -> unparse_inst vars ty vars tyargs li ri
@@ -325,7 +495,7 @@ let rec unparse : type n lt ls rt rs s.
             (prefix ~notn:letin
                ~inner:
                  (Multiple
-                    (wstok Let, Emp <: Term (unparse_var x) <: mktok Coloneq <: Term tm, wstok In))
+                    (wstok Let, Emp <: Term (unparse_var x) <: mktok (Op "=") <: Term tm, wstok In))
                ~last:body ~right_ok)
       | None ->
           let body = unparse vars body No.Interval.entire No.Interval.entire in
@@ -335,7 +505,7 @@ let rec unparse : type n lt ls rt rs s.
                (prefix ~notn:letin
                   ~inner:
                     (Multiple
-                       (wstok Let, Emp <: Term (unparse_var x) <: mktok Coloneq <: Term tm, wstok In))
+                       (wstok Let, Emp <: Term (unparse_var x) <: mktok (Op "=") <: Term tm, wstok In))
                   ~last:body ~right_ok)))
   | Lam (_, Variables (m, _, _), _) ->
       let cube =
@@ -380,7 +550,7 @@ let rec unparse : type n lt ls rt rs s.
                        Emp fields),
                   wstok RParen )))
   | Constr (c, _, args) -> (
-      (* TODO: This doesn't print the dimension.  This is correct since constructors don't have to (and in fact *can't* be) written with their dimension, but it could also be somewhat confusing, e.g. printing "refl (0:N)" yields just "0", and similarly "refl (nil. : List N)" yields "nil.". *)
+      (* TODO: This doesn't print the dimension.  This is correct since constructors don't have to (and in fact *can't* be) written with their dimension, but it could also be somewhat confusing, e.g. printing "refl (0:N)" yields just "0", and similarly "refl (nil : List N)" yields "nil". *)
       match unparse_numeral tm with
       | Some tm -> tm.unparse li ri
       | None ->
@@ -388,7 +558,7 @@ let rec unparse : type n lt ls rt rs s.
           unparse_spine vars (`Constr c) args li ri)
   | Realize tm -> unparse vars tm li ri
   | Canonical _ -> fatal (Unimplemented "unparsing canonical types")
-  | Struct { eta = Noeta; _ } -> fatal (Unimplemented "unparsing comatches")
+  | Struct { eta = Noeta; fields; _ } -> unparse_comatch vars fields li ri
   | Match _ -> fatal (Unimplemented "unparsing matches")
   | Unshift _ -> fatal (Unimplemented "unparsing unshifts")
   | Unact _ -> fatal (Unimplemented "unparsing unacts")
@@ -398,6 +568,74 @@ let rec unparse : type n lt ls rt rs s.
 (* The master unparsing function can easily be delayed. *)
 and make_unparser : type n. n Names.t -> (n, kinetic) term -> unparser =
  fun vars tm -> { unparse = (fun li ri -> unparse vars tm li ri) }
+
+and unparse_comatch : type n m lt ls rt rs.
+    n Names.t ->
+    (m * n * potential * no_eta) Term.StructfieldAbwd.t ->
+    (lt, ls) No.iinterval ->
+    (rt, rs) No.iinterval ->
+    (lt, ls, rt, rs) parse located =
+ fun vars fields _li _ri ->
+  let higher_fields_of_map (type i) (terms : (m, i, n) Term.PlusPbijmap.t) =
+    let collected = ref [] in
+    let () =
+      Term.PlusPbijmap.miter
+        {
+          it =
+            (fun pbij [ tm ] ->
+              match tm with
+              | None -> ()
+              | Some (PlusFam (_plusmap, tm)) ->
+                  let tm =
+                    unparse vars
+                      (Unshift (remaining pbij, _plusmap, tm))
+                      No.Interval.entire No.Interval.entire
+                  in
+                  collected := (strings_of_pbij pbij, tm) :: !collected);
+        }
+        [ terms ]
+    in
+    List.rev_map
+      (fun (pbij, tm) -> ("", pbij, tm))
+      !collected
+  in
+  let fields =
+    Bwd.fold_right
+      (fun (Term.StructfieldAbwd.Entry (fld, structfield)) acc ->
+        match structfield with
+        | Term.Structfield.Lower (fldtm, `Labeled) ->
+            (Field.to_string fld, [], unparse vars fldtm No.Interval.entire No.Interval.entire) :: acc
+        | Term.Structfield.Lower (_, `Unlabeled) ->
+            fatal (Anomaly "unlabeled noeta struct field in unparse")
+        | Term.Structfield.Higher terms ->
+            List.rev_append
+              (List.map
+                 (fun (_ignored_fld, pbij, tm) -> (Field.to_string fld, pbij, tm))
+                 (higher_fields_of_map terms))
+              acc
+        | Term.Structfield.LazyHigher terms ->
+            List.rev_append
+              (List.map
+                 (fun (_ignored_fld, pbij, tm) -> (Field.to_string fld, pbij, tm))
+                 (higher_fields_of_map (Lazy.force terms)))
+              acc)
+      fields []
+  in
+  let rec go first acc = function
+    | [] -> acc
+    | (fld, pbij, body) :: fields ->
+        let fld =
+          if List.is_empty pbij && not (Lexer.all_digits fld) then
+            unlocated (Ident ([ fld ], []))
+          else if Lexer.all_digits fld then
+            unlocated (Field (fld, pbij, []))
+          else unlocated (HigherField (fld, pbij, []))
+        in
+        let acc = if first then acc else acc <: mktok (Op ";") in
+        go false (acc <: Term fld <: mktok (Op "=") <: Term body) fields
+  in
+  let inner = Multiple (wstok Record, go true (Emp <: mktok LBrace) fields, wstok RBrace) in
+  unlocated (outfix ~notn:Builtins.comatch ~inner)
 
 (* A version that wraps implicit arguments in braces. *)
 and make_unparser_implicit : type n.
@@ -426,22 +664,62 @@ and unparse_spine : type n lt ls rt rs.
     (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
  fun vars head args li ri ->
-  (* First we check whether the head is a term with an associated notation, and if so whether it is applied to enough arguments to instantiate that notation. *)
-  match get_notation head args with
-  (* If it's applied to exactly the right number of arguments, we unparse it as that notation. *)
-  | Some (Wrap notn, args, inner_symbols, Emp) -> unparse_notation notn args inner_symbols li ri
-  (* Otherwise, the unparsed notation has to be applied to the rest of the arguments as a spine. *)
-  | Some (Wrap notn, args, inner_symbols, (Snoc _ as rest)) ->
-      unparse_spine vars
-        (`Unparser { unparse = (fun li ri -> unparse_notation notn args inner_symbols li ri) })
-        rest li ri
-  (* If not, we proceed to unparse it as an application spine, recursively. *)
+  let binder_unparser ({ user_notn; slot_terms; body; rest = _ } : binder_unparse) =
+    let binder = user_notn.binder <|> Anomaly "missing binder metadata in binder_parse" in
+    {
+      unparse =
+        (fun _li ri ->
+          match user_notn.notn with
+          | Wrap (id, ((Prefix _) as fixity)) ->
+              let notn = (id, fixity) in
+              let add_tokens partial toks =
+                List.fold_left (fun partial tok -> Observations.snoc_tok partial (tok, ([], None))) partial toks
+              in
+              let inner =
+                let rec go partial slots terms =
+                  match (slots, terms) with
+                  | [], [] -> add_tokens partial binder.body_prefix_tokens
+                  | slot :: slots, (vars_tm, dom_tm) :: terms ->
+                      let (Wrap vars_tm : wrapped_parse) = vars_tm in
+                      let (Wrap dom_tm : wrapped_parse) = dom_tm in
+                      let partial = add_tokens partial slot.User.prefix_tokens in
+                      let partial = Observations.snoc_term partial vars_tm in
+                      let partial = Observations.snoc_tok partial (Colon, ([], None)) in
+                      let partial = Observations.snoc_term partial dom_tm in
+                      go partial slots terms
+                  | _ -> fatal (Anomaly "mismatched binder slot data in unparse")
+                in
+                Observations.of_partial (go Observations.empty binder.slots slot_terms)
+              in
+              let (Wrap body_tm : wrapped_parse) = body in
+              let body_tm = Obj.magic body_tm in
+              (match No.Interval.contains ri (tightness notn) with
+              | Some right_ok -> unlocated (prefix ~notn ~inner ~last:body_tm ~right_ok)
+              | None ->
+                  let right_ok = No.minusomega_le (tightness notn) in
+                  parenthesize (unlocated (prefix ~notn ~inner ~last:body_tm ~right_ok)))
+          | Wrap _ -> fatal (Anomaly "binder notation must be prefix"));
+    }
+  in
+  match get_binder_notation head args with
+  | Some ({ rest = Emp; _ } as binder_data) ->
+      (binder_unparser binder_data).unparse li ri
+  | Some ({ rest = (Snoc _ as rest); _ } as binder_data) ->
+      unparse_spine vars (`Unparser (binder_unparser binder_data)) rest li ri
   | None -> (
+      (* Otherwise, we check whether the head is a term with an associated ordinary notation. *)
+      match get_notation head args with
+      | Some (Wrap notn, args, inner_symbols, Emp) -> unparse_notation notn args inner_symbols li ri
+      | Some (Wrap notn, args, inner_symbols, (Snoc _ as rest)) ->
+          unparse_spine vars
+            (`Unparser { unparse = (fun li ri -> unparse_notation notn args inner_symbols li ri) })
+            rest li ri
+      | None -> (
       match args with
       | Emp -> (
           match head with
           | `Term tm -> unparse vars tm li ri
-          | `Constr c -> unlocated (Constr (Constr.to_string c, [], []))
+          | `Constr c -> unlocated (Ident ([ Constr.to_string c ], []))
           | `Field (tm, fld, ins) -> unparse_field vars tm fld ins li ri
           | `Degen s -> unlocated (Ident ([ s ], []))
           | `Unparser tm -> tm.unparse li ri)
@@ -468,7 +746,7 @@ and unparse_spine : type n lt ls rt rs.
                 | `Parens -> parenthesize_maybe arg in
               let left_ok = No.le_refl No.plus_omega in
               let right_ok = No.le_refl No.plus_omega in
-              parenthesize (unlocated (App { fn; arg; left_ok; right_ok }))))
+              parenthesize (unlocated (App { fn; arg; left_ok; right_ok })))))
 
 and unparse_field : type n lt ls rt rs.
     n Names.t ->
@@ -485,11 +763,21 @@ and unparse_field : type n lt ls rt rs.
       match (No.Interval.contains li No.plus_omega, No.Interval.contains ri No.plus_omega) with
       | Some left_ok, Some right_ok ->
           let fn = unparse vars tm li No.Interval.plus_omega_only in
-          let arg = unlocated (Field (fld, List.map string_of_int ins, [])) in
+          let arg =
+            if List.is_empty ins && not (Lexer.all_digits fld) then
+              unlocated (Ident ([ fld ], []))
+            else if not (Lexer.all_digits fld) then
+              unlocated (HigherField (fld, List.map string_of_int ins, []))
+            else unlocated (Field (fld, List.map string_of_int ins, [])) in
           unlocated (App { fn; arg; left_ok; right_ok })
       | _ ->
           let fn = unparse vars tm No.Interval.plus_omega_only No.Interval.plus_omega_only in
-          let arg = unlocated (Field (fld, List.map string_of_int ins, [])) in
+          let arg =
+            if List.is_empty ins && not (Lexer.all_digits fld) then
+              unlocated (Ident ([ fld ], []))
+            else if not (Lexer.all_digits fld) then
+              unlocated (HigherField (fld, List.map string_of_int ins, []))
+            else unlocated (Field (fld, List.map string_of_int ins, [])) in
           let left_ok = No.le_refl No.plus_omega in
           let right_ok = No.le_refl No.plus_omega in
           parenthesize (unlocated (App { fn; arg; left_ok; right_ok })))
@@ -560,26 +848,53 @@ and unparse_lam_done : type n lt ls rt rs s.
     (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
  fun cube vars xs body li ri ->
-  let notn, mapsto =
+  let legacy_notn, mapsto =
     match cube with
     | `Cube -> (cubeabs, Token.DblMapsto)
-    | `Normal -> (abs, Mapsto) in
-  (* Of course, if we don't fit in the tightness interval, we have to parenthesize. *)
-  match (No.Interval.contains li No.minus_omega, No.Interval.contains ri No.minus_omega) with
-  | Some left_ok, Some right_ok ->
-      let li_ok = No.lt_trans Any_strict left_ok No.minusomega_lt_plusomega in
-      let first = unparse_abs xs li li_ok No.minusomega_lt_plusomega in
+    | `Normal -> (legacyabs, Mapsto) in
+  match cube with
+  | `Cube ->
+      (* Of course, if we don't fit in the tightness interval, we have to parenthesize. *)
+      (match (No.Interval.contains li No.minus_omega, No.Interval.contains ri No.minus_omega) with
+      | Some left_ok, Some right_ok ->
+          let li_ok = No.lt_trans Any_strict left_ok No.minusomega_lt_plusomega in
+          let first = unparse_abs xs li li_ok No.minusomega_lt_plusomega in
+          let last = unparse vars body No.Interval.entire ri in
+          unlocated
+            (infix ~notn:legacy_notn ~first ~inner:(Single (wstok mapsto)) ~last ~left_ok ~right_ok)
+      | _ ->
+          let first =
+            unparse_abs xs No.Interval.entire (No.le_plusomega No.minus_omega)
+              No.minusomega_lt_plusomega in
+          let last = unparse vars body No.Interval.entire No.Interval.entire in
+          let left_ok = No.le_refl No.minus_omega in
+          let right_ok = No.le_refl No.minus_omega in
+          parenthesize
+            (unlocated
+               (infix ~notn:legacy_notn ~first ~inner:(Single (wstok mapsto)) ~last ~left_ok
+                  ~right_ok)))
+  | `Normal ->
       let last = unparse vars body No.Interval.entire ri in
-      unlocated (infix ~notn ~first ~inner:(Single (wstok mapsto)) ~last ~left_ok ~right_ok)
-  | _ ->
-      let first =
-        unparse_abs xs No.Interval.entire (No.le_plusomega No.minus_omega)
-          No.minusomega_lt_plusomega in
-      let last = unparse vars body No.Interval.entire No.Interval.entire in
-      let left_ok = No.le_refl No.minus_omega in
-      let right_ok = No.le_refl No.minus_omega in
-      parenthesize
-        (unlocated (infix ~notn ~first ~inner:(Single (wstok mapsto)) ~last ~left_ok ~right_ok))
+      (match No.Interval.contains ri No.minus_omega with
+      | Some right_ok ->
+          let first =
+            unparse_abs xs No.Interval.entire (No.le_plusomega No.minus_omega)
+              No.minusomega_lt_plusomega in
+          unlocated
+            (prefix ~notn:abs
+               ~inner:(Multiple (wstok Lambda, Emp <: Term first, wstok Arrow))
+               ~last ~right_ok)
+      | None ->
+          let first =
+            unparse_abs xs No.Interval.entire (No.le_plusomega No.minus_omega)
+              No.minusomega_lt_plusomega in
+          let last = unparse vars body No.Interval.entire No.Interval.entire in
+          let right_ok = No.le_refl No.minus_omega in
+          parenthesize
+            (unlocated
+               (prefix ~notn:abs
+                  ~inner:(Multiple (wstok Lambda, Emp <: Term first, wstok Arrow))
+                  ~last ~right_ok)))
 
 (* If a term is a natural number numeral (a bunch of 'suc' constructors applied to a 'zero' constructor), unparse it as that numeral; otherwise return None. *)
 and unparse_numeral : type n. (n, kinetic) term -> unparser option =
@@ -1029,7 +1344,7 @@ let () =
                (unparse (Names.of_ctx ctx) (readback_nf ctx tm) No.Interval.entire
                   No.Interval.entire))
             `None
-      | PConstant name -> utf8string (String.concat "." (Scope.name_of name))
+      | PConstant name -> pp_name (Scope.name_of name)
       | PMeta v -> utf8string (Meta.name v)
       | PHole (origin, vars, Permute (p, ctx), ty) ->
           let run =

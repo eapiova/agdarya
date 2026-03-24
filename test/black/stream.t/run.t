@@ -1,12 +1,12 @@
-  $ narya -v stream.ny
+  $ agdarya -v stream.ny
    ￫ info[I0000]
    ￮ constant Stream defined
   
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom s assumed
+   ￮ postulate s assumed
   
    ￫ info[I0000]
    ￮ constant s0 defined
@@ -83,11 +83,17 @@
    ￫ info[I0000]
    ￮ constant fib5_eq_8 defined
   
+   ￫ warning[W2305]
+   ￮ can't write compiled file: $TESTCASE_ROOT/stream.nyo
+  
 
-  $ narya stream.ny -e "def s_eq_s' : Id (Stream A) s s' := refl s"
+  $ agdarya stream.ny -e "s_eq_s' : Id (Stream A) s s'" -e "s_eq_s' = refl s"
+   ￫ warning[W2305]
+   ￮ can't write compiled file: $TESTCASE_ROOT/stream.nyo
+  
    ￫ error[E0401]
    ￭ command-line exec string
-   1 | def s_eq_s' : Id (Stream A) s s' := refl s
+   1 | s_eq_s' = refl s
      ^ term synthesized type
          Stream⁽ᵉ⁾ (Id A) s s
        but is being checked against type
@@ -98,24 +104,30 @@
          s'
   
   [1]
-  $ narya stream.ny -e "def s_eq_s'' : Id (Stream A) s s'' := refl s"
+  $ agdarya stream.ny -e "s_eq_s'' : Id (Stream A) s s''" -e "s_eq_s'' = refl s"
+   ￫ warning[W2305]
+   ￮ can't write compiled file: $TESTCASE_ROOT/stream.nyo
+  
    ￫ error[E0401]
    ￭ command-line exec string
-   1 | def s_eq_s'' : Id (Stream A) s s'' := refl s
+   1 | s_eq_s'' = refl s
      ^ term synthesized type
          Stream⁽ᵉ⁾ (Id A) s s
        but is being checked against type
-         Stream⁽ᵉ⁾ (Id A) s (corec A (Stream A) (x ↦ x .head) (x ↦ x .tail) s)
+         Stream⁽ᵉ⁾ (Id A) s (corec A (Stream A) (λ x → x head) (λ x → x tail) s)
        unequal head constants:
          s
        does not equal
          corec
   
   [1]
-  $ narya stream.ny -e "def ∞eta_bisim' : Id (Stream A → Stream A) (s ↦ s) (s ↦ ∞eta s) ≔ refl (s ↦ ∞eta s)"
+  $ agdarya stream.ny -e "∞eta_bisim' : Id (Stream A → Stream A) (λ s → s) (λ s → ∞eta s)" -e "∞eta_bisim' = refl (λ s → ∞eta s)"
+   ￫ warning[W2305]
+   ￮ can't write compiled file: $TESTCASE_ROOT/stream.nyo
+  
    ￫ error[E0401]
    ￭ command-line exec string
-   1 | def ∞eta_bisim' : Id (Stream A → Stream A) (s ↦ s) (s ↦ ∞eta s) ≔ refl (s ↦ ∞eta s)
+   1 | ∞eta_bisim' = refl (λ s → ∞eta s)
      ^ term synthesized type
          {𝑥₀ : Stream A} {𝑥₁ : Stream A} (𝑥₂ : Stream⁽ᵉ⁾ (Id A) 𝑥₀ 𝑥₁)
          →⁽ᵉ⁾ Stream⁽ᵉ⁾ (Id A) (∞eta 𝑥₀) (∞eta 𝑥₁)
@@ -128,4 +140,3 @@
          𝑥
   
   [1]
-

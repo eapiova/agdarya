@@ -1,45 +1,45 @@
 Import compiled files
 
   $ cat >one.ny <<EOF
-  > axiom A : Type
+  > postulate A : Set
   > EOF
 
   $ cat >two.ny <<EOF
   > import "one"
-  > axiom a0 : A
+  > postulate a0 : A
   > EOF
 
-  $ narya one.ny
+  $ agdarya one.ny
 
-  $ narya -v two.ny
+  $ agdarya -v two.ny
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/one.ny (compiled)
   
    ￫ info[I0001]
-   ￮ axiom a0 assumed
+   ￮ postulate a0 assumed
   
 
 Modified files are recompiled
 
   $ touch one.ny
 
-  $ narya -v two.ny
+  $ agdarya -v two.ny
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/one.ny
   
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
   
    ￫ info[I0001]
-   ￮ axiom a0 assumed
+   ￮ postulate a0 assumed
   
 
 Files are recompiled if the flags change
 
-  $ narya -dtt -v two.ny
+  $ agdarya -dtt -v two.ny
    ￫ warning[W2303]
    ￮ file '$TESTCASE_ROOT/one.ny' was compiled with incompatible flags -arity 2 -direction e,refl,Id,ap -internal, recompiling
   
@@ -47,16 +47,16 @@ Files are recompiled if the flags change
    ￮ loading file: $TESTCASE_ROOT/one.ny
   
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
   
    ￫ info[I0001]
-   ￮ axiom a0 assumed
+   ￮ postulate a0 assumed
   
 
-  $ narya two.ny
+  $ agdarya two.ny
    ￫ warning[W2303]
    ￮ file '$TESTCASE_ROOT/one.ny' was compiled with incompatible flags -parametric -arity 1 -direction d -external, recompiling
   
@@ -65,19 +65,19 @@ Requiring a file multiple times
 
   $ cat >three.ny <<EOF
   > import "one"
-  > axiom a1 : A
+  > postulate a1 : A
   > EOF
 
-  $ narya three.ny
+  $ agdarya three.ny
 
   $ cat >four.ny <<EOF
   > import "one"
   > import "two"
   > import "three"
-  > axiom a2 : Id A a0 a1
+  > postulate a2 : Id A a0 a1
   > EOF
 
-  $ narya -v four.ny
+  $ agdarya -v four.ny
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/one.ny (compiled)
   
@@ -88,19 +88,19 @@ Requiring a file multiple times
    ￮ file loaded: $TESTCASE_ROOT/three.ny (compiled)
   
    ￫ info[I0001]
-   ￮ axiom a2 assumed
+   ￮ postulate a2 assumed
   
 
 Files are recompiled if their dependencies need to be
 
   $ touch one.ny
 
-  $ narya -v four.ny
+  $ agdarya -v four.ny
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/one.ny
   
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
@@ -109,7 +109,7 @@ Files are recompiled if their dependencies need to be
    ￮ loading file: $TESTCASE_ROOT/two.ny
   
    ￫ info[I0001]
-   ￮ axiom a0 assumed
+   ￮ postulate a0 assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/two.ny (source)
@@ -118,13 +118,13 @@ Files are recompiled if their dependencies need to be
    ￮ loading file: $TESTCASE_ROOT/three.ny
   
    ￫ info[I0001]
-   ￮ axiom a1 assumed
+   ￮ postulate a1 assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/three.ny (source)
   
    ￫ info[I0001]
-   ￮ axiom a2 assumed
+   ￮ postulate a2 assumed
   
 
 Circular dependency
@@ -137,7 +137,7 @@ Circular dependency
   > import "foo"
   > EOF
 
-  $ narya foo.ny
+  $ agdarya foo.ny
    ￫ error[E2300]
    ￮ circular imports:
      $TESTCASE_ROOT/foo.ny
@@ -151,19 +151,19 @@ Import is relative to the file's directory
   $ mkdir subdir
 
   $ cat >subdir/one.ny <<EOF
-  > axiom A:Type
+  > postulate A:Set
   > EOF
 
   $ cat >subdir/two.ny <<EOF
   > import "one"
-  > axiom a : A
+  > postulate a : A
   > EOF
 
-  $ narya subdir/one.ny
+  $ agdarya subdir/one.ny
 
-  $ narya subdir/two.ny
+  $ agdarya subdir/two.ny
 
-  $ narya -v -e 'import "subdir/two"'
+  $ agdarya -v -e 'import "subdir/two"'
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/subdir/one.ny (compiled)
   
@@ -173,7 +173,7 @@ Import is relative to the file's directory
 
 A file isn't loaded twice even if referred to in different ways
 
-  $ narya -v -e 'import "subdir/one"' -e 'import "subdir/two"'
+  $ agdarya -v -e 'import "subdir/one"' -e 'import "subdir/two"'
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/subdir/one.ny (compiled)
   
@@ -184,9 +184,9 @@ A file isn't loaded twice even if referred to in different ways
 Notations are used from explicitly imported files, but not transitively.
 
   $ cat >n1.ny <<EOF
-  > axiom A:Type
-  > axiom f : A -> A -> A
-  > axiom a:A
+  > postulate A:Set
+  > postulate f : A -> A -> A
+  > postulate a:A
   > EOF
 
   $ cat >n2.ny <<EOF
@@ -200,11 +200,11 @@ Notations are used from explicitly imported files, but not transitively.
   > notation(0) x "%" y := f x y
   > EOF
 
-  $ narya n1.ny
+  $ agdarya n1.ny
 
-  $ narya n2.ny
+  $ agdarya n2.ny
 
-  $ narya n1.ny n3.ny -e 'echo a % a'
+  $ agdarya n1.ny n3.ny -e 'echo a % a'
    ￫ warning[E2209]
    ￮ replacing printing notation for f (previous notation will still be parseable)
   
@@ -212,12 +212,9 @@ Notations are used from explicitly imported files, but not transitively.
     : A
   
 
-  $ narya n1.ny n3.ny -e 'echo a & a'
+  $ agdarya n1.ny n3.ny -e 'echo a & a'
    ￫ warning[E2209]
    ￮ replacing printing notation for f (previous notation will still be parseable)
-  
-  a
-    : A
   
    ￫ error[E0200]
    ￭ command-line exec string
@@ -229,37 +226,37 @@ Notations are used from explicitly imported files, but not transitively.
 Quitting in imports quits only that file
 
   $ cat >qone.ny <<EOF
-  > axiom A : Type
+  > postulate A : Set
   > quit
-  > axiom B : Type
+  > postulate B : Set
   > EOF
 
-  $ narya qone.ny
+  $ agdarya qone.ny
 
   $ cat >qtwo.ny <<EOF
   > import "qone"
-  > axiom a0 : A
+  > postulate a0 : A
   > EOF
 
-  $ narya -v qtwo.ny
+  $ agdarya -v qtwo.ny
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/qone.ny (compiled)
   
    ￫ info[I0001]
-   ￮ axiom a0 assumed
+   ￮ postulate a0 assumed
   
 Dimensions work in files loaded from source
 
   $ cat >dim.ny <<EOF
-  > axiom A:Type
-  > axiom a0:A
-  > axiom a1:A
-  > axiom a2 : Id A a0 a1
+  > postulate A:Set
+  > postulate a0:A
+  > postulate a1:A
+  > postulate a2 : Id A a0 a1
   > EOF
 
-  $ narya dim.ny
+  $ agdarya dim.ny
 
-  $ narya -v -e 'import "dim" echo a2'
+  $ agdarya -v -e 'import "dim" echo a2'
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/dim.ny (compiled)
   
@@ -269,16 +266,16 @@ Dimensions work in files loaded from source
 Echos are not re-executed in compiled files
 
   $ cat >echo.ny <<EOF
-  > axiom A:Type
+  > postulate A:Set
   > echo A
   > EOF
 
-  $ narya -e 'import "echo"'
+  $ agdarya -e 'import "echo"'
   A
-    : Type
+    : Set
   
 
-  $ narya -e 'import "echo"'
+  $ agdarya -e 'import "echo"'
    ￫ warning[W2400]
    ￮ not re-executing echo/synth/show commands when loading compiled file $TESTCASE_ROOT/echo.nyo
   

@@ -1,5 +1,5 @@
 (library
   (name dim)
-  (public_name narya.dim)
+  (public_name agdarya.dim)
   (libraries util)
   (instrumentation (backend landmarks --auto)))

@@ -1,9 +1,9 @@
 Observational higher dimensions
 ===============================
 
-There are many ways in which a type theory can be "higher-dimensional", by which we include homotopy type theory (specifically, Higher Observational Type Theory, a.k.a. HOTT), internally parametric type theories, and `displayed type theory <https://arxiv.org/abs/2311.18781>`_.  The internal architecture of Narya is set up to eventually permit the user to mix and match multiple such "directions" of higher-dimensionality, but currently this is not realized.  At the moment, there is only one built-in direction, although its behavior can be customized to any of the above-mentioned theories.
+There are many ways in which a type theory can be "higher-dimensional", by which we include homotopy type theory (specifically, Higher Observational Set Theory, a.k.a. HOTT), internally parametric type theories, and `displayed type theory <https://arxiv.org/abs/2311.18781>`_.  The internal architecture of Agdarya is set up to eventually permit the user to mix and match multiple such "directions" of higher-dimensionality, but currently this is not realized.  At the moment, there is only one built-in direction, although its behavior can be customized to any of the above-mentioned theories.
 
-In this section we describe the common features of all these theories; more details will be discussed under :ref:`Parametricity` and :ref:`Higher Observational Type Theory`.  We use the notation of HOTT.
+In this section we describe the common features of all these theories; more details will be discussed under :ref:`Parametricity` and :ref:`Higher Observational Set Theory`.  We use the notation of HOTT.
 
 
 Observational primitives
@@ -11,7 +11,7 @@ Observational primitives
 
 The fundamental aspect of all these higher-dimensional type theories is that each type comes with a specified type family indexed by some copies of itself.  By default, this type family is called ``Id`` (intended to suggest the identity type of HOTT) and depends on two copies of the base type.  That is, for any type ``A`` and two elements ``x:A`` and ``y:A`` we have a type ``Id A x y``.  Under internal parametricity these types are more precisely called *bridge* types, but in this section we will refer to them as identity types and denote them by ``Id``.
 
-Until we get to :ref:`Higher Observational Type Theory` these types do not have all the structure of equality; in particular they are missing *symmetry* and *transitivity*.  However, they do always have *reflexivity*: any element ``x:A`` gives rise to ``refl x : Id A x x``.
+Until we get to :ref:`Higher Observational Set Theory` these types do not have all the structure of equality; in particular they are missing *symmetry* and *transitivity*.  However, they do always have *reflexivity*: any element ``x:A`` gives rise to ``refl x : Id A x x``.
 
 Specifically, if ``x`` synthesizes a type ``A``, then ``refl x`` synthesizes ``Id A x x``.  Whereas ``refl x`` can always check against a type of the form ``Id A x x`` in which case it suffices for ``x`` to check against ``A``.  In fact, since the type ``Id A x x`` determines not only the type ``A`` but the element ``x``, in a checking context you can even write ``refl _`` and the element will be inferred.
 
@@ -21,7 +21,7 @@ In addition to reflexivity, these "identity types" types satisfy *congruence*, w
 
    ap f a₂ : Id B (f a₀) (f a₁)
 
-The notation ``ap`` for this is traditional in homotopy type theory, standing for "apply" or "action on paths", so it is Narya's default; but as we will see later it can be customized.  This also works for curried multi-argument functions: if ``g : A → B → C`` and ``a₂ : Id A a₀ a₁`` and ``b₂ : Id B b₀ b₁`` we have
+The notation ``ap`` for this is traditional in homotopy type theory, standing for "apply" or "action on paths", so it is Agdarya's default; but as we will see later it can be customized.  This also works for curried multi-argument functions: if ``g : A → B → C`` and ``a₂ : Id A a₀ a₁`` and ``b₂ : Id B b₀ b₁`` we have
 
 .. code-block:: none
 
@@ -57,7 +57,7 @@ For example, consider a binary product:
 
 .. code-block:: none
 
-   def Prod (A B : Type) : Type ≔ sig (
+   def Prod (A B : Set) : Set ≔ sig (
      fst : A,
      snd : B )
 
@@ -112,7 +112,7 @@ Similarly, identity types of codatatypes compute to types of bisimulations.  For
 
 .. code-block:: none
 
-   def Stream (A : Type) : Type ≔ codata [
+   def Stream (A : Set) : Set ≔ codata [
    | _ .head : A
    | _ .tail : Stream A ]
 
@@ -143,7 +143,7 @@ As with records and codatatypes, the identity types of a datatype are again data
 
 .. code-block:: none
 
-   def Sum (A B : Type) : Type ≔ data [
+   def Sum (A B : Set) : Set ≔ data [
    | left. (a : A) : Sum A B
    | right. (b : B) : Sum A B ]
 
@@ -164,7 +164,7 @@ Recursive cases are similar, e.g. for lists
 
 .. code-block:: none
 
-   def List (A : Type) : Type ≔ data [
+   def List (A : Set) : Set ≔ data [
    | nil. : List A
    | cons. (x : A) (xs : List A) : List A ]
 
@@ -180,7 +180,7 @@ As with record types, the other primitives ``refl`` and ``ap`` compute on terms 
 
 1. ``refl (left. a)`` reduces to ``left. (refl a)``, and similarly for ``right``.
 2. ``refl (cons. x (cons. y nil.))`` reduces to ``cons. (refl x) (cons. (refl y) nil.)``.
-3. ``refl 3``, which means ``refl (suc. (suc. (suc. zero.)))``, reduces to ``suc. (suc. (suc. zero.))`` where all the constructors denote higher-dimensional ones.  Since a numeral checks at *any* datatype having the appropriate constructors, ``refl 3`` can also be written as just ``3``.  However, since this may look confusing, Narya prints it as ``refl 3`` even though the ``refl`` is strictly speaking unnecessary.
+3. ``refl 3``, which means ``refl (suc. (suc. (suc. zero.)))``, reduces to ``suc. (suc. (suc. zero.))`` where all the constructors denote higher-dimensional ones.  Since a numeral checks at *any* datatype having the appropriate constructors, ``refl 3`` can also be written as just ``3``.  However, since this may look confusing, Agdarya prints it as ``refl 3`` even though the ``refl`` is strictly speaking unnecessary.
 
 Since matches (like comatches) are case tree constructs, ``refl`` and ``ap`` of functions defined using matching don't compute until they are applied to constructors.  Thus, for instance, if we define addition of natural numbers:
 
@@ -209,7 +209,7 @@ Unsurprisingly, the identity types of function types are again function types; b
 
 As before, the superscript ``⁽ᵉ⁾`` indicates that this is a higher-dimensional type; but in terms of behavior it can be ignored.  Thus, an element ``h``  of this type is a function that can be applied to two arguments ``x₀`` and ``x₁`` of type ``A`` and a third argument ``x₂`` of type ``Id A x₀ x₁`` to produce an element of ``Id B (f x₀) (g x₁)``.
 
-The curly braces around ``x₀`` and ``x₁`` indicate that they are "implicit arguments", not written by default in applications, so in the above situation we write ``h x₂ : Id B (f x₀) (g x₁)``.  Narya does not yet have general implicit arguments, but in this specific case it does, because they can be inferred in a consistent way: if ``x₂`` synthesizes (as it often does), then ``x₀`` and ``x₁`` are determined by its type.  However, if needed or desired (such as if ``x₂`` does not synthesize), the first two arguments can be supplied explicitly by putting curly braces around them, as in ``h {x₀} {x₁} x₂``.  Such an ``h`` cannot be "partially applied" to only one or two of the implicit arguments, however: all three arguments must be given at once.
+The curly braces around ``x₀`` and ``x₁`` indicate that they are "implicit arguments", not written by default in applications, so in the above situation we write ``h x₂ : Id B (f x₀) (g x₁)``.  Agdarya does not yet have general implicit arguments, but in this specific case it does, because they can be inferred in a consistent way: if ``x₂`` synthesizes (as it often does), then ``x₀`` and ``x₁`` are determined by its type.  However, if needed or desired (such as if ``x₂`` does not synthesize), the first two arguments can be supplied explicitly by putting curly braces around them, as in ``h {x₀} {x₁} x₂``.  Such an ``h`` cannot be "partially applied" to only one or two of the implicit arguments, however: all three arguments must be given at once.
 
 Dually, an element of ``Id (A → B) f g`` can be defined as an abstraction of a term ``M : Id B (f x₀) (g x₁)`` over variables ``x₀ x₁ : A`` and ``x₂ : Id A x₀ x₁``.  In this case the implicit arguments *must* be named and enclosed in curly braces in the abstraction, as in ``{x₀} {x₁} x₂ ↦ M``.  (An alternative to this is to use :ref:`Cubes of variables`, discussed later.)
 
@@ -233,7 +233,7 @@ These equations suggest that ``refl`` can be view as a "0-ary" version of ``ap``
      ≡ ({x₀} {x₁} x₂ ↦ ap (x ↦ f x) x₂)
      ≡ ({x₀} {x₁} x₂ ↦ ap f x₂)
 
-Thus, ``ap`` is in fact just a notational variant of ``refl``, which is preferred by convention (and used by Narya when printing terms) when its argument is a function.  In particular, we can write ``ap f`` without applying it to an argument, and it means the same as ``refl f``.  Note also that the law ``ap f (refl a) ≡ refl (f a)`` mentioned above can now be seen as actually the *reverse* of the computation law ``refl (f a) ≡ refl f (refl a)`` for reflexivity of application.
+Thus, ``ap`` is in fact just a notational variant of ``refl``, which is preferred by convention (and used by Agdarya when printing terms) when its argument is a function.  In particular, we can write ``ap f`` without applying it to an argument, and it means the same as ``refl f``.  Note also that the law ``ap f (refl a) ≡ refl (f a)`` mentioned above can now be seen as actually the *reverse* of the computation law ``refl (f a) ≡ refl f (refl a)`` for reflexivity of application.
 
 
 Cubes of variables
@@ -247,7 +247,7 @@ Cubes of variables also appear automatically when matching against a higher-dime
 
 .. code-block:: none
 
-   def code : ℕ → ℕ → Type ≔ [
+   def code : ℕ → ℕ → Set ≔ [
    | zero. ↦ [
      | zero. ↦ sig ()
      | suc. n ↦ data []]
@@ -277,22 +277,22 @@ It is possible to do :ref:`Multiple matches and deep matches` that combine zero-
 Id of the universe
 ------------------
 
-Since the universe ``Type`` is a type, for any elements ``A B : Type`` we have an identity type ``Id Type A B``.  The actual definition of this type depends on whether we are in :ref:`Parametricity` or :ref:`Higher Observational Type Theory`, but here we discuss the aspects of its behavior that are common to both.  Namely, every ``R : Id Type A B`` induces a *correspondence* between ``A`` and ``B``: a family of types ``R a b`` depending on ``a : A`` and ``b : B``.  (We avoid the word "relation" since it erroneously suggests proposition-valued.)  The notation ``R a b`` looks like function application, but it is not exactly since ``R`` is not a function; instead we call it *instantiation* of ``R`` at ``a`` and ``b``.  It can be thought of as implicitly coercing ``R`` to an "underlying function" and then applying that to ``a`` and ``b``.
+Since the universe ``Set`` is a type, for any elements ``A B : Set`` we have an identity type ``Id Set A B``.  The actual definition of this type depends on whether we are in :ref:`Parametricity` or :ref:`Higher Observational Set Theory`, but here we discuss the aspects of its behavior that are common to both.  Namely, every ``R : Id Set A B`` induces a *correspondence* between ``A`` and ``B``: a family of types ``R a b`` depending on ``a : A`` and ``b : B``.  (We avoid the word "relation" since it erroneously suggests proposition-valued.)  The notation ``R a b`` looks like function application, but it is not exactly since ``R`` is not a function; instead we call it *instantiation* of ``R`` at ``a`` and ``b``.  It can be thought of as implicitly coercing ``R`` to an "underlying function" and then applying that to ``a`` and ``b``.
 
-Of course, every ``A : Type`` also has a reflexivity term ``refl A : Id Type A A``.  The underlying correspondence of ``refl A``. is defined to be the identity types of ``A``.  That is:
+Of course, every ``A : Set`` also has a reflexivity term ``refl A : Id Set A A``.  The underlying correspondence of ``refl A``. is defined to be the identity types of ``A``.  That is:
 
 - The instantiation ``refl A x y`` reduces to the identity type ``Id A x y``.
 
-In fact, ``Id`` is just another notational variant of ``refl``, which is preferred by convention (and used by Narya when printing terms) when its argument is a type.  In particular, we can write ``Id A`` without instantiating it, and it means the same as ``refl A``.  Thus we have ``Id A : Id Type A A``.
+In fact, ``Id`` is just another notational variant of ``refl``, which is preferred by convention (and used by Agdarya when printing terms) when its argument is a type.  In particular, we can write ``Id A`` without instantiating it, and it means the same as ``refl A``.  Thus we have ``Id A : Id Set A A``.
 
-Understanding ``Id Type`` also makes sense of the notation ``Prod⁽ᵉ⁾ (Id A) (Id B) u v`` from :ref:`Id of record types`.  Specifically, since ``Prod : Type → Type → Type``, we have
+Understanding ``Id Set`` also makes sense of the notation ``Prod⁽ᵉ⁾ (Id A) (Id B) u v`` from :ref:`Id of record types`.  Specifically, since ``Prod : Set → Set → Set``, we have
 
 .. code-block:: none
 
-   refl Prod : {A₀ A₁ : Type} (A₂ : Id Type A₀ A₁) {B₀ B₁ : Type} (B₂ : Id Type B₀ B₁)
-                 →⁽ᵉ⁾ Id Type (Prod A₀ B₀) (Prod A₁ B₁)
+   refl Prod : {A₀ A₁ : Set} (A₂ : Id Set A₀ A₁) {B₀ B₁ : Set} (B₂ : Id Set B₀ B₁)
+                 →⁽ᵉ⁾ Id Set (Prod A₀ B₀) (Prod A₁ B₁)
 
-This suggests that ``⁽ᵉ⁾`` is just *another* notational variant of ``refl``.  For then ``Prod⁽ᵉ⁾`` (that is, ``refl Prod``) has exactly the correct type to be applied to two (explicit) arguments ``Id A : Id Type A A`` and ``Id B : Id Type B B`` to obtain an element of ``Id Type (Prod A B) (Prod A B)``, which can then be instantiated at ``u`` and ``v`` to produce a type.
+This suggests that ``⁽ᵉ⁾`` is just *another* notational variant of ``refl``.  For then ``Prod⁽ᵉ⁾`` (that is, ``refl Prod``) has exactly the correct type to be applied to two (explicit) arguments ``Id A : Id Set A A`` and ``Id B : Id Set B B`` to obtain an element of ``Id Set (Prod A B) (Prod A B)``, which can then be instantiated at ``u`` and ``v`` to produce a type.
 
 In particular, this makes sense of un-applied ``Prod⁽ᵉ⁾``, and un-instantiated higher-dimensional types such as ``Prod⁽ᵉ⁾ (Id A) (Id B)`` (the reduct of un-instantiated ``Id (Prod A B)``).  We can also consider un-instantiated ``Id (A → B)``, but in this case we need a new notation for what it reduces to, since the previously introduced notation ``{x₀ x₁ : A} (x₂ : Id A x₀ x₁) →⁽ᵉ⁾ Id B (f x₀) (g x₁)`` doesn't make sense without an ``f`` and a ``g``.  The new notation we use for this is ``Id A ⇒ Id B``.  In particular, therefore, the fully instantiated version ``Id (A → B) f g`` can also be written as ``(Id A ⇒ Id B) f g``.
 
@@ -300,7 +300,7 @@ In particular, this makes sense of un-applied ``Prod⁽ᵉ⁾``, and un-instanti
 Heterogeneous identity types
 ----------------------------
 
-Now suppose ``B : A → Type`` and ``x₂ : Id A x₀ x₁``.  Then ``ap B x₂ : Id Type (B x₀) (B x₁)``, so it has instantiations.  That is, given ``y₀ : B x₀`` and ``y₁ : B x₁``, we have a type ``ap B x₂ y₀ y₁``, whose elements we call of *heterogeneous* identifications/bridges relating ``y₀`` and ``y₁`` "along" or "over" ``x₂``.  Since ``Id`` is a notational variant of ``ap`` (i.e. ``refl``), this type can also be written suggestively as ``Id B x₂ y₀ y₁`` (and Narya does this when printing: for the special case of ``Type``-valued functions we prefer ``Id`` over ``refl`` or ``ap``.)
+Now suppose ``B : A → Set`` and ``x₂ : Id A x₀ x₁``.  Then ``ap B x₂ : Id Set (B x₀) (B x₁)``, so it has instantiations.  That is, given ``y₀ : B x₀`` and ``y₁ : B x₁``, we have a type ``ap B x₂ y₀ y₁``, whose elements we call of *heterogeneous* identifications/bridges relating ``y₀`` and ``y₁`` "along" or "over" ``x₂``.  Since ``Id`` is a notational variant of ``ap`` (i.e. ``refl``), this type can also be written suggestively as ``Id B x₂ y₀ y₁`` (and Agdarya does this when printing: for the special case of ``Set``-valued functions we prefer ``Id`` over ``refl`` or ``ap``.)
 
 Note that since ``ap`` of a constant function reduces to ``refl``, heterogeneous ``Id`` of a constant type family reduces to ordinary ``Id``.  That is:
 
@@ -312,7 +312,7 @@ Such heterogeneous identity types are used in the computation of identity types 
 
 .. code-block:: none
 
-   def Σ (A : Type) (B : A → Type) : Type ≔ sig (
+   def Σ (A : Set) (B : A → Set) : Set ≔ sig (
      fst : A,
      snd : B fst )
 
@@ -333,16 +333,16 @@ whose behavior generalizes that described for non-dependent function types in :r
 
 The un-instantiated version ``Id ((x:A) → B x)`` likewise reduces to a dependently typed version of the previously introduced notation, ``(x : Id A) ⇒ Id B x.2``.  Here ``x`` is a cube of variables, and the symbol ``⇒`` is of course intentionally reminiscent of ``⤇``.
 
-In particular, since ``Σ : (A : Type) (B : A → Type) → Type``, the type of ``Id Σ`` is
+In particular, since ``Σ : (A : Set) (B : A → Set) → Set``, the type of ``Id Σ`` is
 
 .. code-block:: none
 
-   {A₀ : Type} {A₁ : Type} (A₂ : Id Type A₀ A₁)
-   {B₀ : A₀ → Type} {B₁ : A₁ → Type}
-   (B₂ : {x₀ : A₀} {x₁ : A₁} (x₂ : A₂ x₀ x₁) →⁽ᵉ⁾ Id Type (B₀ x₀) (B₁ x₁))
-     →⁽ᵉ⁾ Id Type (Σ A₀ B₀) (Σ A₁ B₁)
+   {A₀ : Set} {A₁ : Set} (A₂ : Id Set A₀ A₁)
+   {B₀ : A₀ → Set} {B₁ : A₁ → Set}
+   (B₂ : {x₀ : A₀} {x₁ : A₁} (x₂ : A₂ x₀ x₁) →⁽ᵉ⁾ Id Set (B₀ x₀) (B₁ x₁))
+     →⁽ᵉ⁾ Id Set (Σ A₀ B₀) (Σ A₁ B₁)
 
-Thus, ``Σ⁽ᵉ⁾`` has has exactly the correct type to be applied to ``Id A : Id Type A A`` and ``Id B : {x₀ x₁ : A} (x₂ : Id A x₀ x₁) →⁽ᵉ⁾ Id Type (B x₀) (B x₁))`` to produce an element of ``Id Type (Σ A B) (Σ A B)``, which can then be instantiated at ``u`` and ``v`` to yield a type, explaining the above notation ``Σ⁽ᵉ⁾ (Id A) (Id B) u v``.  Other canonical types behave similarly.
+Thus, ``Σ⁽ᵉ⁾`` has has exactly the correct type to be applied to ``Id A : Id Set A A`` and ``Id B : {x₀ x₁ : A} (x₂ : Id A x₀ x₁) →⁽ᵉ⁾ Id Set (B x₀) (B x₁))`` to produce an element of ``Id Set (Σ A B) (Σ A B)``, which can then be instantiated at ``u`` and ``v`` to yield a type, explaining the above notation ``Σ⁽ᵉ⁾ (Id A) (Id B) u v``.  Other canonical types behave similarly.
 
 
 Higher-dimensional cubes
@@ -350,19 +350,19 @@ Higher-dimensional cubes
 
 Iterating ``Id`` or ``refl`` multiple times produces higher-dimensional types, whose elements are higher-dimensional cubes.  Specifically, an *n*-dimensional type can be instantiated at variables representing the boundary of an *n*-dimensional cube, yielding an ordinary (0-dimensional) type whose elements are fillers for that boundary.  However, this does not need to be stipulated by hand, but emerges automatically from what we have already introduced.
 
-The main new ingredient is that since an element ``R : Id Type A B`` can be instantiated at elements of ``A`` and ``B`` to yield a type, it makes sense to think of it as having an underlying function of type ``A → B → Type``, which it is coerced to by instantiation.  Therefore, its reflexivity/identity term ``Id R`` should have an underlying function of type
+The main new ingredient is that since an element ``R : Id Set A B`` can be instantiated at elements of ``A`` and ``B`` to yield a type, it makes sense to think of it as having an underlying function of type ``A → B → Set``, which it is coerced to by instantiation.  Therefore, its reflexivity/identity term ``Id R`` should have an underlying function of type
 
 .. code-block:: none
 
-   {a₀ a₁ : A} (a₂ : Id A a₀ a₁) {b₀ b₁ : B} (b₂ : Id B b₀ b₁) →⁽ᵉ⁾ Id Type (R a₀ b₀) (R a₁ b₁)
+   {a₀ a₁ : A} (a₂ : Id A a₀ a₁) {b₀ b₁ : B} (b₂ : Id B b₀ b₁) →⁽ᵉ⁾ Id Set (R a₀ b₀) (R a₁ b₁)
 
 The output of this function can then be further instantiated at elements ``r₀ : R a₀ b₀`` and ``r₁ : R a₁ b₁``.  Therefore, for any arguments of appropriate types, we have a type
 
 .. code-block:: none
 
-   Id R {a₀} {a₁} a₂ {b₀} {b₁} b₂ r₀ r₁ : Type
+   Id R {a₀} {a₁} a₂ {b₀} {b₁} b₂ r₀ r₁ : Set
 
-As a special case, if ``R`` is ``Id A : Id Type A A``, then such an instantiation becomes
+As a special case, if ``R`` is ``Id A : Id Set A A``, then such an instantiation becomes
 
 .. code-block:: none
 
@@ -383,22 +383,22 @@ As a special case, if ``R`` is ``Id A : Id Type A A``, then such an instantiatio
 
 We view these as forming the boundary of a 2-dimensional square, with ``Id (Id A) a₀₂ a₁₂ a₂₀ a₂₁`` the type of fillers inhabiting that boundary.  Similarly, ``Id (Id (Id A))`` can be instantiated to yield types of 3-dimensional cubes, and so on.
 
-Of course, the variables in the boundary of a square can be named anything you want.  However, the naming scheme with subscripts used above is systematic and has certain advantages.  Specifically, a cube of dimension *n* has 3ⁿ faces, including the center one (which is missing in a boundary), and we name them by the numbers from 0 to 3ⁿ−1 written in base-3 notation.  The intrinsic dimension of a face is then the number of 2s in its base-3 representation, and *its* codimension-1 faces are obtained by replacing one of the 2s with a 0 or a 1.  The overall codimension-1 faces, which are the only explicit ones in an instantiation, are those in which all the digits are 2s except one.  Finally, the variables in an instantiation or higher-dimensional function application appear in increasing ternary order.  In particular, Narya uses this naming scheme for :ref:`Cubes of variables` of all dimensions, although with dot-suffixes rather than subscripts; we will return to this below.
+Of course, the variables in the boundary of a square can be named anything you want.  However, the naming scheme with subscripts used above is systematic and has certain advantages.  Specifically, a cube of dimension *n* has 3ⁿ faces, including the center one (which is missing in a boundary), and we name them by the numbers from 0 to 3ⁿ−1 written in base-3 notation.  The intrinsic dimension of a face is then the number of 2s in its base-3 representation, and *its* codimension-1 faces are obtained by replacing one of the 2s with a 0 or a 1.  The overall codimension-1 faces, which are the only explicit ones in an instantiation, are those in which all the digits are 2s except one.  Finally, the variables in an instantiation or higher-dimensional function application appear in increasing ternary order.  In particular, Agdarya uses this naming scheme for :ref:`Cubes of variables` of all dimensions, although with dot-suffixes rather than subscripts; we will return to this below.
 
-In any case, the squares described by ``Id (Id A)`` are "totally homogeneous", with everything living in the same type ``A``; whereas the previously mentioned case of ``Id R : Id (Id Type A B) R R`` is homogeneous in one dimension (with some boundary components like ``a₂ : Id A a₀ a₁`` living entirely in one type ``A``) and heterogeneous in the other (with other boundary components like ``r₀ : R a₀ b₀`` connecting one type ``A`` to another type ``B``).  But we can also consider types of totally *heterogeneous* squares.  To explain this, observe that by the homogeneous case, we can instantiate ``Id (Id Type)`` at a family of arguments of the following types:
+In any case, the squares described by ``Id (Id A)`` are "totally homogeneous", with everything living in the same type ``A``; whereas the previously mentioned case of ``Id R : Id (Id Set A B) R R`` is homogeneous in one dimension (with some boundary components like ``a₂ : Id A a₀ a₁`` living entirely in one type ``A``) and heterogeneous in the other (with other boundary components like ``r₀ : R a₀ b₀`` connecting one type ``A`` to another type ``B``).  But we can also consider types of totally *heterogeneous* squares.  To explain this, observe that by the homogeneous case, we can instantiate ``Id (Id Set)`` at a family of arguments of the following types:
 
 .. code-block:: none
 
-   {A₀₀ : Type}
-   {A₀₁ : Type}
-   (A₀₂ : Id Type A₀₀ A₀₁)
-   {A₁₀ : Type}
-   {A₁₁ : Type}
-   (A₁₂ : Id Type A₁₀ A₁₁)
-   (A₂₀ : Id Type A₀₀ A₁₀)
-   (A₂₁ : Id Type A₀₁ A₁₁)
+   {A₀₀ : Set}
+   {A₀₁ : Set}
+   (A₀₂ : Id Set A₀₀ A₀₁)
+   {A₁₀ : Set}
+   {A₁₁ : Set}
+   (A₁₂ : Id Set A₁₀ A₁₁)
+   (A₂₀ : Id Set A₀₀ A₁₀)
+   (A₂₁ : Id Set A₀₁ A₁₁)
 
-An inhabitant of the resulting type, ``A₂₂ : Id Type A₀₂ A₁₂ A₂₀ A₂₁``, then has an underlying "two-dimensional correspondence" that can be accessed by instantiating it at arguments of the following types:
+An inhabitant of the resulting type, ``A₂₂ : Id Set A₀₂ A₁₂ A₂₀ A₂₁``, then has an underlying "two-dimensional correspondence" that can be accessed by instantiating it at arguments of the following types:
 
 .. code-block:: none
 
@@ -417,7 +417,7 @@ Note that unlike a 1-dimensional type, a higher-dimensional type *can* be "parti
 
 .. code-block:: none
 
-   A₂₂ {a₀₀} {a₀₁} a₀₂ {a₁₀} {a₁₁} a₁₂ : Id Type (A₂₀ a₀₀ a₁₀) (A₂₁ a₀₁ a₁₁)
+   A₂₂ {a₀₀} {a₀₁} a₀₂ {a₁₀} {a₁₁} a₁₂ : Id Set (A₂₀ a₀₀ a₁₀) (A₂₁ a₀₁ a₁₁)
 
 This has exactly the right type that it can be *further* instantiated by ``a₂₀ a₂₁`` to produce a 0-dimensional type.  Similarly, a 3-dimensional type can be instantiated first at 18 arguments (of which two are explicit) to yield a 2-dimensional type, then at 6 more arguments to yield a 1-dimensional type, then at 2 last ones to yield a 0-dimensional (ordinary) type.
 
@@ -436,7 +436,7 @@ which is a product of the two types
    Id (Id A) (u₀₂ .fst) (u₁₂ .fst) (u₂₀ .fst) (u₂₁ .fst)
    Id (Id B) (u₀₂ .snd) (u₁₂ .snd) (u₂₀ .snd) (u₂₁ .snd)
 
-Notationally, since repeated ``Id`` gets cumbersome, in higher dimensions Narya prints all identity types with the superscript syntax; thus the above would actually be printed
+Notationally, since repeated ``Id`` gets cumbersome, in higher dimensions Agdarya prints all identity types with the superscript syntax; thus the above would actually be printed
 
 .. code-block:: none
 
@@ -452,7 +452,7 @@ Similarly, ``Id (Id ((x : A) → B x)) f₀₂ f₁₂ f₂₀ f₂₁`` reduces
 
 Note that in this case, all the arguments are implicit except the last, highest-dimensional, one ``a₂₂``.  This remains true in higher dimensions.  As usual,  it is possible to give the implicit arguments explicitly by surrounding them with curly braces, as in ``refl f {a₀} {a₁} a₂``, but if you do this you must give *all* of them explicitly; there are no half measures.  As before, the main reason you might need to do this is if the top-dimensional argument is a term that doesn't synthesize; but it can also be helpful sometimes for clarity.
 
-Of course, one inhabitant of such a higher-dimensional function type is ``refl (refl f)``, or equivalently ``ap (ap f)``, which Narya actually displays as ``f⁽ᵉᵉ⁾``.  Thus we have
+Of course, one inhabitant of such a higher-dimensional function type is ``refl (refl f)``, or equivalently ``ap (ap f)``, which Agdarya actually displays as ``f⁽ᵉᵉ⁾``.  Thus we have
 
 .. code-block:: none
 
@@ -472,16 +472,16 @@ However, the alternative of :ref:`Cubes of variables` is also available and ofte
 Implicit boundaries
 -------------------
 
-We have noted above that many parts of the boundary of a cube are treated as implicit arguments.  Normally, Narya also hides these arguments when printing such terms and types.  However, you can tell it to print these arguments explicitly with the commands
+We have noted above that many parts of the boundary of a cube are treated as implicit arguments.  Normally, Agdarya also hides these arguments when printing such terms and types.  However, you can tell it to print these arguments explicitly with the commands
 
 .. code-block:: none
 
    display function boundaries ≔ on
    display type boundaries ≔ on
 
-(and switch back with ``≔ off``).  These commands are not available in source files, since they should not be part of the "time stream" of undoables.  They can be given in interactive mode, or with the ProofGeneral commands ``C-c C-d C-f`` and ``C-c C-d C-t``, or you can use the corresponding command-line flags such as ``-show-function-boundaries``.  When these options are ``on``, Narya prints *all* the lower-dimensional arguments explicitly, with curly braces around them.  There are (currently) no half measures here, for functions or for types.
+(and switch back with ``≔ off``).  These commands are not available in source files, since they should not be part of the "time stream" of undoables.  They can be given in interactive mode, or with the ProofGeneral commands ``C-c C-d C-f`` and ``C-c C-d C-t``, or you can use the corresponding command-line flags such as ``-show-function-boundaries``.  When these options are ``on``, Agdarya prints *all* the lower-dimensional arguments explicitly, with curly braces around them.  There are (currently) no half measures here, for functions or for types.
 
-In addition, even when printing implicit boundaries is off, Narya attempts to be smart and print those boundaries when it thinks that they would be necessary in order to re-parse the printed term because the corresponding explicit argument isn't synthesizing.  In this case it can do half measures, the way you can when writing type boundaries: the implicit arguments in each "block" are printed only if the primary argument of that block is nonsynthesizing.
+In addition, even when printing implicit boundaries is off, Agdarya attempts to be smart and print those boundaries when it thinks that they would be necessary in order to re-parse the printed term because the corresponding explicit argument isn't synthesizing.  In this case it can do half measures, the way you can when writing type boundaries: the implicit arguments in each "block" are printed only if the primary argument of that block is nonsynthesizing.
 
 
 Symmetries and degeneracies
@@ -489,7 +489,7 @@ Symmetries and degeneracies
 
 There is a symmetry operation ``sym`` that acts on at-least-two dimensional cubes, swapping or transposing the last two dimensions.  Like ``refl``, if the argument of ``sym`` synthesizes, then the ``sym`` synthesizes a symmetrized type; but in this case the argument must synthesize a "2-dimensional" type.  And also as with ``refl``, an application of ``sym`` can also check, in this case by symmetrizing the checking type to check its argument.
 
-Combining versions of ``refl`` and ``sym`` yields arbitrary higher-dimensional "degeneracies" (from the BCH cube category).  There is also a generic syntax for such degeneracies, for example ``M⁽²ᵉ¹⁾`` or ``M^^(2e1)`` where the superscript represents the degeneracy, with ``e`` denoting a degenerate dimension and nonzero digits denoting a permutation.  (The ``e`` stands for "equality", as we are using the notation of :ref:`Higher Observational Type Theory`; when using :ref:`Parametricity` instead you can change the letter.)  In the unlikely event you are working with dimensions greater than nine, you can separate multi-digit numbers and letters with a hyphen, e.g. ``M⁽¹⁻²⁻³⁻⁴⁻⁵⁻⁶⁻⁷⁻⁸⁻⁹⁻¹⁰⁾`` or ``M^^(0-1-2-3-4-5-6-7-8-9-10)``.
+Combining versions of ``refl`` and ``sym`` yields arbitrary higher-dimensional "degeneracies" (from the BCH cube category).  There is also a generic syntax for such degeneracies, for example ``M⁽²ᵉ¹⁾`` or ``M^^(2e1)`` where the superscript represents the degeneracy, with ``e`` denoting a degenerate dimension and nonzero digits denoting a permutation.  (The ``e`` stands for "equality", as we are using the notation of :ref:`Higher Observational Set Theory`; when using :ref:`Parametricity` instead you can change the letter.)  In the unlikely event you are working with dimensions greater than nine, you can separate multi-digit numbers and letters with a hyphen, e.g. ``M⁽¹⁻²⁻³⁻⁴⁻⁵⁻⁶⁻⁷⁻⁸⁻⁹⁻¹⁰⁾`` or ``M^^(0-1-2-3-4-5-6-7-8-9-10)``.
 
 As with ``refl`` and ``sym``, this notation synthesizes if ``M`` does, and can always check.  If the degeneracy is not a pure symmetry (that is, it contains one or more ``e`` s), you can write ``_`` for the term in a checking context, since it is determined by the output type, e.g. ``_⁽ᵉᵉ⁾ : A⁽ᵉᵉ⁾ (refl a) (refl a) (refl a) (refl a)`` will infer ``a`` for the placehold.  Finally, if ``M`` is a 0-dimensional abstraction and the degeneracy is immediately applied to arguments such as ``(x y ↦ P)⁽ᵉᵉ⁾ a₂₂ b₂₂``, it is treated as a "higher-dimensional redex" and subject to the rules laid out for :ref:`Checking redexes`: each argument must either synthesize or have the corresponding domain given explicitly in the abstraction, and either the body of the abstraction must synthesize or the whole application must be in a checking context.
 

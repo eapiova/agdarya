@@ -7,7 +7,7 @@ However, in fact a canonical type declaration can appear anywhere in a case tree
 
 .. code-block:: none
 
-   def Covec (A:Type) (n:ℕ) : Type ≔ match n [
+   def Covec (A:Set) (n:ℕ) : Set ≔ match n [
    | zero. ↦ sig ()
    | suc. n ↦ sig (
      car : A,
@@ -19,7 +19,7 @@ This is very similar to, but subtly different from, the following definition tha
 
 .. code-block:: none
 
-   def Covec' (A:Type) (n:ℕ) : Type ≔ match n [
+   def Covec' (A:Set) (n:ℕ) : Set ≔ match n [
    | zero. ↦ ⊤
    | suc. n ↦ A × Covec' A n]
 
@@ -29,17 +29,17 @@ As another example, once we have an identity type ``Id`` (which could be ``Jd``,
 
 .. code-block:: none
 
-   def trunc_index : Type ≔ data [ minustwo. | suc. (_ : trunc_index) ]
+   def trunc_index : Set ≔ data [ minustwo. | suc. (_ : trunc_index) ]
    
-   def IsTrunc (n:ℕ) (A:Type) : Type ≔ match n [
+   def IsTrunc (n:ℕ) (A:Set) : Set ≔ match n [
    | minustwo. ↦ sig ( center : A, contr : (x:A) → Id A center x )
    | suc. n ↦ sig ( trunc_id : (x y : A) → IsTrunc n (Id A x y) )]
 
-Definitions of datatypes by recursion can sometimes be used in place of indexed datatypes.  In particular, this can sometimes be a good way of getting around Narya's lack of unification for indices in pattern-matching.  For example, if we define the standard finite types as an indexed datatype:
+Definitions of datatypes by recursion can sometimes be used in place of indexed datatypes.  In particular, this can sometimes be a good way of getting around Agdarya's lack of unification for indices in pattern-matching.  For example, if we define the standard finite types as an indexed datatype:
 
 .. code-block:: none
 
-   def Fin : ℕ → Type ≔ data [
+   def Fin : ℕ → Set ≔ data [
    | zero. : (n : ℕ) → Fin (suc. n)
    | suc.  : (n : ℕ) → Fin n → Fin (suc. n)]
 
@@ -47,7 +47,7 @@ then matching against an element of ``Fin n`` will only refine the goal and cont
 
 .. code-block:: none
 
-   def Fin : ℕ → Type ≔ [
+   def Fin : ℕ → Set ≔ [
    | zero.  ↦ data [ ]
    | suc. n ↦ data [ zero. | suc. (_ : Fin n) ]]
 
@@ -74,8 +74,8 @@ Like ``match`` and ``comatch``, the constructs ``sig``, ``data``, and ``codata``
 .. code-block:: none
 
    def foo : ⊤ ≔
-     let A : Type ≔ sig () in
-     let B : Type ≔ sig () in
+     let A : Set ≔ sig () in
+     let B : Set ≔ sig () in
      let f : A → B ≔ x ↦ x in
      ()
    
@@ -86,4 +86,4 @@ Like ``match`` and ``comatch``, the constructs ``sig``, ``data``, and ``codata``
         but is being checked against type
           _let.1.B
 
-Thus, it is probably ill-advised to use such "on-the-fly" definitions of canonical types very much.  However, it may sometimes be convenient to, for example, pass a custom type like ``data [ red. | green. | blue. ]`` directly as an argument to some other function.  Types defined directly on the fly like this cannot be recursive, so in practice their usefulness is mostly restricted to record types and enumerated types (which could, in theory, also be printed more comprehensibly, and even treated non-generatively).  However, local recursive types can be defined with ``let rec``, e.g. ``let rec ℕ : Type ≔ data [ zero. | suc. (_:ℕ) ] in ...``.
+Thus, it is probably ill-advised to use such "on-the-fly" definitions of canonical types very much.  However, it may sometimes be convenient to, for example, pass a custom type like ``data [ red. | green. | blue. ]`` directly as an argument to some other function.  Types defined directly on the fly like this cannot be recursive, so in practice their usefulness is mostly restricted to record types and enumerated types (which could, in theory, also be printed more comprehensibly, and even treated non-generatively).  However, local recursive types can be defined with ``let rec``, e.g. ``let rec ℕ : Set ≔ data [ zero. | suc. (_:ℕ) ] in ...``.

@@ -1,12 +1,19 @@
   $ cat >nat.ny <<EOF
-  > def Nat : Type := data [ zero. | suc. (_:Nat) ]
-  > def myzero : Nat := zero.
-  > def myone : Nat := suc. zero.
-  > def nums.two : Nat := suc. (suc. zero.)
-  > def nums.three : Nat := suc. (suc. (suc. zero.))
-  > def plus (x y : Nat) : Nat := match y [ zero. ↦ x | suc. y ↦ suc. (plus x y) ]
-  > def times (x y : Nat) : Nat := match y [ zero. ↦ zero. | suc. y ↦ plus (times x y) x ]
-  > def minus (x y : Nat) : Nat := match y, x [ zero., x ↦ x | suc. y, suc. x ↦ minus x y | suc. _, zero. ↦ y ]
+  > data Nat : Set where { zero : Nat; suc : Nat → Nat }
+  > myzero : Nat
+  > myzero = zero
+  > myone : Nat
+  > myone = suc zero
+  > nums.two : Nat
+  > nums.two = suc (suc zero)
+  > nums.three : Nat
+  > nums.three = suc (suc (suc zero))
+  > plus : (x y : Nat) → Nat
+  > plus x y = match y [ zero ↦ x | suc y ↦ suc (plus x y) ]
+  > times : (x y : Nat) → Nat
+  > times x y = match y [ zero ↦ zero | suc y ↦ plus (times x y) x ]
+  > minus : (x y : Nat) → Nat
+  > minus x y = match y, x [ zero, x ↦ x | suc y, suc x ↦ minus x y | suc _, zero ↦ y ]
   > notation(5) x "+" y ≔ plus x y
   > notation(6) x "*" y ≔ times x y
   > notation(5) x "-" y ≔ minus x y
@@ -14,26 +21,26 @@
 
 Renaming individual imports
 
-  $ narya -e 'import "nat" | renaming myone yourone echo yourone'
+  $ agdarya -e 'import "nat" | renaming myone yourone echo yourone'
   1
     : Nat
   
 
 Renaming a whole subtree, clobbering the rest
 
-  $ narya -e 'import "nat" | renaming nums . echo two'
+  $ agdarya -e 'import "nat" | renaming nums . echo two'
   2
     : _OUT_OF_SCOPE.Nat
   
 Renaming a subtree while preserving the rest
 
-  $ narya -e 'import "nat" | union (id, renaming nums .) echo two'
+  $ agdarya -e 'import "nat" | union (id, renaming nums .) echo two'
   2
     : Nat
   
 Excluding a subtree
 
-  $ narya -e 'import "nat" | except nums echo myone echo two'
+  $ agdarya -e 'import "nat" | except nums echo myone echo two'
   1
     : Nat
   
@@ -46,7 +53,7 @@ Excluding a subtree
 
 Renaming everything (i.e. import qualified)
 
-  $ narya -e 'import "nat" | renaming . nat echo nat.myzero echo nat.nums.three'
+  $ agdarya -e 'import "nat" | renaming . nat echo nat.myzero echo nat.nums.three'
   0
     : nat.Nat
   
@@ -55,20 +62,20 @@ Renaming everything (i.e. import qualified)
   
 We get notations if we keep the main subtree
 
-  $ narya -e 'import "nat" | renaming myone yourone echo 1 + 1'
+  $ agdarya -e 'import "nat" | renaming myone yourone echo 1 + 1'
   2
     : Nat
   
 We can get only the notations by keeping only that subtree
 
-  $ narya -e 'import "nat" | only notations echo 1 + 1'
+  $ agdarya -e 'import "nat" | only notations echo 1 + 1'
   2
     : _OUT_OF_SCOPE.Nat
   
 
 Or exclude the notations but get everything else
 
-  $ narya -e 'import "nat" | except notations echo myzero echo 1 + 1'
+  $ agdarya -e 'import "nat" | except notations echo myzero echo 1 + 1'
   0
     : Nat
   
@@ -79,7 +86,7 @@ Or exclude the notations but get everything else
 
 Or import some of the notations but not others
 
-  $ narya -e 'import "nat" | in notations union (only «_ + _», only «_ * _») echo 1+1 echo 1*1 echo (1-1 : Nat)'
+  $ agdarya -e 'import "nat" | in notations union (only «_ + _», only «_ * _») echo 1+1 echo 1*1 echo (1-1 : Nat)'
   2
     : Nat
   
@@ -95,31 +102,31 @@ Or import some of the notations but not others
 
 We can also import from a namespace rather than a file.
 
-  $ narya -e 'axiom a.b : Type axiom a.c : Type import a echo b'
+  $ agdarya -e 'postulate a.b : Set postulate a.c : Set import a echo b'
   a.b
-    : Type
+    : Set
   
 
-  $ narya -e 'axiom a.b : Type axiom a.c : Type import a | renaming b d echo d'
+  $ agdarya -e 'postulate a.b : Set postulate a.c : Set import a | renaming b d echo d'
   a.b
-    : Type
+    : Set
   
 
 But this doesn't affect the export namespace:
 
   $ cat >importns.ny <<EOF
-  > axiom a.b : Type
-  > axiom a.c : Type
+  > postulate a.b : Set
+  > postulate a.c : Set
   > import a
   > echo b
   > EOF
 
-  $ narya importns.ny -e 'echo a.b echo b'
+  $ agdarya importns.ny -e 'echo a.b echo b'
   a.b
-    : Type
+    : Set
   
   a.b
-    : Type
+    : Set
   
    ￫ error[E0300]
    ￭ command-line exec string
@@ -131,19 +138,19 @@ But this doesn't affect the export namespace:
 Unless we tell it to:
 
   $ cat >exportns.ny <<EOF
-  > axiom a.b : Type
-  > axiom a.c : Type
+  > postulate a.b : Set
+  > postulate a.c : Set
   > export a
   > echo b
   > EOF
 
-  $ narya exportns.ny -e 'echo a.b echo b'
+  $ agdarya exportns.ny -e 'echo a.b echo b'
   a.b
-    : Type
+    : Set
   
   a.b
-    : Type
+    : Set
   
   a.b
-    : Type
+    : Set
   

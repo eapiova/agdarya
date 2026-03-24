@@ -1,27 +1,27 @@
-  $ narya -v equational.ny
+  $ agdarya -v equational.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom x assumed
+   ￮ postulate x assumed
   
    ￫ info[I0001]
-   ￮ axiom y assumed
+   ￮ postulate y assumed
   
    ￫ info[I0001]
-   ￮ axiom z assumed
+   ￮ postulate z assumed
   
    ￫ info[I0001]
-   ￮ axiom w assumed
+   ￮ postulate w assumed
   
    ￫ info[I0001]
-   ￮ axiom p assumed
+   ￮ postulate p assumed
   
    ￫ info[I0001]
-   ￮ axiom q assumed
+   ￮ postulate q assumed
   
    ￫ info[I0001]
-   ￮ axiom r assumed
+   ￮ postulate r assumed
   
    ￫ info[I0000]
    ￮ constant xx defined
@@ -45,7 +45,7 @@
    ￮ constant xyzwdef defined
   
    ￫ info[I0001]
-   ￮ axiom s assumed
+   ￮ postulate s assumed
   
    ￫ info[I0000]
    ￮ constant xz' defined

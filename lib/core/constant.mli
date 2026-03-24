@@ -11,6 +11,8 @@ type t = Constant.t
 
 val make : unit -> t
 val remake : (File.t -> File.t) -> Constant.t -> Constant.t
+val register_name : Constant.t -> string list -> unit
+val name_of : Constant.t -> string list option
 
 module Table : sig
   type 'a t

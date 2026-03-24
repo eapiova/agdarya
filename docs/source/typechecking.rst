@@ -4,7 +4,7 @@ Typechecking details
 Bidirectionality
 ----------------
 
-Narya's typechecker is bidirectional.  This means that some terms *synthesize* a type, and hence can be used even in a place where the "expected" type of a term is not known, whereas other terms *check* against a type, and hence can only be used where there is an "expected" type for them to check against.  Of the terms we have mentioned so far:
+Agdarya's typechecker is bidirectional.  This means that some terms *synthesize* a type, and hence can be used even in a place where the "expected" type of a term is not known, whereas other terms *check* against a type, and hence can only be used where there is an "expected" type for them to check against.  Of the terms we have mentioned so far:
 
 - Function application ``M N`` synthesizes, by first requiring ``M`` to synthesize a function-type ``(x:A) → B``, then checking ``N`` against the input type ``A``, and finally synthesizing the corresponding output ``B[N/x]``.
 
@@ -12,7 +12,7 @@ Narya's typechecker is bidirectional.  This means that some terms *synthesize* a
 
 - A function abstraction can also synthesize if a type is given for its variable and its body synthesizes.  That is, ``(x:A) ↦ M`` synthesizes by first checking that ``A`` is a valid type, then synthesizing a type ``B`` for ``M`` in a context extended by a variable ``x:A``, and finally synthesizing the type ``(x:A) → B``.  If ``M`` is nonsynthesizing, then ``(x:A) ↦ M`` can also check against a function-type, in which case the supplied type ``A`` is redundant but must match the domain of the function-type.
 
-- Type-forming operators such as ``Type`` and ``(x:A) → B`` synthesize, after requiring their inputs to synthesize.  This might be modified later after universe levels are introduced.
+- Set-forming operators such as ``Set`` and ``(x:A) → B`` synthesize, after requiring their inputs to synthesize.  This might be modified later after universe levels are introduced.
 
 - Variables and constants synthesize their declared types.
 
@@ -26,7 +26,7 @@ For example, you cannot, in general, directly apply an abstraction to an argumen
 
 The ascription notation has tightness −ω, and is non-associative, so that ``M : N : P`` is a parse error.  However, the right-associativity of ``↦`` and the fact that they share the same tightness means that ``x ↦ M : A`` is parsed as ``x ↦ (M : A)``, hence the placement of parentheses in the above example redex.
 
-*Side note:* The coexistence of type ascription and NuPRL/Agda-style dependent function-types leads to a potential ambiguity: ``(x : A) → B`` could be a dependent function type, but it could also be a *non-dependent* function type whose domain ``x`` is ascribed to type ``A`` (which would therefore have to be a type universe).  Narya resolves this in favor of the dependent function type, which is nearly always what is intended.  If you really mean the other you can write it as ``((x : A)) → B`` or ``((x) : A) → B``; but I can't imagine why you would need to do this, since the only possible ambiguity is when ``x`` is a variable (or a list of variables), and variables and constants (and application spines of such) always synthesize their type anyway and thus don't need to be ascribed.
+*Side note:* The coexistence of type ascription and NuPRL/Agda-style dependent function-types leads to a potential ambiguity: ``(x : A) → B`` could be a dependent function type, but it could also be a *non-dependent* function type whose domain ``x`` is ascribed to type ``A`` (which would therefore have to be a type universe).  Agdarya resolves this in favor of the dependent function type, which is nearly always what is intended.  If you really mean the other you can write it as ``((x : A)) → B`` or ``((x) : A) → B``; but I can't imagine why you would need to do this, since the only possible ambiguity is when ``x`` is a variable (or a list of variables), and variables and constants (and application spines of such) always synthesize their type anyway and thus don't need to be ascribed.
 
 
 Checking redexes
@@ -36,7 +36,7 @@ As noted above, a redex ``(x ↦ M) N`` cannot *in general* be checked or synthe
 
 - As noted above, if the domain type of an abstraction is indicated explicitly, and its body synthesizes, then the whole abstraction synthesizes.  Thus, if ``M`` synthesizes, then ``((x : A) ↦ M) N`` also synthesizes.  Specifically, if ``A`` is a valid type, and ``M`` synthesizes a type ``B`` in context extended by a variable ``x:A``, and ``N`` checks against type ``A``, then the whole redex synthesizes the result ``B[N/x]`` of substituting ``N`` for ``x`` in the type ``B``.
 
-- If the domain is still indicated explicitly but the abstraction body ``M`` does not synthesize, but the entire redex is used in a *checking* position, Narya assumes that the function-type is non-dependent and checks the body of the abstraction against the overall result type.  That is, ``((x : A) ↦ M) N`` can check against a type ``B`` (not depending on ``x``) if ``M`` checks against ``B`` (and ``N`` checks against ``A``).
+- If the domain is still indicated explicitly but the abstraction body ``M`` does not synthesize, but the entire redex is used in a *checking* position, Agdarya assumes that the function-type is non-dependent and checks the body of the abstraction against the overall result type.  That is, ``((x : A) ↦ M) N`` can check against a type ``B`` (not depending on ``x``) if ``M`` checks against ``B`` (and ``N`` checks against ``A``).
 
 - If the domain is not indicated explicitly, it can be obtained if the argument ``N`` synthesizes.  Thus, if both the body ``M`` and the argument ``N`` synthesize, so does a redex ``(x → M) N``; while if only ``N`` synthesizes, a redex ``(x → M) N`` can check assuming the function is non-dependent.
 
@@ -64,7 +64,7 @@ In addition, constants defined as functions do not reduce until they are applied
 
 .. code-block:: none
    
-   def cplus (A:Type) (m n : (A → A) → (A → A)) : (A → A) → (A → A) ≔
+   def cplus (A:Set) (m n : (A → A) → (A → A)) : (A → A) → (A → A) ≔
    f x ↦ m f (n f x)
 
 then ``cplus A (f x ↦ f x) (f x ↦ f x)`` (i.e. "1 + 1") doesn't reduce to ``(f x ↦ f (f x))`` because it is not fully applied, whereas ``cplus A (f x ↦ f x) (f x ↦ f x) f x`` does reduce to ``f (f x)``.  However, ``cplus A (f x ↦ f x) (f x ↦ f x)`` is still *convertible* with ``(f x ↦ f (f x))`` because equality-checking does η-conversion.  If you want to display the body of a constant defined as a function, you must manually η-expand it, which means it has to be ascribed as well:
@@ -72,14 +72,14 @@ then ``cplus A (f x ↦ f x) (f x ↦ f x)`` (i.e. "1 + 1") doesn't reduce to ``
 .. code-block:: none
 
    echo (A f x ↦ cplus A (f x ↦ f x) (f x ↦ f x) f x)
-      : (A:Type) → (A → A) → (A → A)
+      : (A:Set) → (A → A) → (A → A)
   
    A f x ↦ f (f x)
-      : (A : Type) → (A → A) → A → A
+      : (A : Set) → (A → A) → A → A
 
 If there is significant demand for displaying function bodies, we may add an option to ask for η-expansion.
 
-More generally, the definition of a constant is not just a term, but something called a *case tree*, which can contain internal nodes of different sorts and ends in ordinary terms at its leaves.  Evaluation of such a constant, applied to arguments, does not reduce to anything unless the arguments are sufficient and sufficiently informative for the evaluation to reach a leaf.  In fact *every* defined constant in Narya is actually defined to equal a case tree, even if it consists only of a single leaf.
+More generally, the definition of a constant is not just a term, but something called a *case tree*, which can contain internal nodes of different sorts and ends in ordinary terms at its leaves.  Evaluation of such a constant, applied to arguments, does not reduce to anything unless the arguments are sufficient and sufficiently informative for the evaluation to reach a leaf.  In fact *every* defined constant in Agdarya is actually defined to equal a case tree, even if it consists only of a single leaf.
 
 So far, the only kinds of case tree node we have seen are abstractions and let-bindings.  The requirement for abstractions in a case tree to reduce is just that the function receives enough arguments to β-reduce all the abstractions, and let-bindings in a case tree reduce if their body does.  Thus, in particular, an abstraction directly inside a let-binding, such as that over ``y`` above, must also receive an argument before the definition reduces.  Other kinds of case tree nodes, with their own reduction rules, include :ref:`tuples`, :ref:`matches<matching>`, and :ref:`comatches<copattern matching>`.
 
@@ -97,14 +97,14 @@ the abstractions over ``x`` and ``y`` are part of the case tree, as is the let-b
 
 .. code-block:: none
    
-   def id (A:Type) : A → A
+   def id (A:Set) : A → A
         ≔ ((f ↦ f) : (A → A) → (A → A)) (x ↦ x)
 
 Since a function application cannot be part of a case tree, it goes into the body term, including the abstraction over ``f``; thus ``id A`` will reduce to ``x ↦ x``.  Unfortunately the identity function has to be ascribed, as always whenever you write an explicit redex.  A slightly less verbose way to achieve this is to let-bind the abstraction to a variable and then return the variable, since let-bindings are fully evaluated before being assigned to a variable:
 
 .. code-block:: none
    
-   def id (A:Type) : A → A
+   def id (A:Set) : A → A
         ≔ let id' : A → A ≔ (x ↦ x) in id'
 
 However, the type ``A → A`` still has to be written again, since a let-binding must synthesize.  If there is significant demand for it, we may implement a less kludgy way to force transitioning from case tree nodes to a leaf.

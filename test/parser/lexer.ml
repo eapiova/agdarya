@@ -8,17 +8,60 @@ let () =
   assert (lex "a b c" = [ (Ident [ "a" ], []); (Ident [ "b" ], []); (Ident [ "c" ], []) ]);
   assert (lex "A->C" = [ (Ident [ "A" ], []); (Arrow, []); (Ident [ "C" ], []) ]);
   assert (lex "A→C" = [ (Ident [ "A" ], []); (Arrow, []); (Ident [ "C" ], []) ]);
+  assert (lex "_+_" = [ (Ident [ "_+_" ], []) ]);
+  assert (lex "-_" = [ (Ident [ "-_" ], []) ]);
+  assert (lex "_!" = [ (Ident [ "_!" ], []) ]);
+  assert (lex "foo_bar" = [ (Ident [ "foo_bar" ], []) ]);
+  assert (lex "Nat._+_" = [ (Ident [ "Nat"; "_+_" ], []) ]);
+  assert (lex "+" = [ (Op "+", []) ]);
+  assert (lex "(_:Nat)" = [ (LParen, []); (Underscore, []); (Colon, []); (Ident [ "Nat" ], []); (RParen, []) ]);
 
   assert (
-    lex "(A\u{21A6}C0) .d"
+    lex "(A\u{21A6}C0) .1"
     = [
         (LParen, []);
         (Ident [ "A" ], []);
         (Mapsto, []);
         (Ident [ "C0" ], []);
         (RParen, []);
-        (Field ("d", []), []);
+        (Field ("1", []), []);
       ]);
+
+  assert (
+    lex "head⟨e,f⟩"
+    = [
+        (Ident [ "head" ], []);
+        (LAngle, []);
+        (Ident [ "e" ], []);
+        (Op ",", []);
+        (Ident [ "f" ], []);
+        (RAngle, []);
+      ]);
+
+  let removed_field_dot =
+    Core.Reporter.try_with
+      ~fatal:(fun d ->
+        match d.message with
+        | Field_dot_syntax_removed ".d" -> true
+        | _ ->
+            Core.Reporter.display d;
+            raise (Failure "unexpected lexer error"))
+    @@ fun () ->
+    let _ = lex "(A\u{21A6}C0) .d" in
+    false in
+  assert removed_field_dot;
+
+  let removed_higher_field_dot =
+    Core.Reporter.try_with ~fatal:(fun _ -> true) @@ fun () ->
+    let _ = lex ".head.e" in
+    false in
+  assert removed_higher_field_dot;
+
+  let removed_multi_higher_field_dot =
+    Core.Reporter.try_with ~fatal:(fun _ -> true) @@ fun () ->
+    let _ = lex ".head..e.f" in
+    false in
+  assert removed_multi_higher_field_dot;
 
   assert (
     lex "th(ns24$#*430-}aqo0[eouOEU){OE)(@@!()#"
@@ -45,7 +88,7 @@ let () =
       ]);
 
   assert (
-    lex "this is ` a line comment\n  starting another \"line\""
+    lex "this is -- a line comment\n  starting another \"line\""
     = [
         (Ident [ "this" ], []);
         (Ident [ "is" ], [ `Line " a line comment" ]);
@@ -56,7 +99,7 @@ let () =
 
   assert (
     lex
-      "this is {` a block \n comment spanning \n multiple lines `} ` with a line comment\n and_more-code"
+      "this is {- a block \n comment spanning \n multiple lines -} -- with a line comment\n and_more-code"
     = [
         (Ident [ "this" ], []);
         ( Ident [ "is" ],
@@ -68,11 +111,11 @@ let () =
       ]);
 
   assert (
-    lex "block comments {` can contain ` line comments \n and {` nest `} arbitrarily `} \n see?"
+    lex "block comments {- can contain -- line comments \n and {- nest -} arbitrarily -} \n see?"
     = [
         (Ident [ "block" ], []);
         ( Ident [ "comments" ],
-          [ `Block " can contain ` line comments \n and {` nest `} arbitrarily "; `Newlines 1 ] );
+          [ `Block " can contain -- line comments \n and {- nest -} arbitrarily "; `Newlines 1 ] );
         (Ident [ "see" ], []);
         (Hole { number = None; contents = None }, []);
       ]);
@@ -91,17 +134,17 @@ let () =
       ]);
 
   assert (
-    lex "hole ¿ containing ` ! comments ʔ"
+    lex "hole ¿ containing -- ! comments ʔ"
     = [
         (Ident [ "hole" ], []);
-        (Hole { number = None; contents = Some "¿ containing ` ! comments ʔ" }, []);
+        (Hole { number = None; contents = Some "¿ containing -- ! comments ʔ" }, []);
       ]);
 
   assert (
-    lex "hole ¿ containing {` ! `} comment ʔ"
+    lex "hole ¿ containing {- ! -} comment ʔ"
     = [
         (Ident [ "hole" ], []);
-        (Hole { number = None; contents = Some "¿ containing {` ! `} comment ʔ" }, []);
+        (Hole { number = None; contents = Some "¿ containing {- ! -} comment ʔ" }, []);
       ]);
 
   assert (
@@ -111,19 +154,19 @@ let () =
         (Hole { number = None; contents = Some "¿ containing ¿ nested ʔ holes ʔ" }, []);
       ]);
 
-  assert (lex "hole ` ¿ commented ʔ" = [ (Ident [ "hole" ], [ `Line " ¿ commented ʔ" ]) ]);
+  assert (lex "hole -- ¿ commented ʔ" = [ (Ident [ "hole" ], [ `Line " ¿ commented ʔ" ]) ]);
 
   assert (
-    lex "block comments {` nest `{` even after `} backquotes `} see?"
+    lex "block comments {- nest `{- even after -} backquotes -} see?"
     = [
         (Ident [ "block" ], []);
-        (Ident [ "comments" ], [ `Block " nest `{` even after `} backquotes " ]);
+        (Ident [ "comments" ], [ `Block " nest `{- even after -} backquotes " ]);
         (Ident [ "see" ], []);
         (Hole { number = None; contents = None }, []);
       ]);
 
   assert (
-    lex "block comments {`} can start with a lbrace `} see?"
+    lex "block comments {-} can start with a lbrace -} see?"
     = [
         (Ident [ "block" ], []);
         (Ident [ "comments" ], [ `Block "} can start with a lbrace " ]);
@@ -132,30 +175,34 @@ let () =
       ]);
 
   assert (
-    lex "block ` comments {` don't start in \n line comments"
+    lex "block -- comments {- don't start in \n line comments"
     = [
-        (Ident [ "block" ], [ `Line " comments {` don't start in " ]);
+        (Ident [ "block" ], [ `Line " comments {- don't start in " ]);
         (Ident [ "line" ], []);
         (Ident [ "comments" ], []);
       ]);
 
   assert (
-    lex "block \"comments {` don't start in\" strings"
+    lex "block \"comments {- don't start in\" strings"
     = [
-        (Ident [ "block" ], []); (String "comments {` don't start in", []); (Ident [ "strings" ], []);
+        (Ident [ "block" ], []); (String "comments {- don't start in", []); (Ident [ "strings" ], []);
       ]);
 
   assert (
-    lex "block {` comment `{{` nested ``} done `} over"
-    = [ (Ident [ "block" ], [ `Block " comment `{{` nested ``} done " ]); (Ident [ "over" ], []) ]);
+    lex "block {- comment -{{-- nested ---} done -} over"
+    = [ (Ident [ "block" ], [ `Block " comment -{{-- nested ---} done " ]); (Ident [ "over" ], []) ]);
 
   assert (lex "  initial space" = [ (Ident [ "initial" ], []); (Ident [ "space" ], []) ]);
 
   assert (
-    lex "Block comments {` can end the file `}"
+    lex "Block comments {- can end the file -}"
     = [ (Ident [ "Block" ], []); (Ident [ "comments" ], [ `Block " can end the file " ]) ]);
 
-  assert (nolex "Unterminated {` block comment" = [ ("any character", None) ]);
+  assert (nolex "Unterminated {- block comment" = [ ("any character", None) ]);
+
+  assert (
+    lex "{-# OPTIONS --unicode #-}"
+    = [ (PragmaOpen, []); (Ident [ "OPTIONS" ], []); (Op "--", []); (Ident [ "unicode" ], []); (PragmaClose, []) ]);
 
   assert (
     lex "let x := a in b : coo"
@@ -174,8 +221,8 @@ let () =
   assert (lexbof "" = [ (Bof, []) ]);
   assert (lexbof " " = [ (Bof, []) ]);
   assert (lexbof "\n" = [ (Bof, [ `Newlines 1 ]) ]);
-  assert (lexbof "` line comment\n" = [ (Bof, [ `Line " line comment" ]) ]);
-  assert (lexbof "` line comment" = [ (Bof, [ `Line " line comment" ]) ]);
+  assert (lexbof "-- line comment\n" = [ (Bof, [ `Line " line comment" ]) ]);
+  assert (lexbof "-- line comment" = [ (Bof, [ `Line " line comment" ]) ]);
   assert (lex "x^^(1-2)" = [ (Ident [ "x" ], []); (Superscript "1-2", []) ]);
 
   assert (

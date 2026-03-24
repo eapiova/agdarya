@@ -1,27 +1,27 @@
-The parsing of "(X:Type)->Y" is technically ambiguous: in addition to
+The parsing of "(X:Set)->Y" is technically ambiguous: in addition to
 a dependent function-type, it could be a non-dependent function type
 with ascribed domain.  We always interpret it as a dependent
 function-type, but to get the non-dependent version you can add extra
 parentheses.
 
-  $ narya -e 'def A := Type axiom x : Type axiom B : Type echo (x:A) -> B'
-  (x : Type) → B
-    : Type
+  $ agdarya -e 'A : Set' -e 'A = Set' -e 'postulate x : Set' -e 'postulate B : Set' -e 'echo (x:A) -> B'
+  (x : Set) → B
+    : Set
   
 
-  $ narya -e 'def A := Type axiom x : Type axiom B : Type echo ((x:A)) -> B'
+  $ agdarya -e 'A : Set' -e 'A = Set' -e 'postulate x : Set' -e 'postulate B : Set' -e 'echo ((x:A)) -> B'
   x → B
-    : Type
+    : Set
   
 
-  $ narya -e 'def A := Type axiom x : Type axiom B : Type echo ((x):A) -> B'
+  $ agdarya -e 'A : Set' -e 'A = Set' -e 'postulate x : Set' -e 'postulate B : Set' -e 'echo ((x):A) -> B'
   x → B
-    : Type
+    : Set
   
 
 There was once a bug with expressions like this, so we test for it.
 
-  $ narya -e "echo (A:Type) → (A:Type) → A"
-  (A : Type) (A′ : Type) → A′
-    : Type
+  $ agdarya -e "echo (A:Set) → (A:Set) → A"
+  (A : Set) (A′ : Set) → A′
+    : Set
   

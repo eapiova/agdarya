@@ -1,4 +1,4 @@
-  $ narya -v constants.ny
+  $ agdarya -v constants.ny
    ￫ info[I0000]
    ￮ constant CN defined
   
@@ -45,16 +45,16 @@
    ￮ constant zero_zero_snd_eq_zero defined
   
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom B assumed
+   ￮ postulate B assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ info[I0001]
-   ￮ axiom b assumed
+   ￮ postulate b assumed
   
    ￫ info[I0000]
    ￮ constant ab defined
@@ -165,7 +165,7 @@
    ￮ constant abort2 defined
   
    ￫ info[I0001]
-   ￮ axiom f assumed
+   ￮ postulate f assumed
   
    ￫ info[I0000]
    ￮ constant reflf defined
@@ -269,17 +269,23 @@
    ￫ info[I0000]
    ￮ constant coconcat defined
   
-  $ narya constants.ny -e "def one_eq_zero : Id CN one zero := refl one" 
+   ￫ warning[W2305]
+   ￮ can't write compiled file: $TESTCASE_ROOT/constants.nyo
+  
+  $ agdarya constants.ny -e "one_eq_zero : Id CN one zero" -e "one_eq_zero = refl one" 
+   ￫ warning[W2305]
+   ￮ can't write compiled file: $TESTCASE_ROOT/constants.nyo
+  
    ￫ error[E0401]
    ￭ command-line exec string
-   1 | def one_eq_zero : Id CN one zero := refl one
+   1 | one_eq_zero = refl one
      ^ term synthesized type
-         {A₀ : Type} {A₁ : Type} (A₂ : Type⁽ᵉ⁾ A₀ A₁) {𝑥₀ : A₀ → A₀} {𝑥₁ : A₁ → A₁}
+         {A₀ : Set} {A₁ : Set} (A₂ : Set⁽ᵉ⁾ A₀ A₁) {𝑥₀ : A₀ → A₀} {𝑥₁ : A₁ → A₁}
          (𝑥₂ : {𝑦₀ : A₀} {𝑦₁ : A₁} (𝑦₂ : A₂ 𝑦₀ 𝑦₁) →⁽ᵉ⁾ A₂ (𝑥₀ 𝑦₀) (𝑥₁ 𝑦₁)) {𝑦₀ : A₀}
          {𝑦₁ : A₁} (𝑦₂ : A₂ 𝑦₀ 𝑦₁)
          →⁽ᵉ⁾ A₂ (𝑥₀ 𝑦₀) (𝑥₁ 𝑦₁)
        but is being checked against type
-         {A₀ : Type} {A₁ : Type} (A₂ : Type⁽ᵉ⁾ A₀ A₁) {𝑥₀ : A₀ → A₀} {𝑥₁ : A₁ → A₁}
+         {A₀ : Set} {A₁ : Set} (A₂ : Set⁽ᵉ⁾ A₀ A₁) {𝑥₀ : A₀ → A₀} {𝑥₁ : A₁ → A₁}
          (𝑥₂ : {𝑦₀ : A₀} {𝑦₁ : A₁} (𝑦₂ : A₂ 𝑦₀ 𝑦₁) →⁽ᵉ⁾ A₂ (𝑥₀ 𝑦₀) (𝑥₁ 𝑦₁)) {𝑦₀ : A₀}
          {𝑦₁ : A₁} (𝑦₂ : A₂ 𝑦₀ 𝑦₁)
          →⁽ᵉ⁾ A₂ (𝑥₀ 𝑦₀) 𝑦₁
@@ -289,17 +295,20 @@
          𝑦
   
   [1]
-  $ narya constants.ny -e "def cplus_one_two_eq_two : Id CN (cplus one two) two := refl two"
+  $ agdarya constants.ny -e "cplus_one_two_eq_two : Id CN (cplus one two) two" -e "cplus_one_two_eq_two = refl two"
+   ￫ warning[W2305]
+   ￮ can't write compiled file: $TESTCASE_ROOT/constants.nyo
+  
    ￫ error[E0401]
    ￭ command-line exec string
-   1 | def cplus_one_two_eq_two : Id CN (cplus one two) two := refl two
+   1 | cplus_one_two_eq_two = refl two
      ^ term synthesized type
-         {A₀ : Type} {A₁ : Type} (A₂ : Type⁽ᵉ⁾ A₀ A₁) {𝑥₀ : A₀ → A₀} {𝑥₁ : A₁ → A₁}
+         {A₀ : Set} {A₁ : Set} (A₂ : Set⁽ᵉ⁾ A₀ A₁) {𝑥₀ : A₀ → A₀} {𝑥₁ : A₁ → A₁}
          (𝑥₂ : {𝑦₀ : A₀} {𝑦₁ : A₁} (𝑦₂ : A₂ 𝑦₀ 𝑦₁) →⁽ᵉ⁾ A₂ (𝑥₀ 𝑦₀) (𝑥₁ 𝑦₁)) {𝑦₀ : A₀}
          {𝑦₁ : A₁} (𝑦₂ : A₂ 𝑦₀ 𝑦₁)
          →⁽ᵉ⁾ A₂ (𝑥₀ (𝑥₀ 𝑦₀)) (𝑥₁ (𝑥₁ 𝑦₁))
        but is being checked against type
-         {A₀ : Type} {A₁ : Type} (A₂ : Type⁽ᵉ⁾ A₀ A₁) {𝑥₀ : A₀ → A₀} {𝑥₁ : A₁ → A₁}
+         {A₀ : Set} {A₁ : Set} (A₂ : Set⁽ᵉ⁾ A₀ A₁) {𝑥₀ : A₀ → A₀} {𝑥₁ : A₁ → A₁}
          (𝑥₂ : {𝑦₀ : A₀} {𝑦₁ : A₁} (𝑦₂ : A₂ 𝑦₀ 𝑦₁) →⁽ᵉ⁾ A₂ (𝑥₀ 𝑦₀) (𝑥₁ 𝑦₁)) {𝑦₀ : A₀}
          {𝑦₁ : A₁} (𝑦₂ : A₂ 𝑦₀ 𝑦₁)
          →⁽ᵉ⁾ A₂ (𝑥₀ (𝑥₀ (𝑥₀ 𝑦₀))) (𝑥₁ (𝑥₁ 𝑦₁))
@@ -309,10 +318,13 @@
          𝑥
   
   [1]
-  $ narya constants.ny -e "def ∞eta_bisim' : Id (Stream A → Stream A) (s ↦ s) (s ↦ ∞eta s) ≔ refl (s ↦ ∞eta s)"
+  $ agdarya constants.ny -e "∞eta_bisim' : Id (Stream A → Stream A) (λ s → s) (λ s → ∞eta s)" -e "∞eta_bisim' = refl (λ s → ∞eta s)"
+   ￫ warning[W2305]
+   ￮ can't write compiled file: $TESTCASE_ROOT/constants.nyo
+  
    ￫ error[E0401]
    ￭ command-line exec string
-   1 | def ∞eta_bisim' : Id (Stream A → Stream A) (s ↦ s) (s ↦ ∞eta s) ≔ refl (s ↦ ∞eta s)
+   1 | ∞eta_bisim' = refl (λ s → ∞eta s)
      ^ term synthesized type
          {𝑥₀ : Stream A} {𝑥₁ : Stream A} (𝑥₂ : Stream⁽ᵉ⁾ (Id A) 𝑥₀ 𝑥₁)
          →⁽ᵉ⁾ Stream⁽ᵉ⁾ (Id A) (∞eta 𝑥₀) (∞eta 𝑥₁)
@@ -325,10 +337,13 @@
          𝑥
   
   [1]
-  $ narya constants.ny -e "def refl_nat_eq_sample : Id (ℕ → Id ((x:A)→B x) f f) (refl_nat_f) (refl_nat_f_cube) ≔ refl refl_nat_f"
+  $ agdarya constants.ny -e "refl_nat_eq_sample : Id (ℕ → Id ((x:A)→B x) f f) (refl_nat_f) (refl_nat_f_cube)" -e "refl_nat_eq_sample = refl refl_nat_f"
+   ￫ warning[W2305]
+   ￮ can't write compiled file: $TESTCASE_ROOT/constants.nyo
+  
    ￫ error[E0401]
    ￭ command-line exec string
-   1 | def refl_nat_eq_sample : Id (ℕ → Id ((x:A)→B x) f f) (refl_nat_f) (refl_nat_f_cube) ≔ refl refl_nat_f
+   1 | refl_nat_eq_sample = refl refl_nat_f
      ^ term synthesized type
          {𝑥₀ : ℕ} {𝑥₁ : ℕ} (𝑥₂ : ℕ⁽ᵉ⁾ 𝑥₀ 𝑥₁)
          →⁽ᵉ⁾ {x₀₀ : A} {x₀₁ : A} {x₀₂ : Id A x₀₀ x₀₁} {x₁₀ : A} {x₁₁ : A}

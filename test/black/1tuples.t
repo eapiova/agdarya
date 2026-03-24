@@ -1,19 +1,27 @@
   $ cat >wrap.ny <<EOF
-  > axiom A:Type
-  > axiom a:A
-  > def wrapA : Type := sig ( unwrap : A)
-  > def wa1 : wrapA := (unwrap := a)
-  > def wa2 : wrapA := (_ := a)
-  > def wa3 : wrapA := (a,)
-  > def wa4 : wrapA := (a)
+  > postulate A:Set
+  > postulate a:A
+  > record wrapA : Set where { field unwrap : A }
+  > 
+  > wa1 : wrapA
+  > wa1 = (unwrap ≔ a)
+  > 
+  > wa2 : wrapA
+  > wa2 = (_ ≔ a)
+  > 
+  > wa3 : wrapA
+  > wa3 = (a,)
+  > 
+  > wa4 : wrapA
+  > wa4 = (a)
   > EOF
 
-  $ narya -v wrap.ny
+  $ agdarya -v wrap.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ info[I0000]
    ￮ constant wrapA defined
@@ -29,7 +37,7 @@
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/wrap.ny
-   7 | def wa4 : wrapA := (a)
+   1 | wa4 = (a)
      ^ term synthesized type
          A
        but is being checked against type

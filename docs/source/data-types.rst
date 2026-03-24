@@ -4,11 +4,11 @@ Inductive datatypes and matching
 Defining datatypes
 ------------------
 
-An inductive datatype is defined by a number of *constructors*, each with a declared type that must be an iterated function-type whose eventual codomain is the datatype itself.  A constant of type ``Type`` can be defined to be a datatype in a ``def`` statement by using the keyword ``data`` and listing the constructors with their types in square brackets, separated by bars.  For instance, we can define the booleans:
+An inductive datatype is defined by a number of *constructors*, each with a declared type that must be an iterated function-type whose eventual codomain is the datatype itself.  A constant of type ``Set`` can be defined to be a datatype in a ``def`` statement by using the keyword ``data`` and listing the constructors with their types in square brackets, separated by bars.  For instance, we can define the booleans:
 
 .. code-block:: none
 
-   def Bool : Type ≔ data [
+   def Bool : Set ≔ data [
    | true. : Bool
    | false. : Bool
    ]
@@ -23,7 +23,7 @@ Datatypes can have parameters:
 
 .. code-block:: none
 
-   def Sum (A B : Type) : Type ≔ data [
+   def Sum (A B : Set) : Set ≔ data [
    | inl. : A → Sum A B
    | inr. : B → Sum A B
    ]
@@ -32,7 +32,7 @@ As with records, this is equivalent to
 
 .. code-block:: none
 
-   def Sum : Type → Type → Type ≔ A B ↦ data [
+   def Sum : Set → Set → Set ≔ A B ↦ data [
    | inl. : A → Sum A B
    | inr. : B → Sum A B
    ]
@@ -43,7 +43,7 @@ The arguments of each constructor can also be written as parameters before its c
 
 .. code-block:: none
 
-   def Sum (A B : Type) : Type ≔ data [
+   def Sum (A B : Set) : Set ≔ data [
    | inl. (a : A) : Sum A B
    | inr. (b : B) : Sum A B
    ]
@@ -52,7 +52,7 @@ When all the arguments (if any) are written this way, the output type can be omi
 
 .. code-block:: none
 
-   def Sum (A B : Type) : Type ≔ data [
+   def Sum (A B : Set) : Set ≔ data [
    | inl. (a : A)
    | inr. (b : B)
    ]
@@ -69,7 +69,7 @@ Datatypes can be recursive, meaning the inputs of a constructor can involve the 
 
 .. code-block:: none
 
-   def ℕ : Type ≔ data [
+   def ℕ : Set ≔ data [
    | zero.
    | suc. (_ : ℕ)
    ]
@@ -78,7 +78,7 @@ and the type of lists:
 
 .. code-block:: none
 
-   def List (A:Type) : Type ≔ data [
+   def List (A:Set) : Set ≔ data [
    | nil.
    | cons. (x : A) (xs: List A)
    ]
@@ -89,13 +89,13 @@ A datatype can have zero constructors, yielding an empty type:
 
 .. code-block:: none
 
-   def ⊥ : Type ≔ data [ ]
+   def ⊥ : Set ≔ data [ ]
 
 Finally, a datatype can also have *indices*, which are arguments of its type that are not abstracted over (either as parameters, or with ↦ after the ≔) before issuing the ``data`` keyword.  In this case, all the constructors must include an explicit output type that specifies the values of the indices for that constructor (and also includes all the parameters explicitly, although these cannot differ between constructors).  For instance, we have vectors (length-indexed lists):
 
 .. code-block:: none
 
-   def Vec (A:Type) : ℕ → Type ≔ data [
+   def Vec (A:Set) : ℕ → Set ≔ data [
    | nil. : Vec A zero.
    | cons. : (n:ℕ) → A → Vec A n → Vec A (suc. n)
    ]
@@ -104,7 +104,7 @@ As always for parameters of ``def``, this is equivalent to
 
 .. code-block:: none
 
-   def Vec : Type → ℕ → Type ≔ A ↦ data [
+   def Vec : Set → ℕ → Set ≔ A ↦ data [
    | nil. : Vec A zero.
    | cons. : (n:ℕ) → A → Vec A n → Vec A (suc. n)
    ]
@@ -115,7 +115,7 @@ The other classic example of a datatype with an index is the "Jdentity" type, in
 
 .. code-block:: none
    
-   def Jd (A:Type) : A → A → Type ≔ data [
+   def Jd (A:Set) : A → A → Set ≔ data [
    | rfl. (a:A) : Jd A a a
    ]
 
@@ -123,7 +123,7 @@ or Paulin-Möhring style:
 
 .. code-block:: none
 
-   def Jd (A:Type) (a:A) : A → Type ≔ data [
+   def Jd (A:Set) (a:A) : A → Set ≔ data [
    | rfl. : Jd A a a
    ]
 
@@ -138,7 +138,7 @@ Constructors check rather than synthesizing.  As usual with checking terms, one 
 If a constructor is not applied to all of its arguments, it can check at an appropriate function-type.  For instance:
 
 - ``suc.`` checks at type ``ℕ → ℕ``.
-- ``cons.`` checks at type ``A → List A → List A`` for any fixed type ``A`` (but not at a generic type like ``(A : Type) → A → List A → List A``, since the parameter ``A`` is never an argument of the constructor).
+- ``cons.`` checks at type ``A → List A → List A`` for any fixed type ``A`` (but not at a generic type like ``(A : Set) → A → List A → List A``, since the parameter ``A`` is never an argument of the constructor).
 - For any fixed type ``A``, if ``x : A``, then ``cons. x`` checks at type ``List A → List A``.
 
 What actually happens in this case is that the constructor is automatically eta-expanded as necessary, so ``suc.`` becomes ``n ↦ suc. n`` and so on.  This can be convenient, but one should be careful when thinking of ``suc.`` as a function, since unlike ordinary functions it does not synthesize, and indeed can check at other types like ``W → W`` for any datatype ``W`` with a one-argument constructor named ``suc.``.
@@ -153,8 +153,8 @@ Decimal number literals such as ``0.5`` and ``2.3`` are similarly expanded at pa
 
 .. code-block:: none
 
-   def ℕ₊ : Type ≔ data [ one. | suc. (_ : ℕ₊) ]
-   def ℚ₀₊ : Type ≔ data [ zero. | suc. (_ : ℕ) | quot. (_ : ℕ) (_ : ℕ₊) ]
+   def ℕ₊ : Set ≔ data [ one. | suc. (_ : ℕ₊) ]
+   def ℚ₀₊ : Set ≔ data [ zero. | suc. (_ : ℕ) | quot. (_ : ℕ) (_ : ℕ₊) ]
 
 Of course this is not a correct representation of non-negative rational numbers without either an extra parameter of ``quot.`` ensuring that the fraction is in lowest terms or a higher constructor that equates equal fractions, neither of which can be implemented yet.  Also note that mathematically, the constructors ``zero.`` and ``suc.`` are redundant since ``quot. n one.`` also embeds the natural numbers, but are currently necessary for whole number literals to typecheck at ``ℚ₀₊`` since they are translated using ``suc.`` and ``zero.``.
 
@@ -175,7 +175,7 @@ When a new constant is defined as a function with arguments that belong to datat
 
 .. code-block:: none
 
-   def Sum.swap (A B : Type) (x : A ⊔ B) : B ⊔ A ≔ match x [
+   def Sum.swap (A B : Set) (x : A ⊔ B) : B ⊔ A ≔ match x [
    | inl. a ↦ inr. a
    | inr. b ↦ inl. b
    ]
@@ -184,7 +184,7 @@ The ``|`` before the first branch is optional.  Each branch is determined by one
 
 .. code-block:: none
 
-   def Sum.assoc (A B C : Type) (x : (A ⊔ B) ⊔ C) : A ⊔ (B ⊔ C) ≔ match x [
+   def Sum.assoc (A B C : Set) (x : (A ⊔ B) ⊔ C) : A ⊔ (B ⊔ C) ≔ match x [
    | inl. y ↦ match y [
      | inl. a ↦ inl. a
      | inr. b ↦ inr. (inl. b)
@@ -196,7 +196,7 @@ By omitting the keyword ``match`` and the variable name, it is possible to abstr
 
 .. code-block:: none
 
-   def Sum.swap (A B : Type) : A ⊔ B → B ⊔ A ≔ [
+   def Sum.swap (A B : Set) : A ⊔ B → B ⊔ A ≔ [
    | inl. a ↦ inr. a
    | inr. b ↦ inl. b 
    ]
@@ -207,15 +207,15 @@ If a :ref:`notation<Mixfix notations>` has been defined for a constructor, that 
 
 .. code-block:: none
 
-   def List (A : Type) : Type := data [ nil. | cons. (_ : A) (_ : List A) ]
+   def List (A : Set) : Set := data [ nil. | cons. (_ : A) (_ : List A) ]
 
    notation(0) x "∷" xs ≔ cons. x xs
 
-   def concat (A : Type) (xs ys : List A) : List A ≔ match xs [
+   def concat (A : Set) (xs ys : List A) : List A ≔ match xs [
    | nil. ↦ ys
    | x ∷ xs ↦ x ∷ (concat A xs ys) ]
 
-(The traditional notation ``[]`` for ``nil.`` is unavailable in Narya since it would be ambiguous with an empty pattern-matching abstraction.)
+(The traditional notation ``[]`` for ``nil.`` is unavailable in Agdarya since it would be ambiguous with an empty pattern-matching abstraction.)
 
 
 Matching and case trees
@@ -265,7 +265,7 @@ It is possible to condense a sequence of nested matches into a single one.  For 
 
 .. code-block:: none
 
-   def Sum.assoc (A B C : Type) (x : (A ⊔ B) ⊔ C) : A ⊔ (B ⊔ C) ≔ match x [
+   def Sum.assoc (A B C : Set) (x : (A ⊔ B) ⊔ C) : A ⊔ (B ⊔ C) ≔ match x [
    | inl. (inl. a) ↦ inl. a
    | inl. (inr. b) ↦ inr. (inl. b)
    | inr. c        ↦ inr. (inr. c)
@@ -311,9 +311,9 @@ All the pattern variables of each branch must be distinct: they cannot shadow ea
 
 .. code-block:: none
 
-   def prod' (A B : Type) : Type ≔ data [ pair. (_:A) (_:B) ]
+   def prod' (A B : Set) : Set ≔ data [ pair. (_:A) (_:B) ]
 
-   def proj31 (A B C : Type) (u : prod' (prod' A B) C) : A ≔ match u [
+   def proj31 (A B C : Set) (u : prod' (prod' A B) C) : A ≔ match u [
    | pair. (pair. x y) z ↦ x
    ]
 
@@ -321,7 +321,7 @@ would expand to
 
 .. code-block:: none
 
-   def proj31 (A B C : Type) (u : prod' (prod' A B) C) : A ≔ match u [
+   def proj31 (A B C : Set) (u : prod' (prod' A B) C) : A ≔ match u [
    | pair. H z ↦ match H [
      | (pair. x y) ↦ x
      ]
@@ -374,13 +374,13 @@ The patterns in a match are not allowed to overlap.  This is in contrast to Agda
 
 .. code-block:: none
 
-   -- This is Agda, not Narya
+   -- This is Agda, not Agdarya
    max : Nat → Nat → Nat
    max zero    n       = n
    max m       zero    = m
    max (suc m) (suc n) = suc (max m n)
 
-The analogous Narya code
+The analogous Agdarya code
 
 .. code-block:: none
 
@@ -413,7 +413,7 @@ so that it can be expanded to the nested match
      ]
    ]
 
-In fact, this expansion is also what Agda does internally, even when presented with the first definition above (see the `Agda manual <https://agda.readthedocs.io/en/v2.6.4.3-r1/language/function-definitions.html#case-trees>`_).  This means that in Agda, not all the clauses in such a definition may hold definitionally, e.g. ``max m zero`` is not convertible with ``m`` when ``m`` is a variable.  For this reason Agda has the ``--exact-split`` flag that prevents such clauses.  Narya *always* insists on "exact splits", and this is unlikely to change: we regard it as a feature.
+In fact, this expansion is also what Agda does internally, even when presented with the first definition above (see the `Agda manual <https://agda.readthedocs.io/en/v2.6.4.3-r1/language/function-definitions.html#case-trees>`_).  This means that in Agda, not all the clauses in such a definition may hold definitionally, e.g. ``max m zero`` is not convertible with ``m`` when ``m`` is a variable.  For this reason Agda has the ``--exact-split`` flag that prevents such clauses.  Agdarya *always* insists on "exact splits", and this is unlikely to change: we regard it as a feature.
 
 
 Empty types and refutation cases
@@ -440,19 +440,19 @@ If we rewrite this as a deep match, each branch of the outer match should be rep
    | inl. (inr. a) ↦ a
    ]
 
-In this example, this is not a problem, because Narya (like other proof assistants) can recognize from the type of ``x`` *and the fact that there is at least one* ``inl`` *branch* that there should also be an ``inr`` branch — and once there is an ``inr`` branch, it is straightforward to notice that the argument of ``inr`` is empty and thus can be matched against without needing any further branches.
+In this example, this is not a problem, because Agdarya (like other proof assistants) can recognize from the type of ``x`` *and the fact that there is at least one* ``inl`` *branch* that there should also be an ``inr`` branch — and once there is an ``inr`` branch, it is straightforward to notice that the argument of ``inr`` is empty and thus can be matched against without needing any further branches.
 
 This also works for multiple matches:
 
 .. code-block:: none
 
-   def P : A ⊔ B → Type ≔ [ inl. _ ↦ ⊤ | inr. _ ↦ ⊥ ]
+   def P : A ⊔ B → Set ≔ [ inl. _ ↦ ⊤ | inr. _ ↦ ⊥ ]
 
    def foo (u : A ⊔ B) (v : P u) : A ≔ match u, v [
    | inl. a, _ ↦ a
    ]
 
-Again the presence of an ``inl`` branch clues Narya in that there should also be an ``inr`` branch, and then it can notice that in this branch the type of ``v`` becomes empty.  The order of variables doesn't matter either:
+Again the presence of an ``inl`` branch clues Agdarya in that there should also be an ``inr`` branch, and then it can notice that in this branch the type of ``v`` becomes empty.  The order of variables doesn't matter either:
 
 .. code-block:: none
 
@@ -460,9 +460,9 @@ Again the presence of an ``inl`` branch clues Narya in that there should also be
    | _, inl. a ↦ a
    ]
 
-In general, when cases for one or more constructors are obviously missing from a match, Narya will inspect all the pattern variables and discriminees that would be available in that branch, and if it finds one whose type is empty, it inserts a match against that term.  Here by "empty" we mean that it was literally declared as a datatype with no constructors: there is no unification like in Agda to rule out impossible indices (although see the remarks about :ref:`Canonical types defined by case trees`).  This is the exception mentioned above in which the expansion of multiple and deep matches requires some typechecking information: namely, whether the type of some variable is an empty datatype.
+In general, when cases for one or more constructors are obviously missing from a match, Agdarya will inspect all the pattern variables and discriminees that would be available in that branch, and if it finds one whose type is empty, it inserts a match against that term.  Here by "empty" we mean that it was literally declared as a datatype with no constructors: there is no unification like in Agda to rule out impossible indices (although see the remarks about :ref:`Canonical types defined by case trees`).  This is the exception mentioned above in which the expansion of multiple and deep matches requires some typechecking information: namely, whether the type of some variable is an empty datatype.
 
-As a particular case, if any of the discriminees belong directly to an empty datatype, then all the branches can be omitted.  Similarly, an empty pattern-matching lambda abstraction ``[ ]`` can be a multivariable function, although in this case there are no branches to indicate the number of arguments; instead Narya inspects the possibly-iterated function type it is being checked at, looking through the domains one at a time until it finds an empty one.  Thus the following are both valid:
+As a particular case, if any of the discriminees belong directly to an empty datatype, then all the branches can be omitted.  Similarly, an empty pattern-matching lambda abstraction ``[ ]`` can be a multivariable function, although in this case there are no branches to indicate the number of arguments; instead Agdarya inspects the possibly-iterated function type it is being checked at, looking through the domains one at a time until it finds an empty one.  Thus the following are both valid:
 
 .. code-block:: none
 
@@ -471,7 +471,7 @@ As a particular case, if any of the discriminees belong directly to an empty dat
    def bar' : Bool → ⊥ → ⊥ ≔ [ ]
 
 
-However, Narya will not perform *additional* matches in order to expose an inhabitant of an empty datatype (this is probably an undecidable problem in general).  For example, consider the following nested match:
+However, Agdarya will not perform *additional* matches in order to expose an inhabitant of an empty datatype (this is probably an undecidable problem in general).  For example, consider the following nested match:
 
 .. code-block:: none
 
@@ -490,7 +490,7 @@ Rewriting this naïvely as as nested match would produce one with *zero* branche
      1 | def abort2 (u : ⊥ ⊔ ⊥) : A ≔ match u [ ]
       ^ missing match clause for constructor inl
 
-This is because in the absence of either an ``inl`` or an ``inr`` branch, and because the type of ``u`` is not syntactically empty (semantically it is empty, but it is not declared as a datatype with zero constructors), Narya can't guess that ``u`` has to be matched against in order to expose variables of type ⊥.
+This is because in the absence of either an ``inl`` or an ``inr`` branch, and because the type of ``u`` is not syntactically empty (semantically it is empty, but it is not declared as a datatype with zero constructors), Agdarya can't guess that ``u`` has to be matched against in order to expose variables of type ⊥.
 
 One solution to this, of course, is to write the nested match.  In fact, only one of its branches is needed, as then the other can be inferred:
 
@@ -500,7 +500,7 @@ One solution to this, of course, is to write the nested match.  In fact, only on
    | inl. e ↦ match e [ ]
    ]
 
-Another solution is to use a *refutation case*: if the body of a branch is a single dot ``.`` then Narya will search all of its pattern variables for one belonging to an empty type:
+Another solution is to use a *refutation case*: if the body of a branch is a single dot ``.`` then Agdarya will search all of its pattern variables for one belonging to an empty type:
 
 .. code-block:: none
 
@@ -531,7 +531,7 @@ For example, we can prove that natural number addition is associative:
    | suc. m' ↦ suc. (ℕ.plus.assoc m' n p)
    ]
 
-This proof uses the identity types of :ref:`Higher Observational Type Theory`.  But the point here is that in the ``suc.`` branch, the variable ``m`` is defined to equal ``suc. m'``, and this definition is substituted into the goal type ``Id ℕ ((m+n)+p) (m+(n+p))``, causing both additions to reduce one step.  You can see this by inserting a hole in this clause:
+This proof uses the identity types of :ref:`Higher Observational Set Theory`.  But the point here is that in the ``suc.`` branch, the variable ``m`` is defined to equal ``suc. m'``, and this definition is substituted into the goal type ``Id ℕ ((m+n)+p) (m+(n+p))``, causing both additions to reduce one step.  You can see this by inserting a hole in this clause:
 
 .. code-block:: none
 
@@ -553,7 +553,7 @@ As an example with indices, we can define appending of vectors:
 
 .. code-block:: none
 
-   def Vec.append (A : Type) (m n : ℕ) (v : Vec A m) (w : Vec A n)
+   def Vec.append (A : Set) (m n : ℕ) (v : Vec A m) (w : Vec A n)
      : Vec A (ℕ.plus m n)
      ≔ match v [
    | nil. ↦ w
@@ -563,7 +563,7 @@ Here the match against ``v`` falls into this case of matching because ``v`` and 
 
 .. code-block:: none
 
-   def Vec.append (A : Type) (m n : ℕ) (v : Vec A m) (w : Vec A n)
+   def Vec.append (A : Set) (m n : ℕ) (v : Vec A m) (w : Vec A n)
      : Vec A (ℕ.plus m n)
      ≔ match v [
    | nil. ↦ w
@@ -571,7 +571,7 @@ Here the match against ``v`` falls into this case of matching because ``v`` and 
    
         hole ?1 generated:
         
-        A : Type
+        A : Set
         n : ℕ
         w : Vec A n
         k : ℕ
@@ -590,17 +590,17 @@ The fact that the indices cannot occur in the parameters prevents us, for instan
 Non-dependent matches
 ---------------------
 
-It is also possible to match against a term that is not a free variable, or whose indices are not distinct free variables or occur in the parameters.  In this case Narya cannot guess how to refine the output type or other variables in the context, so it doesn't.  The term being matched against is not defined to equal anything (that doesn't even make sense); instead the pattern variables in each branch are simply introduced as new free variables unrelated to any previous ones, and the output type remains the same in each branch.  As a simple example, we can prove *ex falso quodlibet* without a helper function:
+It is also possible to match against a term that is not a free variable, or whose indices are not distinct free variables or occur in the parameters.  In this case Agdarya cannot guess how to refine the output type or other variables in the context, so it doesn't.  The term being matched against is not defined to equal anything (that doesn't even make sense); instead the pattern variables in each branch are simply introduced as new free variables unrelated to any previous ones, and the output type remains the same in each branch.  As a simple example, we can prove *ex falso quodlibet* without a helper function:
 
 .. code-block:: none
 
-   def ⊥ : Type ≔ data [ ]
+   def ⊥ : Set ≔ data [ ]
    
-   def efq (A C : Type) (a : A) (na : A → ⊥) : C ≔ match na a [ ]
+   def efq (A C : Set) (a : A) (na : A → ⊥) : C ≔ match na a [ ]
 
 Note that matching against a let-bound variable is equivalent to matching against its value, so it falls under this category.
 
-The fact that this kind of match uses the same syntax as the previous one means that if you intend to do a variable match, as above, but the conditions on the match variable and its indices are not satisfied, then Narya will fall back to trying this kind of match.  You will then probably get an error message due to the fact that the goal type didn't get refined in the branches the way you were expecting it to.  Narya tries to help you find bugs of this sort by emitting a hint when that sort of fallback happens.  If you really did mean to write a non-dependent match, you can silence the hint by writing ``match M return _ ↦ _`` (see :ref:`Explicitly dependent matches`).
+The fact that this kind of match uses the same syntax as the previous one means that if you intend to do a variable match, as above, but the conditions on the match variable and its indices are not satisfied, then Agdarya will fall back to trying this kind of match.  You will then probably get an error message due to the fact that the goal type didn't get refined in the branches the way you were expecting it to.  Agdarya tries to help you find bugs of this sort by emitting a hint when that sort of fallback happens.  If you really did mean to write a non-dependent match, you can silence the hint by writing ``match M return _ ↦ _`` (see :ref:`Explicitly dependent matches`).
 
 A variable match can only check, but a non-dependent match can also synthesize.  This requires at least one of the branch bodies to synthesize a type that does not depend on any of its pattern variables; then the other branches are checked against that same type, and it is the type synthesized by the whole match statement.  Writing a match that could have been a variable match but in a synthesizing context will also cause an automatic fallback to non-dependent matching, with a hint emitted.
 
@@ -610,7 +610,7 @@ Like the ordinary ``match`` command, a pattern-matching abstraction like ``def p
 Explicitly dependent matches
 ----------------------------
 
-Although Narya can't guess how to refine the output type when matching against a general term, you can tell it how to do so by writing ``match M return x ↦ P``.  Here ``x ↦ P`` (where ``P`` can involve ``x``) is a type family (called the *motive*) depending on a variable ``x`` belonging to the datatype (the type of ``M``).  If this datatype has indices, then variables to be bound to the indices must be included in the abstraction as well, e.g. ``match V return i v ↦ P`` for matching against a vector; this ensures that the motive of the elimination is fully general over the indexed datatype family.  Thus, this kind of match has roughly the same functionality as Coq's ``match M in T i as x return P``.
+Although Agdarya can't guess how to refine the output type when matching against a general term, you can tell it how to do so by writing ``match M return x ↦ P``.  Here ``x ↦ P`` (where ``P`` can involve ``x``) is a type family (called the *motive*) depending on a variable ``x`` belonging to the datatype (the type of ``M``).  If this datatype has indices, then variables to be bound to the indices must be included in the abstraction as well, e.g. ``match V return i v ↦ P`` for matching against a vector; this ensures that the motive of the elimination is fully general over the indexed datatype family.  Thus, this kind of match has roughly the same functionality as Coq's ``match M in T i as x return P``.
 
 Each branch of such a match is checked at the type obtained by substituting the corresponding constructor for ``x`` in the motive ``P``.  The entire match synthesizes the result of substituting the discriminee ``M`` for ``x`` in the motive ``P``.  For example, we could prove associativity of addition more verbosely as follows:
 
@@ -634,11 +634,11 @@ Matches in terms and case trees
 
 The other case tree constructs we have discussed, such as abstraction and tuples, can also occur in arbitrary locations in a term.  The same is true for matches, but the behavior of such matches is somewhat subtle.
 
-If ``match`` were an ordinary kind of term syntax, Narya would have to be able to check whether two ``match`` expressions are equal.  Matches don't satisfy η-conversion, so such an equality-check would have to descend into the branch bodies, and this would require *normalizing* those bodies.  Now suppose a function were defined recursively using a match outside its case tree; then it would evaluate to a match expression even if its argument is not a constructor, and it would appear itself in one of the branches of that match expression; thus, this would lead to an infinite regress of normalization.  This is probably not an impossible problem to solve (e.g. Coq has fixpoint terms and match terms and manages to check equality), but it would be complicated and does not seem worth the trouble.
+If ``match`` were an ordinary kind of term syntax, Agdarya would have to be able to check whether two ``match`` expressions are equal.  Matches don't satisfy η-conversion, so such an equality-check would have to descend into the branch bodies, and this would require *normalizing* those bodies.  Now suppose a function were defined recursively using a match outside its case tree; then it would evaluate to a match expression even if its argument is not a constructor, and it would appear itself in one of the branches of that match expression; thus, this would lead to an infinite regress of normalization.  This is probably not an impossible problem to solve (e.g. Coq has fixpoint terms and match terms and manages to check equality), but it would be complicated and does not seem worth the trouble.
 
-Narya's solution is similar to that of Agda: matches outside case trees are *generative*.  (Note that matches inside case trees are also generative in the sense that all constants defined by case trees are generative.)  Each textual occurrence of a match is, in effect, lifted to a top-level definition (actually, a metavariable) which contains the match *inside* its case tree, and therefore doesn't reduce to anything unless the discriminee is a constructor.  In particular, therefore, two such matches, even if they look identical, generate distinct lifted top-level definitions and thus are not definitionally equal (until their discriminees become constructors and they reduce to corresponding branches).  This sort of lifting allows us to say that, technically, ``match`` is *only* allowed in case trees, and any occurrences outside of case trees are silently elaborated into case trees.
+Agdarya's solution is similar to that of Agda: matches outside case trees are *generative*.  (Note that matches inside case trees are also generative in the sense that all constants defined by case trees are generative.)  Each textual occurrence of a match is, in effect, lifted to a top-level definition (actually, a metavariable) which contains the match *inside* its case tree, and therefore doesn't reduce to anything unless the discriminee is a constructor.  In particular, therefore, two such matches, even if they look identical, generate distinct lifted top-level definitions and thus are not definitionally equal (until their discriminees become constructors and they reduce to corresponding branches).  This sort of lifting allows us to say that, technically, ``match`` is *only* allowed in case trees, and any occurrences outside of case trees are silently elaborated into case trees.
 
-Narya attempts to be "smart" about such lifting in a couple of ways.  Firstly (and perhaps obviously), once a ``match`` is encountered in a term and lifted to the case tree of a top-level definition, that case tree continues as usual into the branches of the match, including all operations that are valid in case trees such as abstractions, tuples, and other matches, until it reaches a leaf that can't be a case tree node.  Thus, reduction of such a match is blocked not only on its own discriminee, but on those of all directly subsequent matches appearing in its branches.
+Agdarya attempts to be "smart" about such lifting in a couple of ways.  Firstly (and perhaps obviously), once a ``match`` is encountered in a term and lifted to the case tree of a top-level definition, that case tree continues as usual into the branches of the match, including all operations that are valid in case trees such as abstractions, tuples, and other matches, until it reaches a leaf that can't be a case tree node.  Thus, reduction of such a match is blocked not only on its own discriminee, but on those of all directly subsequent matches appearing in its branches.
 
 Secondly, if a ``match`` appears directly as the value of a ``let`` binding (or nested only inside other case tree constructs), then the *entire* value of the let-binding is lifted to top-level as a case tree definition, and then bound locally to the ``let`` variable.  Thus, ``let`` can be treated like a local version of ``def``, defining a function locally by a case tree that doesn't reduce until applied to enough arguments, field projections, and constructors.  Unlike a ``def``, however, the *default* behavior of ``let`` is to interpret its argument as a term rather than a case tree: it only interprets its argument as a case tree if there are case-tree-only constructs like ``match`` that *would* be included in it under such an interpretation.  Thus, for instance,
 
@@ -688,7 +688,7 @@ Currently, such local case trees are not printed very comprehensibly if they "es
 
 .. code-block:: none
 
-   axiom z : ℕ
+   postulate z : ℕ
    
    echo sqdec2 z
 
@@ -717,7 +717,7 @@ As noted above, such local case trees are generative: textually identical defini
 
 Note that both local functions are called ``_let.N.dec`` based on their name when defined, but their metavariable counters are different, and they are unequal.
 
-A match not occuring inside any ``let`` value doesn't even have a user-assigned name like ``dec``, so it is printed only with a number.  For instance, ``echo sqdec3`` from above will print something like ``sq (H ↦ _match.3{…})``.  Note that the dependence of the match on the variable (which Narya named ``H``) is not even indicated (it is hidden in the context substitution ``{…}``).  However, the advantage of matches of this sort is that, unlike the value of a let-bound variable, they can check rather than synthesize.
+A match not occuring inside any ``let`` value doesn't even have a user-assigned name like ``dec``, so it is printed only with a number.  For instance, ``echo sqdec3`` from above will print something like ``sq (H ↦ _match.3{…})``.  Note that the dependence of the match on the variable (which Agdarya named ``H``) is not even indicated (it is hidden in the context substitution ``{…}``).  However, the advantage of matches of this sort is that, unlike the value of a let-bound variable, they can check rather than synthesize.
 
-The printing of local case trees will hopefully be improved somewhat in future, but there is a limit to how much improvement is possible.  Moreover, overuse of local case trees can make it difficult to prove theorems about a function: facts one may need about its components cannot easily be separated out into lemmas since the pieces cannot easily be referred to.  Thus, while this sort of code can be convenient for programming, and in simple cases (such as ``match e [ ]`` to fill any checking context, given any ``e:⊥``), it is often better eschewed in favor of additional explicit global helper functions.  For this reason, Narya currently emits a hint whenever it detects a "bare" case-tree-only construct and interprets it in this way.
+The printing of local case trees will hopefully be improved somewhat in future, but there is a limit to how much improvement is possible.  Moreover, overuse of local case trees can make it difficult to prove theorems about a function: facts one may need about its components cannot easily be separated out into lemmas since the pieces cannot easily be referred to.  Thus, while this sort of code can be convenient for programming, and in simple cases (such as ``match e [ ]`` to fill any checking context, given any ``e:⊥``), it is often better eschewed in favor of additional explicit global helper functions.  For this reason, Agdarya currently emits a hint whenever it detects a "bare" case-tree-only construct and interprets it in this way.
 

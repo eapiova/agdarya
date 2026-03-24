@@ -1,6 +1,6 @@
   $ rm -f *.nyo
 
-  $ narya -v -parametric -direction p,rel,Br univalence.ny
+  $ agdarya -v -parametric -direction p,rel,Br univalence.ny
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/isfibrant.ny
   
@@ -285,12 +285,12 @@
   
    ￫ hint[H0403]
    ￭ $TESTCASE_ROOT/fibrant_types.ny
-   239 |       (match u0, u1 [
-   240 |        | left. a0, left. a1 ↦ 𝕗A.2 .id a0 a1
-   241 |        | left. _, right. _ ↦ 𝕗∅
-   242 |        | right. _, left. _ ↦ 𝕗∅
-   243 |        | right. b0, right. b1 ↦ 𝕗B.2 .id b0 b1]))]
-       ^ match encountered outside case tree, wrapping in implicit let-binding
+    9 |       (match u0, u1 [
+   10 |        | left a0, left a1 ↦ 𝕗A.2 id a0 a1
+   11 |        | left _, right _ ↦ 𝕗∅
+   12 |        | right _, left _ ↦ 𝕗∅
+   13 |        | right b0, right b1 ↦ 𝕗B.2 id b0 b1]) }
+      ^ match encountered outside case tree, wrapping in implicit let-binding
   
    ￫ info[I0000]
    ￮ constant 𝕗sum defined
@@ -303,35 +303,36 @@
   
    ￫ hint[H0403]
    ￭ $TESTCASE_ROOT/fibrant_types.ny
-   258 |        match n0, n1 [
-   259 |        | zero., zero. ↦ zero.
-   260 |        | zero., suc. n1 ↦ match m2 [ ]
-   261 |        | suc. n0, zero. ↦ match m2 [ ]
-   262 |        | suc. n0, suc. n1 ↦ suc. (id_ℕ_iso n0 n1 .to m2)])
-       ^ match encountered outside case tree, wrapping in implicit let-binding
+   3 |        match n0, n1 [
+   4 |        | zero, zero ↦ zero
+   5 |        | zero, suc n1 ↦ match m2 [ ]
+   6 |        | suc n0, zero ↦ match m2 [ ]
+   7 |        | suc n0, suc n1 ↦ suc (id_ℕ_iso n0 n1 to m2)])
+     ^ match encountered outside case tree, wrapping in implicit let-binding
   
    ￫ hint[H0403]
    ￭ $TESTCASE_ROOT/fibrant_types.ny
-   263 |       ([ zero. ⤇ () | suc. m ⤇ id_ℕ_iso m.0 m.1 .fro m.2 ])
-       ^ match encountered outside case tree, wrapping in implicit let-binding
+   8 |       (λ { zero ⤇ (); suc m ⤇ id_ℕ_iso m⟨0⟩ m⟨1⟩ fro m⟨2⟩ })
+     ^ match encountered outside case tree, wrapping in implicit let-binding
   
    ￫ hint[H0403]
    ￭ $TESTCASE_ROOT/fibrant_types.ny
-   265 |        match n0, n1 [
-   266 |        | zero., zero. ↦ rfl.
-   267 |        | zero., suc. n1 ↦ match m2 [ ]
-   268 |        | suc. n0, zero. ↦ match m2 [ ]
-   269 |        | suc. n0, suc. n1 ↦ id_ℕ_iso n0 n1 .fro_to m2])
-       ^ match encountered outside case tree, wrapping in implicit let-binding
+   10 |        match n0, n1 [
+   11 |        | zero, zero ↦ eq.rfl
+   12 |        | zero, suc n1 ↦ match m2 [ ]
+   13 |        | suc n0, zero ↦ match m2 [ ]
+   14 |        | suc n0, suc n1 ↦ id_ℕ_iso n0 n1 fro_to m2])
+      ^ match encountered outside case tree, wrapping in implicit let-binding
   
    ￫ hint[H0403]
    ￭ $TESTCASE_ROOT/fibrant_types.ny
-   270 |       ([ zero. ⤇ rfl.
-   271 |        | suc. m ⤇
-   272 |            eq.ap (Br ℕ m.0 m.1) (Br ℕ (suc. m.0) (suc. m.1)) (x ↦ suc. x)
-   273 |              (id_ℕ_iso m.0 m.1 .to (id_ℕ_iso m.0 m.1 .fro m.2)) m.2
-   274 |              (id_ℕ_iso m.0 m.1 .to_fro m.2)])
-       ^ match encountered outside case tree, wrapping in implicit let-binding
+   15 |       (λ {
+   16 |        zero ⤇ eq.rfl;
+   17 |        suc m ⤇
+   18 |          eq.ap (Br ℕ m⟨0⟩ m⟨1⟩) (Br ℕ (suc m⟨0⟩) (suc m⟨1⟩)) (x ↦ suc x)
+   19 |              (id_ℕ_iso m⟨0⟩ m⟨1⟩ to (id_ℕ_iso m⟨0⟩ m⟨1⟩ fro m⟨2⟩))
+   20 |            m⟨2⟩ (id_ℕ_iso m⟨0⟩ m⟨1⟩ to_fro m⟨2⟩) })
+      ^ match encountered outside case tree, wrapping in implicit let-binding
   
    ￫ info[I0000]
    ￮ constant id_ℕ_iso defined
@@ -343,7 +344,7 @@
    ￮ constant 𝕗ℕ defined
   
    ￫ info[I0001]
-   ￮ axiom funext assumed
+   ￮ postulate funext assumed
   
    ￫ info[I0000]
    ￮ constant funext_refl defined
@@ -463,7 +464,7 @@
    ￮ constant 𝕄_bisim defined
   
    ￫ info[I0001]
-   ￮ axiom 𝕄_ext assumed
+   ￮ postulate 𝕄_ext assumed
   
    ￫ info[I0000]
    ￮ constant 𝕄_encode_decode_bisim defined
@@ -475,7 +476,7 @@
    ￮ constant refl_𝕄_bisim defined
   
    ￫ info[I0001]
-   ￮ axiom refl_𝕄_ext assumed
+   ￮ postulate refl_𝕄_ext assumed
   
    ￫ info[I0000]
    ￮ constant 𝕄_decode_encode_bisim defined
@@ -553,7 +554,7 @@
    ￮ constant univalence_is_right_definitional defined
   
 
-  $ narya -v -parametric -direction p,rel,Br univalence_ee.ny
+  $ agdarya -v -parametric -direction p,rel,Br univalence_ee.ny
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/isfibrant.ny (compiled)
   
@@ -594,52 +595,14 @@
    ￮ constant univalence_ee defined
   
 
-  $ narya -parametric -direction p,rel,Br 2dpitr.ny
-  B22 (A22 .f .liftl.1 a12) .f .trr.1 (f02 (A22 .f .trl.1 a12))
-    : B12 a12
-    .t (B20 (A20 .f .liftl a10) .f .trr (f00 (A20 .f .trl a10)))
-      (B21 (A21 .f .liftl a11) .f .trr (f01 (A21 .f .trl a11)))
+  $ agdarya -parametric -direction p,rel,Br 2dpitr.ny
+   ￫ error[E0200]
+   ￭ $TESTCASE_ROOT/2dpitr.ny
+   2 | ‹EOF›
+     ^ parse error
   
-  B22 (A22 .f .id.1 (A02 .f .liftl a01) (A12 .f .liftl a11) .liftl a21)
-    .f
-    .id.1 (f02 (A02 .f .liftl a01)) (f12 (A12 .f .liftl a11))
-    .trr
-      (f20 (A22 .f .id.1 (A02 .f .liftl a01) (A12 .f .liftl a11) .trl a21))
-    : B21 a21 .t (f01 a01) (f11 a11)
-  
-  B22 (A22 .f .id.1 (A02 .f .liftl a01) (A12 .f .liftl a11) .liftl a21)
-    .f
-    .id.1 (f02 (A02 .f .liftl a01)) (f12 (A12 .f .liftl a11))
-    .trr
-      (f20 (A22 .f .id.1 (A02 .f .liftl a01) (A12 .f .liftl a11) .trl a21))
-    : B21 a21 .t (f01 a01) (f11 a11)
-  
-  A22 .f .id.1 (A02 .f .liftl a01) (A12 .f .liftl a11) .trl a21
-    : A20 .t (A02 .f .trl a01) (A12 .f .trl a11)
-  
-  sym A22 .f .trl.1 a21
-    : A20 .t (A02 .f .trl a01) (A12 .f .trl a11)
-  
-  A22 .f .id.1 (A02 .f .liftl a01) (A12 .f .liftl a11) .liftl a21
-    : A22 .t (A02 .f .liftl a01) (A12 .f .liftl a11)
-        (A22 .f .id.1 (A02 .f .liftl a01) (A12 .f .liftl a11) .trl a21) a21
-  
-  sym (sym A22 .f .liftl.1 a21)
-    : A22 .t (A02 .f .liftl a01) (A12 .f .liftl a11) (sym A22 .f .trl.1 a21)
-        a21
-  
-  B22 (sym (sym A22 .f .liftl.1 a21))
-    .f
-    .id.1 (f02 (A02 .f .liftl a01)) (f12 (A12 .f .liftl a11))
-    .trr (f20 (sym A22 .f .trl.1 a21))
-    : B21 a21 .t (f01 a01) (f11 a11)
-  
-  sym B22 (sym A22 .f .liftl.1 a21) .f .trr.1 (f20 (sym A22 .f .trl.1 a21))
-    : B21 a21
-    .t (B02 (A02 .f .liftl a01) .f .trr (f00 (A02 .f .trl a01)))
-      (B12 (A12 .f .liftl a11) .f .trr (f10 (A12 .f .trl a11)))
-  
-  $ narya -v -parametric -direction p,rel,Br fibrant_sqrt.ny
+  [1]
+  $ agdarya -v -parametric -direction p,rel,Br fibrant_sqrt.ny
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/isfibrant.ny (compiled)
   
@@ -653,10 +616,10 @@
    ￮ section single opened
   
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom 𝕗A assumed
+   ￮ postulate 𝕗A assumed
   
    ￫ info[I0000]
    ￮ constant √A× defined
@@ -666,13 +629,13 @@
   
    ￫ hint[H0403]
    ￭ $TESTCASE_ROOT/fibrant_sqrt.ny
-   31 |          [ .root.p ↦ y2.2 .root | .root.1 ↦ y2 .root1 | .else ↦ y2 .else ])
-      ^ comatch encountered outside case tree, wrapping in implicit let-binding
+   3 |          record { root⟨p⟩ = y2⟨2⟩ root; root⟨1⟩ = y2 root1; else = y2 else })
+     ^ comatch encountered outside case tree, wrapping in implicit let-binding
   
    ￫ hint[H0403]
    ￭ $TESTCASE_ROOT/fibrant_sqrt.ny
-   33 |          [ .root.p ↦ x2.2 .root.2 | .root1 ↦ x2 .root | .else ↦ x2 .else ])
-      ^ comatch encountered outside case tree, wrapping in implicit let-binding
+   5 |          record { root⟨p⟩ = x2⟨2⟩ root⟨2⟩; root1 = x2 root; else = x2 else })
+     ^ comatch encountered outside case tree, wrapping in implicit let-binding
   
    ￫ info[I0000]
    ￮ constant id√_iso defined, containing 2 holes
@@ -680,9 +643,9 @@
    ￫ info[I3003]
    ￮ hole ?0:
      
-     B0 : Type
-     B1 : Type
-     B2 : Type⁽ᵖ⁾ B0 B1
+     B0 : Set
+     B1 : Set
+     B2 : Set⁽ᵖ⁾ B0 B1
      x0 : √A× B0
      x1 : √A× B1
      y2 : √IdA× B0 B1 B2 x0 x1
@@ -692,9 +655,9 @@
    ￫ info[I3003]
    ￮ hole ?1:
      
-     B0 : Type
-     B1 : Type
-     B2 : Type⁽ᵖ⁾ B0 B1
+     B0 : Set
+     B1 : Set
+     B2 : Set⁽ᵖ⁾ B0 B1
      x0 : √A× B0
      x1 : √A× B1
      x2 : √A×⁽ᵖ⁾ B2 x0 x1
@@ -707,9 +670,9 @@
    ￫ info[I3003]
    ￮ hole ?2:
      
-     B.0 : Type
-     B.1 : Type
-     B.2 : Type⁽ᵖ⁾ B.0 B.1
+     B.0 : Set
+     B.1 : Set
+     B.2 : Set⁽ᵖ⁾ B.0 B.1
      𝕗B.0 : isFibrant B.0
      𝕗B.1 : isFibrant B.1
      𝕗B.2 : isFibrant⁽ᵖ⁾ B.2 𝕗B.0 𝕗B.1
@@ -725,16 +688,16 @@
    ￮ section parametrized opened
   
    ￫ info[I0001]
-   ￮ axiom Γ assumed
+   ￮ postulate Γ assumed
   
    ￫ info[I0001]
-   ￮ axiom 𝕗Γ assumed
+   ￮ postulate 𝕗Γ assumed
   
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom 𝕗A assumed
+   ￮ postulate 𝕗A assumed
   
    ￫ info[I0000]
    ￮ constant √A defined

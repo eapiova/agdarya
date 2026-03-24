@@ -6,33 +6,22 @@ open Value
 open Variables
 open Reporter
 
-(* Here we bootstrap the HOTT fibrancy data using definitions that are parsed and checked.  The Narya code for this is stored in the following three source files, dropped here with ppx_blob. *)
+(* Here we bootstrap the HOTT fibrancy data using definitions that are parsed and checked.  The Agdarya code for this is stored in the following three source files, dropped here with ppx_blob. *)
 
 let visible = [%blob "visible.ny"]
 let isfibrant = [%blob "isfibrant.ny"]
 let fibrancy = [%blob "fibrancy.ny"]
 
-(* First we define some stripped-down versions of the batch file loading functions. *)
-
-let rec batch p src =
-  match Parser.Command.Parse.final p with
-  | Eof -> ()
-  | Bof _ ->
-      let p, src = Parser.Command.Parse.restart_parse p src in
-      batch p src
-  | cmd ->
-      let _ =
-        Parser.Command.execute
-          ~action_taken:(fun _ -> ())
-          ~get_file:(fun _ -> fatal (Anomaly "can't load files during bootstrapping"))
-          cmd in
-      let p, src = Parser.Command.Parse.restart_parse p src in
-      batch p src
-
-let bootstrap title content =
-  let title = Some title in
-  let p, src = Parser.Command.Parse.start_parse (`String { title; content } : Asai.Range.source) in
-  batch p src
+let bootstrap _title content =
+  List.iter
+    (fun chunk ->
+      match Parser.Command.parse_single chunk with
+      | _, Some cmd ->
+          let _ = Top.Execute.execute_command cmd in
+          ()
+      | _, None -> ())
+    (Top.Execute.split_source_commands_with_boundaries content);
+  Top.Execute.flush_pending_commands ()
 
 (* For frobnicating things, we need to look up the defined terms that result from the bootstrapping. *)
 let get name =
@@ -402,7 +391,7 @@ let () =
     | _ -> fatal (Anomaly "fib_pi has wrong shape"));
 
     (* And similarly for Fibrancy.glue. *)
-    match Global.find fib_glue with
+    (match Global.find fib_glue with
     | _, (`Defined tm, _) -> (
         match tm with
         | Lam
@@ -426,7 +415,7 @@ let () =
             | Zero, Zero, Zero, Zero, Eq -> Fibrancy.glue := Some fields
             | _ -> fatal (Anomaly "fib_glue has wrong dimension"))
         | _ -> fatal (Anomaly "fib_glue has wrong shape"))
-    | _ -> fatal (Anomaly "fib_glue has wrong shape") );
+    | _ -> fatal (Anomaly "fib_glue has wrong shape") ) );
 
   let ofile =
     if Array.length Sys.argv <> 2 then (

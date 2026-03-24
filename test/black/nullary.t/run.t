@@ -1,12 +1,12 @@
-  $ narya -parametric -arity 0 -direction w,wk nullary.ny
+  $ agdarya -parametric -arity 0 -direction w,wk nullary.ny
   wk A
-    : Type⁽ʷ⁾ .
+    : Set⁽ʷ⁾ .
   
   wk A
-    : Type⁽ʷ⁾ .
+    : Set⁽ʷ⁾ .
   
   A⁽ʷʷ⁾
-    : Type⁽ʷʷ⁾ . .
+    : Set⁽ʷʷ⁾ . .
   
   wk a
     : wk A .
@@ -59,21 +59,21 @@
   c⁽²¹ʷ⁾
     : C⁽²¹ʷ⁾ . . .
   
-  $ narya -parametric -arity 0 -direction w,wk functions.ny
+  $ agdarya -parametric -arity 0 -direction w,wk functions.ny
   (x : wk A) ⇒ wk B x.0
-    : Type⁽ʷ⁾ .
+    : Set⁽ʷ⁾ .
   
   (x₀ : wk A .) →⁽ʷ⁾ wk B x₀ .
-    : Type
+    : Set
   
   (x : A⁽ʷʷ⁾) ⇒ B⁽ʷʷ⁾ x.00
-    : Type⁽ʷʷ⁾ . .
+    : Set⁽ʷʷ⁾ . .
   
   ((x : A⁽ʷʷ⁾) ⇒ B⁽ʷʷ⁾ x.00) .
-    : Type⁽ʷ⁾ .
+    : Set⁽ʷ⁾ .
   
   (x₀₀ : A⁽ʷʷ⁾ . .) →⁽ʷʷ⁾ B⁽ʷʷ⁾ x₀₀ . .
-    : Type
+    : Set
   
   wk f
     : (x₀ : wk A .) →⁽ʷ⁾ wk B x₀ .
@@ -82,13 +82,13 @@
     : (x₀₀ : A⁽ʷʷ⁾ . .) →⁽ʷʷ⁾ B⁽ʷʷ⁾ x₀₀ . .
   
 
-  $ narya -parametric -arity 0 -direction w,wk nominal.ny
-  a .subst
+  $ agdarya -parametric -arity 0 -direction w,wk nominal.ny
+  a subst
     : wk A .
   
-  b .subst.1
+  b subst⟨1⟩
     : A⁽ʷʷ⁾ . .
   
-  sym b .subst.1
+  sym b subst⟨1⟩
     : A⁽ʷʷ⁾ . .
   

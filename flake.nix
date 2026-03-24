@@ -14,7 +14,7 @@
   };
   outputs = { self, flake-utils, opam-nix, nixpkgs, ... }@inputs:
     let
-      package = "narya";
+      package = "agdarya";
       githash = builtins.getEnv "GIT_COMMIT";
       gitCommit = if githash == "" then "(unknown)" else githash;
     in flake-utils.lib.eachDefaultSystem (system:
@@ -66,7 +66,7 @@
         };
       });
   nixConfig = {
-    extra-substituters = "https://cache.nixos.org https://narya.cachix.org";
-    extra-trusted-public-keys = "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= narya.cachix.org-1:ZvDdkNFh5xvWcNy7D+gailHuwHTupstYSE/o77RR4A4=";
+    extra-substituters = "https://cache.nixos.org https://agdarya.cachix.org";
+    extra-trusted-public-keys = "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= agdarya.cachix.org-1:ZvDdkNFh5xvWcNy7D+gailHuwHTupstYSE/o77RR4A4=";
   };
 }

@@ -1,43 +1,44 @@
-{` Degeneracy notations `}
+{- Degeneracy notations -}
 
-{` Simple refl `}
+{- Simple refl -}
 
-axiom A : Type
+postulate A : Set
 
-axiom a : A
+postulate a : A
 
 echo refl a
 
-{` refl of types is Id `}
+{- refl of types is Id -}
 
-axiom a0 : A
+postulate a0 : A
 
-axiom a1 : A
+postulate a1 : A
 
 echo Id A a0 a1
 
-{` refl of functions is ap `}
+{- refl of functions is ap -}
 
-axiom C : Type
+postulate C : Set
 
-axiom f : A → C
+postulate f : A → C
 
 echo refl f
 
-{` refl of type families is also Id `}
+{- refl of type families is also Id -}
 
-axiom B : A → Type
+postulate B : A → Set
 
 echo Id B
 
-axiom a2 : A
+postulate a2 : A
 
-{` refl of canonical types is ⁽ᵉ⁾ `}
+{- refl of canonical types is ⁽ᵉ⁾ -}
 
-def Unit : Type ≔ sig ()
+Unit : Set
+Unit = sig ()
 
-axiom u0 : Unit
+postulate u0 : Unit
 
-axiom u1 : Unit
+postulate u1 : Unit
 
 echo Id Unit u0 u1

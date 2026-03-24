@@ -1,10 +1,13 @@
-axiom A : Type
-axiom B : A → Type
-axiom C : A → Type
+postulate A : Set
+postulate B : A → Set
+postulate C : A → Set
 
-def D : Type ≔ data [ con. (a : A) (f : B a → C a) ]
+D : Set
+D = data [ con (a : A) (f : B a → C a) ]
 
-def get_a (d : D) : A ≔ match d [ con. a f ↦ a ]
+get_a : (d : D) → A
+get_a d = match d [ con a f ↦ a ]
 
-def get_f (d : D) (b : B (get_a d)) : C (get_a d) ≔ match d [
-| con. a f ↦ f b]
+get_f : (d : D) → (b : B (get_a d)) → C (get_a d)
+get_f d b = match d [
+| con a f ↦ f b]

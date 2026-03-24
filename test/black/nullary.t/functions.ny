@@ -1,7 +1,7 @@
-{` -*- narya-prog-args: ("-proofgeneral" "-parametric" "-arity" "0" "-direction" "w,wk") -*- `}
+{- -*- agdarya-prog-args: ("-proofgeneral" "-parametric" "-arity" "0" "-direction" "w,wk") -*- -}
 
-axiom A : Type
-axiom B : A → Type
+postulate A : Set
+postulate B : A → Set
 
 echo wk ((x : A) → B x)
 echo wk ((x : A) → B x) .
@@ -9,6 +9,6 @@ echo wk (wk ((x : A) → B x))
 echo wk (wk ((x : A) → B x)) .
 echo wk (wk ((x : A) → B x)) . .
 
-axiom f : (x : A) → B x
+postulate f : (x : A) → B x
 echo wk f
 echo wk (wk f)

@@ -66,6 +66,11 @@ val run_command :
   (unit -> int option * (int -> Reporter.Code.t option)) ->
   int option * (int * int * int) list
 
+val run_command_current :
+  holes_allowed:(unit, string) Result.t ->
+  (unit -> int option * (int -> Reporter.Code.t option)) ->
+  int option * (int * int * int) list
+
 val run_command_then_undo :
   holes_allowed:(unit, string) Result.t ->
   (unit -> int option * (int -> Reporter.Code.t option)) ->

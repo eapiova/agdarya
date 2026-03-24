@@ -1,3 +1,3 @@
-axiom squib : Type
+postulate squib : Set
 
-axiom squab : squib
+postulate squab : squib

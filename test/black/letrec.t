@@ -1,13 +1,15 @@
 Recursive let-bindings
 
   $ cat >letrec.ny <<EOF
-  > def ℕ : Type ≔ data [ zero. | suc. (_:ℕ) ]
-  > def times (x y : ℕ) : ℕ ≔
-  >   let rec plus : ℕ → ℕ → ℕ ≔ m n ↦ match n [ zero. ↦ m | suc. p ↦ suc. (plus m p) ] in
-  >   match y [ zero. ↦ zero. | suc. z ↦ plus (times x z) x ]
+  > ℕ : Set
+  > ℕ = data [ zero | suc (_:ℕ) ]
+  > times : (x y : ℕ) → ℕ
+  > times x y =
+  >   let rec plus : ℕ → ℕ → ℕ = λ m n → match n [ zero ↦ m | suc p ↦ suc (plus m p) ] in
+  >   match y [ zero ↦ zero | suc z ↦ plus (times x z) x ]
   > EOF
 
-  $ narya -v letrec.ny -e 'echo times 3 4' -e 'echo times'
+  $ agdarya -v letrec.ny -e 'echo times 3 4' -e 'echo times'
    ￫ info[I0000]
    ￮ constant ℕ defined
   
@@ -23,14 +25,17 @@ Recursive let-bindings
 In kinetic terms
 
   $ cat >letrec-k.ny <<EOF
-  > def ℕ : Type ≔ data [ zero. | suc. (_:ℕ) ]
-  > def idℕ : ℕ → ℕ ≔ x ↦ x
-  > def times (x y : ℕ) : ℕ ≔ idℕ
-  >   (let rec plus : ℕ → ℕ → ℕ ≔ m n ↦ match n [ zero. ↦ m | suc. p ↦ suc. (plus m p) ] in
-  >    match y [ zero. ↦ zero. | suc. z ↦ plus (times x z) x ])
+  > ℕ : Set
+  > ℕ = data [ zero | suc (_:ℕ) ]
+  > idℕ : ℕ → ℕ
+  > idℕ = λ x → x
+  > times : (x y : ℕ) → ℕ
+  > times x y = idℕ
+  >   (let rec plus : ℕ → ℕ → ℕ = λ m n → match n [ zero ↦ m | suc p ↦ suc (plus m p) ] in
+  >    match y [ zero ↦ zero | suc z ↦ plus (times x z) x ])
   > EOF
 
-  $ narya -v letrec-k.ny -e 'echo times 3 4' -e 'echo times'
+  $ agdarya -v letrec-k.ny -e 'echo times 3 4' -e 'echo times'
    ￫ info[I0000]
    ￮ constant ℕ defined
   
@@ -39,7 +44,7 @@ In kinetic terms
   
    ￫ hint[H0403]
    ￭ $TESTCASE_ROOT/letrec-k.ny
-   5 |    match y [ zero. ↦ zero. | suc. z ↦ plus (times x z) x ])
+   3 |    match y [ zero ↦ zero | suc z ↦ plus (times x z) x ])
      ^ match encountered outside case tree, wrapping in implicit let-binding
   
    ￫ info[I0000]
@@ -54,14 +59,16 @@ In kinetic terms
 Local recursive datatypes
 
   $ cat >letrec-ty.ny <<EOF
-  > def adder : Type ≔ sig (t : Type, one : t, plus : t → t → t)
-  > def ℕadder : adder ≔
-  >   let rec ℕ : Type ≔ data [ zero. | suc. (_ : ℕ) ] in
-  >   let rec plus : ℕ → ℕ → ℕ ≔ x y ↦ match y [ zero. ↦ x | suc. y ↦ suc. (plus x y) ] in
-  >   (ℕ, suc. zero., plus)
+  > adder : Set
+  > adder = sig (t : Set, one : t, plus : t → t → t)
+  > ℕadder : adder
+  > ℕadder =
+  >   let rec ℕ : Set = data [ zero | suc (_ : ℕ) ] in
+  >   let rec plus : ℕ → ℕ → ℕ = λ x y → match y [ zero ↦ x | suc y ↦ suc (plus x y) ] in
+  >   (ℕ, suc zero, plus)
   > EOF
 
-  $ narya -v letrec-ty.ny -e "echo ℕadder .plus (ℕadder .one) (ℕadder .one)"
+  $ agdarya -v letrec-ty.ny -e "echo ℕadder plus (ℕadder one) (ℕadder one)"
    ￫ info[I0000]
    ￮ constant adder defined
   
@@ -75,19 +82,22 @@ Local recursive datatypes
 Local mutually recursive definitions
 
   $ cat >even-odd.ny <<EOF
-  > def bool : Type ≔ data [ false. | true. ]
-  > def ℕ : Type ≔ data [ zero. | suc. (_:ℕ) ]
-  > def even_odd : sig ( even : ℕ → bool, odd : ℕ → bool) ≔
-  >   let rec even : ℕ → bool ≔ [ zero. ↦ true. | suc. n ↦ odd n ]
-  >   and odd : ℕ → bool ≔ [ zero. ↦ false. | suc. n ↦ even n ] in
+  > bool : Set
+  > bool = data [ false | true ]
+  > ℕ : Set
+  > ℕ = data [ zero | suc (_:ℕ) ]
+  > even_odd : sig ( even : ℕ → bool, odd : ℕ → bool)
+  > even_odd =
+  >   let rec even : ℕ → bool = λ { zero → true ; suc n → odd n }
+  >   and odd : ℕ → bool = λ { zero → false ; suc n → even n } in
   >   (even, odd)
-  > echo even_odd .even 4
-  > echo even_odd .odd 4
-  > axiom n : ℕ
-  > echo even_odd .even n
+  > echo even_odd even 4
+  > echo even_odd odd 4
+  > postulate n : ℕ
+  > echo even_odd even n
   > EOF
 
-  $ narya -v even-odd.ny
+  $ agdarya -v even-odd.ny
    ￫ info[I0000]
    ￮ constant bool defined
   
@@ -96,20 +106,20 @@ Local mutually recursive definitions
   
    ￫ hint[H0403]
    ￭ $TESTCASE_ROOT/even-odd.ny
-   3 | def even_odd : sig ( even : ℕ → bool, odd : ℕ → bool) ≔
+   1 | even_odd : sig ( even : ℕ → bool, odd : ℕ → bool)
      ^ sig encountered outside case tree, wrapping in implicit let-binding
   
    ￫ info[I0000]
    ￮ constant even_odd defined
   
-  true.
+  true
     : bool
   
-  false.
+  false
     : bool
   
    ￫ info[I0001]
-   ￮ axiom n assumed
+   ￮ postulate n assumed
   
   _letrec.F2.1.even{…} n
     : bool

@@ -28,6 +28,8 @@ type t = {
   left_opens : No.interval TokMap.t;
   (* For unparsing we also store backwards maps turning constants and constructors into notations.  Since the arguments of a notation can occur in a different order from those of the constant or constructor, we store lists of the argument names in the order they occur in the pattern and in the term value.  Note that these permutations are only used for printing; when parsing, the postprocessor function must ALSO incorporate the inverse permutation. *)
   unparse : User.notation PrintMap.t;
+  (* Binder-style user notations are parsed outside the general notation tree, keyed by their leading operator token. *)
+  binders : User.notation list TokMap.t;
 }
 
 let empty : t =
@@ -38,6 +40,7 @@ let empty : t =
       |> EntryMap.add No.minus_omega { strict = empty_entry; nonstrict = empty_entry };
     left_opens = TokMap.empty;
     unparse = PrintMap.empty;
+    binders = TokMap.empty;
   }
 
 (* Add a new notation to the current situation of available ones. *)
@@ -112,7 +115,20 @@ let add : type left tight right. (left, tight, right) notation -> t -> t =
 let add_with_print : User.notation -> t -> t =
  fun notn sit ->
   let (Wrap n) = notn.notn in
-  let sit = add n sit in
+  let sit =
+    match notn.binder with
+    | None -> add n sit
+    | Some binder ->
+        {
+          sit with
+          binders =
+            TokMap.update (User.binder_start_token binder)
+              (function
+                | None -> Some [ notn ]
+                | Some ns -> Some (notn :: ns))
+              sit.binders;
+        }
+  in
   {
     sit with
     unparse = List.fold_left (fun up key -> up |> PrintMap.add key notn) sit.unparse notn.keys;
@@ -135,3 +151,4 @@ let tighters : type strict tight. t -> (tight, strict) No.iinterval -> (tight, s
   | Strict -> ep.strict
 
 let left_opens : t -> Token.t -> No.interval option = fun s tok -> TokMap.find_opt tok s.left_opens
+let binders : t -> Token.t -> User.notation list = fun s tok -> Option.value ~default:[] (TokMap.find_opt tok s.binders)

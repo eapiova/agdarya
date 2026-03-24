@@ -6,23 +6,23 @@ We now describe the various other classes of types that can be defined by the us
 Defining record types
 ---------------------
 
-A record type is defined by a number of *fields*, each with a declared type.  A constant of type ``Type`` can be defined to be a record type in a ``def`` statement by using the keyword ``sig`` and listing the fields with their types in parentheses, separated by commas.  For instance, we could bundle a type with an operation on it:
+A record type is defined by a number of *fields*, each with a declared type.  A constant of type ``Set`` can be defined to be a record type in a ``def`` statement by using the keyword ``sig`` and listing the fields with their types in parentheses, separated by commas.  For instance, we could bundle a type with an operation on it:
 
 .. code-block:: none
    
-   def Magma : Type ≔ sig (
-      t : Type,
+   def Magma : Set ≔ sig (
+      t : Set,
       op : t → t → t,
       )
 
 The trailing comma after the last field is optional.  (By the lexing rules for :ref:`tokens`, no space is required around the commas, unless they follow a type that is expressed using a notation that ends with another special ASCII character.)  Note that later fields can depend on the values of previous fields, by name.  The names of fields must be valid local variable names, i.e. identifiers not containing periods.
 
-Although this command may look like it is defining ``Magma`` to equal a pre-existing type denoted ``sig (t:Type, op:t→t→t)``, in fact it declares ``Magma`` to be a *new* type that didn't previously exist and doesn't reduce to anything else.  In particular, therefore, declaring another identical-looking type:
+Although this command may look like it is defining ``Magma`` to equal a pre-existing type denoted ``sig (t:Set, op:t→t→t)``, in fact it declares ``Magma`` to be a *new* type that didn't previously exist and doesn't reduce to anything else.  In particular, therefore, declaring another identical-looking type:
 
 .. code-block:: none
 
-   def Magma' : Type ≔ sig (
-      t : Type,
+   def Magma' : Set ≔ sig (
+      t : Set,
       op : t → t → t,
       )
 
@@ -32,7 +32,7 @@ Like any definition, record types can have parameters.  For example, Σ-types ar
 
 .. code-block:: none
    
-   def Σ (A : Type) (B : A → Type) : Type ≔ sig (
+   def Σ (A : Set) (B : A → Set) : Set ≔ sig (
       fst : A,
       snd : B fst,
       )
@@ -43,7 +43,7 @@ Currently user notations cannot bind variables, so it is not possible to define 
 
 .. code-block:: none
 
-   def prod (A B : Type) : Type ≔ sig (
+   def prod (A B : Set) : Set ≔ sig (
       fst : A,
       snd : B,
       )
@@ -54,7 +54,7 @@ The fact that parameters can equivalently be abstracted over in the type and the
 
 .. code-block:: none
 
-   def Σ : (A:Type) → (A → Type) → Type ≔ A B ↦ sig (
+   def Σ : (A:Set) → (A → Set) → Set ≔ A B ↦ sig (
       fst : A,
       snd : B fst,
       )
@@ -63,13 +63,13 @@ A record type can have only one field:
 
 .. code-block:: none
 
-   def wrapped_nat : Type ≔ sig ( unwrap : ℕ )
+   def wrapped_nat : Set ≔ sig ( unwrap : ℕ )
 
 or even zero fields:
 
 .. code-block:: none
    
-   def ⊤ : Type ≔ sig ()
+   def ⊤ : Set ≔ sig ()
 
 Tuples
 ------
@@ -150,7 +150,7 @@ It must be emphasized that *field projections bind with the same tightness as fu
      .methodThree(c, d, e)
      .methodFour()
 
-to call a sequence of methods on each other's outputs.  In Narya and Agda, you can write the same thing even more simply without the parentheses:
+to call a sequence of methods on each other's outputs.  In Agdarya and Agda, you can write the same thing even more simply without the parentheses:
 
 .. code-block:: none
 
@@ -199,7 +199,7 @@ To explain the opacity attributes, suppose that with the definitions above, we a
 
 .. code-block:: none
 
-   axiom x : A × ⊤
+   postulate x : A × ⊤
    def y : A × ⊤ ≔ (a, ⋆)
    def z : A × ⊤ ≔ (a, ())
 
@@ -241,7 +241,7 @@ There is an alternative notation for defining record types, using the same synta
 
 .. code-block:: none
 
-   def Σ (A : Type) (B : A → Type) : Type ≔ sig (
+   def Σ (A : Set) (B : A → Set) : Set ≔ sig (
      x .fst : A,
      x .snd : B (x .fst))
 

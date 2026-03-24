@@ -1,4 +1,4 @@
-# Dimension theory for Narya
+# Dimension theory for Agdarya
 
 This directory contains all definitions and code that depends on the definition of the category of dimensions with faces and degeneracy operators.  The definition of this category is shared throughout this directory, but abstract outside of it.
 

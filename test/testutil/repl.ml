@@ -15,6 +15,70 @@ open Value
 open Raw
 open Asai.Range
 
+type any_dataconstrs =
+  | Dataconstrs : (Constr.t, ('a, 'i) Term.dataconstr) Abwd.t -> any_dataconstrs
+
+type any_codatafields =
+  | Codatafields : ('a * 'n * 'et) Term.CodatafieldAbwd.t -> any_codatafields
+
+let register_constructor_names name const constrs =
+  List.iter
+    (fun (_, constr) ->
+      let cname = Constr.to_string constr in
+      Scope.define_constr [ cname ] constr const;
+      Scope.define_constr (name @ [ cname ]) constr const)
+    (List.sort_uniq compare constrs)
+
+let register_field_names name const fields =
+  List.iter
+    (fun fld ->
+      Scope.define_field [ fld ] fld const;
+      Scope.define_field (name @ [ fld ]) fld const)
+    (List.sort_uniq compare fields)
+
+let register_data_constructors name const =
+  let rec find_constrs : type n s. (n, s) Term.term -> any_dataconstrs option = function
+    | Canonical (Data { constrs; _ }) -> Some (Dataconstrs constrs)
+    | Lam (_, _, tm) -> find_constrs tm
+    | Realize tm -> find_constrs tm
+    | _ -> None
+  in
+  match Global.find const with
+  | _, (`Defined tm, _) -> (
+      match find_constrs tm with
+      | Some (Dataconstrs constrs) ->
+          let rec go :
+              type a i.
+              (string list * Constr.t) list -> (Constr.t, (a, i) Term.dataconstr) Abwd.t -> _ =
+           fun acc -> function
+            | Emp -> acc
+            | Snoc (constrs, (constr, _)) -> go (([ Constr.to_string constr ], constr) :: acc) constrs
+          in
+          register_constructor_names name const (go [] constrs)
+      | None -> ())
+  | _ -> ()
+
+let register_data_fields name const =
+  let rec find_fields : type n s. (n, s) Term.term -> any_codatafields option = function
+    | Canonical (Codata { fields; _ }) -> Some (Codatafields fields)
+    | Lam (_, _, tm) -> find_fields tm
+    | Realize tm -> find_fields tm
+    | _ -> None
+  in
+  match Global.find const with
+  | _, (`Defined tm, _) -> (
+      match find_fields tm with
+      | Some (Codatafields fields) ->
+          let rec go : type a n et. string list -> (a * n * et) Term.CodatafieldAbwd.t -> _ =
+           fun acc -> function
+            | Emp -> acc
+            | Snoc (fields, Term.CodatafieldAbwd.Entry (fld, _)) ->
+                go (Field.to_string fld :: acc) fields
+          in
+          register_field_names name const (go [] fields)
+      | None -> ())
+  | _ -> ()
+
 let parse_term (tm : string) : N.zero check located =
   let p = Parse.Term.parse (`String { content = tm; title = Some "user-supplied term" }) in
   let (Wrap tm) = Parse.Term.final p in
@@ -54,7 +118,9 @@ let def (name : string) (ty : string) (tm : string) : unit =
       Reporter.trace "when checking case tree" @@ fun () ->
       Global.add const cty (`Axiom, `Parametric);
       let tree = check (Potential (Constant (const, D.zero), Emp, fun x -> x)) Ctx.empty rtm ety in
-      Global.add const cty (`Defined tree, `Parametric)
+      Global.add const cty (`Defined tree, `Parametric);
+      register_data_constructors name const;
+      register_data_fields name const
   | _ -> fatal (Invalid_constant_name ([ name ], None))
 
 let equal_at (tm1 : string) (tm2 : string) (ty : string) : unit =
@@ -121,4 +187,4 @@ let run f =
   f ()
 
 let gel_install () =
-  def "Gel" "(A B : Type) (R : A → B → Type) → Id Type A B" "A B R ↦ sig a b ↦ ( ungel : R a b )"
+  def "Gel" "(A B : Set) (R : A → B → Set) → Id Set A B" "A B R ↦ sig a b ↦ ( ungel : R a b )"

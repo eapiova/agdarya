@@ -134,13 +134,31 @@ let run_top ?use_ansi ?onechar_ops ?digit_vars ?ascii_symbols ?(interactive = tr
   try
     (* Printing errors that happen outside of any other error should be reported as fatal errors on their own. *)
     Reporter.Code.PrintingError.run ~env:(fun d -> fatal d) @@ fun () ->
+    let merged_inputs =
+      let rec go pending_strings acc = function
+        | [] -> (
+            match pending_strings with
+            | [] -> List.rev acc
+            | _ -> List.rev (`String (String.concat "\n" (List.rev pending_strings)) :: acc))
+        | (`String content) :: rest -> go (content :: pending_strings) acc rest
+        | ((`File _ | `Stdin) as input) :: rest ->
+            let acc =
+              match pending_strings with
+              | [] -> input :: acc
+              | _ ->
+                  input :: `String (String.concat "\n" (List.rev pending_strings)) :: acc
+            in
+            go [] acc rest
+      in
+      go [] [] (Bwd.to_list !inputs)
+    in
     let top_files =
-      Bwd.fold_right
+      List.fold_right
         (fun input acc ->
           match input with
           | `File file -> FilePath.make_absolute (Sys.getcwd ()) file :: acc
           | _ -> acc)
-        !inputs [] in
+        merged_inputs [] in
     Subtype.run @@ fun () ->
     if !hott then install_hott () else Check.gel_ok := true;
     Execute.Flags.run
@@ -156,8 +174,8 @@ let run_top ?use_ansi ?onechar_ops ?digit_vars ?ascii_symbols ?(interactive = tr
     Execute.Loaded.run @@ fun () ->
     Execute.Loading.run ~init:{ cwd = Sys.getcwd (); parents = Emp; imports = Emp; actions = false }
     @@ fun () ->
-    Mbwd.miter
-      (fun [ input ] ->
+    List.iter
+      (fun input ->
         let source =
           match input with
           | `File filename ->
@@ -174,7 +192,8 @@ let run_top ?use_ansi ?onechar_ops ?digit_vars ?ascii_symbols ?(interactive = tr
                   "command-line exec string" content in
               `String in
         if Global.unsolved_holes () > 0 then Reporter.fatal (Open_holes_remaining source))
-      [ !inputs ];
+      merged_inputs;
+    Execute.flush_pending_commands ();
     (* Interactive mode also has all the other units loaded.  Note that this should affect the "Top" origin. *)
     Scope.set_visible (Execute.Loaded.get_scope ());
     if interactive then Origin.set_interactive ();

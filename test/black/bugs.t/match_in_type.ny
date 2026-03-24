@@ -1,3 +1,5 @@
-def ⊤ : Type ≔ data [ star. ]
+⊤ : Set
+⊤ = data [ star ]
 
-def test (m : ⊤) : match m [ star. ↦ sig () ] ≔ ?
+test : (m : ⊤) → match m [ star ↦ sig () ]
+test m = ?

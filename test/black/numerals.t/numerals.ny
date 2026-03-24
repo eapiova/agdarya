@@ -1,35 +1,91 @@
-def ℕ : Type ≔ data [ zero. | suc. (_ : ℕ) ]
-def ℕ₊ : Type ≔ data [ one. | suc. (_ : ℕ₊) ]
-def ℚ₀₊ : Type ≔ data [ zero. | suc. (_ : ℕ) | quot. (_ : ℕ) (_ : ℕ₊) ]
-notation(0) x "/" y ≔ quot. x y
+
+
+data ℕ : Set where { zero : ℕ ; suc : ℕ → ℕ }
+
+data ℕ₊ : Set where { one : ℕ₊ ; suc : ℕ₊ → ℕ₊ }
+
+data ℚ₀₊ : Set where { zero : ℚ₀₊ ; suc : ℕ → ℚ₀₊ ; quot : ℕ → ℕ₊ → ℚ₀₊ }
+
+notation(0) x "/" y ≔ quot x y
 
 section ℕ ≔
-  def zero : ℕ ≔ 0
-  def one : ℕ ≔ 1
+
+  zero : ℕ
+
+  zero = 0
+
+  one : ℕ
+
+  one = 1
+
   echo one
-  def one' : ℕ ≔ 1.0
+
+  one' : ℕ
+
+  one' = 1.0
+
   echo one'
-  def two : ℕ ≔ 2
+
+  two : ℕ
+
+  two = 2
+
 end
 
 section ℕ₊ ≔
-  def one : ℕ₊ ≔ 1
+
+  one : ℕ₊
+
+  one = 1
+
   echo one
-  def two : ℕ₊ ≔ 2
+
+  two : ℕ₊
+
+  two = 2
+
   echo two
+
 end
 
 section ℚ ≔
-  def zero : ℚ₀₊ ≔ 0
-  def one : ℚ₀₊ ≔ 1
-  def two : ℚ₀₊ ≔ 2.0
+
+  zero : ℚ₀₊
+
+  zero = 0
+
+  one : ℚ₀₊
+
+  one = 1
+
+  two : ℚ₀₊
+
+  two = 2.0
+
   echo two
-  def half : ℚ₀₊ ≔ 0.5
+
+  half : ℚ₀₊
+
+  half = 0.5
+
   echo half
-  def quart : ℚ₀₊ ≔ 0.25
+
+  quart : ℚ₀₊
+
+  quart = 0.25
+
   echo quart
-  def half' : ℚ₀₊ ≔ 1 / 2
+
+  half' : ℚ₀₊
+
+  half' = 1 / 2
+
   echo half'
-  def third : ℚ₀₊ ≔ 1 / 3
+
+  third : ℚ₀₊
+
+  third = 1 / 3
+
   echo third
+
 end

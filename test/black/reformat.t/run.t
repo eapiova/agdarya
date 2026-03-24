@@ -2,18 +2,18 @@ The supplied files are symlinked into the directory where the test is run, and u
 
   $ cat reformat.ny >reformat2.ny
 
-  $ narya reformat2.ny
+  $ agdarya reformat2.ny
   A
-    : Type
+    : Set
   
   A
-    : Type
+    : Set
   
   A
-    : Type
+    : Set
   
   A
-    : Type
+    : Set
   
    ￫ warning[E2209]
    ￮ replacing printing notation for prod (previous notation will still be parseable)
@@ -22,7 +22,7 @@ The supplied files are symlinked into the directory where the test is run, and u
    ￮ replacing printing notation for prod (previous notation will still be parseable)
   
   ℕ
-    : Type
+    : Set
   
   f a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
     : A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → ℕ
@@ -35,223 +35,296 @@ The supplied files are symlinked into the directory where the test is run, and u
     a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
     : A → A → A → A → A → A → A → A → A → A → A → ℕ
   
+  ∀ x y : A, A
+    : Set
+  
+  ∀ x : A, y : Fam x, A
+    : Set
+  
+  Σ x : A, y : Fam x, SigmaBody x y
+    : Set
+  
 
   $ cat reformat2.ny
-  axiom A : Type
   
-  axiom B : Type
   
-  axiom ` line comment
-    C
-    : Type {` block 1 `}
+  postulate A : Set
   
-  {` block 2 `}
-  axiom D ` line comment
-    : Type
+  postulate B : Set
   
-  axiom E
-    : `line comment
-    Type
+  postulate C : Set {- block 2 -}
   
-  axiom {` block
-    comment `} F
-    : Type
+  postulate D : Set
   
-  axiom G {` block
-    comment `}
-    : Type
+  postulate E : Set
   
-  axiom H
-    : {` block
-    comment `} Type
+  postulate {- block
+    comment -} F
+    : Set
   
-  axiom I
-    {` block 1 `}
-    {` block 2 `}
-    : Type {` block 3 `}
+  postulate G {- block
+    comment -}
+    : Set
+  
+  postulate H
+    : {- block
+    comment -} Set
+  
+  postulate I : Set
   
   echo A
   
-  echo ` line comment
+  echo -- line comment
     A
   
-  echo A ` line comment
+  echo A
   
-  echo {` block
-    comment`} A
+  echo {- block
+    comment-} A
   
-  def ℕ : Type ≔ data [ zero. | suc. (_ : ℕ) ]
+  ℕ : Set
   
-  def ℕ1 : Type ≔ data [ ` line comment
-  | zero.
-  | suc. (_ : ℕ) ]
+  ℕ = data [ zero | suc (_ : ℕ) ]
   
-  def ℕ2 : Type ≔ data [ {` block
-  comment `}
-  | zero.
-  | suc. (_ : ℕ) ]
+  ℕ1 : Set
   
-  def ℕ3 : Type ≔ data [
-  | zero.
-  | suc. (_ : ℕ) `line comment
+  ℕ1
+  =
+    data [ -- line comment
+  | zero
+  | suc (_ : ℕ) ]
+  
+  ℕ2 : Set
+  
+  ℕ2
+  =
+    data [ {- block
+  comment -}
+  | zero
+  | suc (_ : ℕ) ]
+  
+  ℕ3 : Set
+  
+  ℕ3
+  =
+    data [
+  | zero
+  | suc (_ : ℕ) --line comment
   ]
   
-  def ℕ4 : Type ≔ data [
-  | zero.
-  | suc.
+  ℕ4 : Set
+  
+  ℕ4
+  =
+    data [
+  | zero
+  | suc
       (_
-       : `line comment
+       : --line comment
        ℕ) ]
   
-  def ℕ5 : Type ≔ data [
-  | zero.
-  | suc.
-      (_ `line comment
+  ℕ5 : Set
+  
+  ℕ5
+  =
+    data [
+  | zero
+  | suc
+      (_ --line comment
        : ℕ) ]
   
-  def ℕ6 : Type ≔ data [
-  | zero.
-  | suc. `line comment
+  ℕ6 : Set
+  
+  ℕ6
+  =
+    data [
+  | zero
+  | suc --line comment
       (_ : ℕ) ]
   
-  def Vec (A : Type) : ℕ → Type ≔ data [
-  | nil. : Vec A 0
-  | cons. (n : ℕ) (x : A) (xs : Vec A n) : Vec A (suc. n) ]
+  Vec : (A : Set) → ℕ → Set
   
-  def Vec1 (A : Type) : ℕ → Type ≔ data [
-  | nil. : Vec1 A 0
-  | cons. (n : ℕ) {` block
-      comment `}
+  Vec A
+  =
+    data [
+  | nil : Vec A 0
+  | cons (n : ℕ) (x : A) (xs : Vec A n) : Vec A (suc n) ]
+  
+  Vec1 : (A : Set) → ℕ → Set
+  
+  Vec1 A
+  =
+    data [
+  | nil : Vec1 A 0
+  | cons (n : ℕ) {- block
+      comment -}
       (x : A) (xs : Vec1 A n)
-    : Vec1 A (suc. n) ]
+    : Vec1 A (suc n) ]
   
-  def lots : Type ≔ data [
-  | boo. (_ : A) (_ : A) (_ : A) (_ : A) (_ : A) (_ : A) (_ : A) (_ : A)
+  lots : Set
+  
+  lots
+  =
+    data [
+  | boo (_ : A) (_ : A) (_ : A) (_ : A) (_ : A) (_ : A) (_ : A) (_ : A)
       (_ : A) (_ : A) (_ : A) (_ : A) (_ : A) (_ : A) ]
   
-  def lots2 : Type ≔ (data [
-  | boo. (_ : A) (_ : A) (_ : A) (_ : A) (_ : A) (_ : A) (_ : A) (_ : A)
+  lots2 : Set
+  
+  lots2
+  =
+    (data [
+  | boo (_ : A) (_ : A) (_ : A) (_ : A) (_ : A) (_ : A) (_ : A) (_ : A)
       (_ : A) (_ : A) (_ : A) (_ : A) (_ : A) (_ : A) ])
   
-  def prod (A B : Type) : Type ≔ sig ( fst : A, snd : B )
+  prod : (A B : Set) → Set
   
-  def prod2 (A B : Type) : Type ≔ sig (
-    fst : A, `line comment
+  prod A B = sig ( fst : A, snd : B )
+  
+  prod2 : (A B : Set) → Set
+  
+  prod2 A B
+  =
+    sig (
+    fst : A, --line comment
     snd : B )
   
-  def prod3 (A B : Type) : Type ≔ sig (
-    fst : `line comment
+  prod3 : (A B : Set) → Set
+  
+  prod3 A B
+  =
+    sig (
+    fst : --line comment
       A,
     snd : B )
   
-  def prod4 (A B : Type) : Type ≔ sig (
-    fst `line comment
+  prod4 : (A B : Set) → Set
+  
+  prod4 A B
+  =
+    sig (
+    fst --line comment
       : A,
     snd : B )
   
-  def triple : prod ℕ (prod ℕ ℕ) ≔ (0, (0, 0))
+  _&_ : A → A → A
   
-  def triple2 : prod ℕ (prod ℕ ℕ) ≔ (
-    0, `comment
+  _&_ x y = x
+  
+  infix 0 _&_
+  
+  triple : prod ℕ (prod ℕ ℕ)
+  
+  triple = (0, (0, 0))
+  
+  triple2 : prod ℕ (prod ℕ ℕ)
+  
+  triple2
+  =
+    (
+    0, --comment
     (0, 0))
   
-  def triple3 : prod ℕ (prod ℕ ℕ) ≔ (
-    0, `comment
-    (0, `comment
+  triple3 : prod ℕ (prod ℕ ℕ)
+  
+  triple3
+  =
+    (
+    0, --comment
+    (0, --comment
      0))
   
-  axiom f
+  postulate f
     : A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A →
       A → A → A
       → ℕ
   
-  axiom f2
-    : (x ` variable
-      : A) ` first arg
-      →
-      B `second arg
+  postulate f2 : (x : A) → B → C
+  
+  postulate f3 : (x : A) → B → C
+  
+  postulate f4 : (x : A) → B → C
+  
+  postulate f5
+    : (x : A) → B → C → C → C → C → C → C → C → C → C → C → C → C → C → C → C →
+      C → C → C → C
       → C
   
-  axiom f3
-    : (x : A) ` first arg
-      →
-      B `second arg
-      → C
+  postulate a : A
   
-  axiom f4
-    : (x : A) → B `second arg
-      → C
+  faaa
+  =
+    f a --hello
+      --goodbye
+      a a
   
-  axiom f5
-    : (x : A) → B `second arg
-      →
-      C → C → C → C → C → C → C → C → C → C → C → C → C → C → C → C → C → C →
-      C
-      → C
+  faaa1
+  =
+    f a {- hello -}
+      --goodbye
+      a a
   
-  axiom a : A
+  faaa2
+  =
+    f a {- hello
+      world -}
+      --goodbye
+      a a
   
-  def faaa
-    ≔ f a `hello
-        `goodbye
-        a a
+  faaa3
+  =
+    f a
+      --goodbye
+      a a
   
-  def faaa1
-    ≔ f a {` hello `}
-        `goodbye
-        a a
+  faaa4 = f a a a
   
-  def faaa2
-    ≔ f a {` hello
-        world `}
-        `goodbye
-        a a
+  faaa5 = f a a a
   
-  def faaa3
-    ≔ f a
-        `goodbye
-        a a
+  postulate a_long_thing : A
   
-  def faaa4 ≔ f a a a
+  flong : ℕ
   
-  def faaa5 ≔ f a a a
+  flong
+  =
+    f a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+      a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+      a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+      a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+      a_long_thing
   
-  axiom a_long_thing : A
+  flong2 : ℕ
   
-  def flong : ℕ
-    ≔ f a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+  flong2
+  =
+    f a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+      a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+      a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+      a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+      a_long_thing
+    : ℕ
+  
+  ftype : A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A →
+          A → A → A
+          → Set
+  
+  ftype _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ = ℕ
+  
+  flong3 : ℕ
+  
+  flong3
+  =
+    f a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+      a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+      a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+      a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+      a_long_thing
+    : ftype a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
         a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
         a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
         a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-        a_long_thing
   
-  def flong2 : ℕ
-    ≔ f a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-        a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-        a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-        a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-        a_long_thing
-      : ℕ
-  
-  def ftype
-    : A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A →
-      A → A
-      → Type
-    ≔ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ↦ ℕ
-  
-  def flong3 : ℕ
-    ≔ f a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-        a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-        a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-        a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-        a_long_thing
-      : ftype a_long_thing a_long_thing a_long_thing a_long_thing
-          a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-          a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-          a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-          a_long_thing
-  
-  axiom ftoftype
+  postulate ftoftype
     : A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A →
       A → A → A
       → ftype a_long_thing a_long_thing a_long_thing a_long_thing
@@ -260,18 +333,17 @@ The supplied files are symlinked into the directory where the test is run, and u
           a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
           a_long_thing
   
-  axiom a_very_long_type_to_wrap_the_line : Type
+  postulate a_very_long_type_to_wrap_the_line : Set
   
-  axiom a_very_long_term_to_wrap_the_line : a_very_long_type_to_wrap_the_line
+  postulate a_very_long_term_to_wrap_the_line
+    : a_very_long_type_to_wrap_the_line
   
-  def a_very_long_thing_to_wrap_the_line : a_very_long_type_to_wrap_the_line
-    ≔ a_very_long_term_to_wrap_the_line
+  a_very_long_thing_to_wrap_the_line : a_very_long_type_to_wrap_the_line
   
-  axiom Q : ℕ → Type
+  a_very_long_thing_to_wrap_the_line = a_very_long_term_to_wrap_the_line
   
-  {`
-  def qq
-  : Q
+  postulate Q : ℕ → Set {-
+  qq : Q
   (f a_long_thing a_long_thing a_long_thing a_long_thing
   a_long_thing a_long_thing a_long_thing a_long_thing
   a_long_thing a_long_thing a_long_thing a_long_thing
@@ -285,18 +357,30 @@ The supplied files are symlinked into the directory where the test is run, and u
   a_long_thing a_long_thing a_long_thing a_long_thing
   a_long_thing a_long_thing a_long_thing a_long_thing
   a_long_thing)
-  ≔ x ↦ ?
-  `}
+  qq x = ?
+  -}
   
-  def pair : prod ℕ ℕ ≔ (
+  pair : prod ℕ ℕ
+  
+  pair
+  =
+    (
     f a a a a a a a a a a a a a a a a a a a a a,
     f a a a a a a a a a a a a a a a a a a a a a)
   
-  def pair2 : prod ℕ ℕ ≔ (
+  pair2 : prod ℕ ℕ
+  
+  pair2
+  =
+    (
     fst ≔ f a a a a a a a a a a a a a a a a a a a a a,
     snd ≔ f a a a a a a a a a a a a a a a a a a a a a)
   
-  def lpair2 : prod ℕ ℕ ≔ (
+  lpair2 : prod ℕ ℕ
+  
+  lpair2
+  =
+    (
     fst ≔
       f a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
         a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
@@ -310,114 +394,162 @@ The supplied files are symlinked into the directory where the test is run, and u
         a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
         a_long_thing)
   
-  def triple4 : prod ℕ (prod ℕ ℕ) ≔ (
+  triple4 : prod ℕ (prod ℕ ℕ)
+  
+  triple4
+  =
+    (
     fst ≔ f a a a a a a a a a a a a a a a a a a a a a,
     snd ≔ (
       f a a a a a a a a a a a a a a a a a a a a a,
-      f a a a a a a a a a a a a a a a a a a a a a))
+      f a a a a a a a a a a a a a a a a a a a a a)) -- This is the purpose of the 'trivial' intros data
   
-  ` This is the purpose of the 'trivial' intros data
-  def triple5 : prod ℕ (prod ℕ ℕ) ≔ (
+  triple5 : prod ℕ (prod ℕ ℕ)
+  
+  triple5
+  =
+    (
     f a a a a a a a a a a a a a a a a a a a a a,
     (f a a a a a a a a a a a a a a a a a a a a a,
      f a a a a a a a a a a a a a a a a a a a a a))
   
-  def abstriple : ℕ → prod ℕ (prod ℕ ℕ) ≔ x ↦ (
+  abstriple : ℕ → prod ℕ (prod ℕ ℕ)
+  
+  abstriple x
+  =
+    (
     fst ≔ f a a a a a a a a a a a a a a a a a a a a a,
     snd ≔ (
       f a a a a a a a a a a a a a a a a a a a a a,
       f a a a a a a a a a a a a a a a a a a a a a))
   
-  def abstriple1 : ℕ → prod ℕ (prod ℕ ℕ)
-    ≔ this_is_a_very_long_variable_name_to_wrap_the_line ↦ (
+  abstriple1 : ℕ → prod ℕ (prod ℕ ℕ)
+  
+  abstriple1 this_is_a_very_long_variable_name_to_wrap_the_line
+  =
+    (
     fst ≔ f a a a a a a a a a a a a a a a a a a a a a,
     snd ≔ (
       f a a a a a a a a a a a a a a a a a a a a a,
       f a a a a a a a a a a a a a a a a a a a a a))
   
-  def id : ℕ → ℕ
-    ≔ a_very_long_variable_name ↦ match a_very_long_variable_name [
-  | zero. ↦ zero.
-  | suc. x ↦ suc. x]
+  id : ℕ → ℕ
   
-  def id2 : ℕ → ℕ
-    ≔ this_is_a_very_long_variable_name_to_wrap_the_line ↦
-        match this_is_a_very_long_variable_name_to_wrap_the_line [
-  | zero. ↦ zero.
-  | suc. x ↦ suc. x]
+  id a_very_long_variable_name
+  =
+    case a_very_long_variable_name of λ { zero → zero; suc x → suc x}
   
-  def ⊤ : Type ≔ sig ()
+  id2 : ℕ → ℕ
   
-  def ⊥ : Type ≔ data []
+  id2 this_is_a_very_long_variable_name_to_wrap_the_line
+  =
+    case this_is_a_very_long_variable_name_to_wrap_the_line of λ {
+  zero → zero;
+  suc x → suc x}
   
-  def ℕeq : ℕ → ℕ → Type ≔ m n ↦ match m [
-  | zero. ↦ match n [ zero. ↦ ⊤ | suc. _ ↦ ⊥ ]
-  | suc. m ↦ match n [ zero. ↦ ⊥ | suc. n ↦ ℕeq m n ]]
+  ⊤ : Set
   
-  def longfun : Type
-    ≔ (x : A) (x : A) (x : A) (x : A) (x : A) (x : A) (x : A) (x : A) (x : A)
-      (x : A)
-      → C
+  ⊤ = sig ()
   
-  def longfun1 : Type
-    ≔ (x : A) → (x : A) → (x : A) → (x : A) → (x : A) → (x : A) → (x : A) →
-      (x : A)
-      → C
+  ⊥ : Set
   
-  def longfun2 : Type ≔ A → A → A → A → A → A → A → A → A → A → B
+  ⊥ = data []
   
-  def longfun3 : Type
-    ≔ A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A →
-      A
-      → B
+  ℕeq : ℕ → ℕ → Set
   
-  def longfun4 : Type
-    ≔ (x : A) (x : A) (x : A) → A → (x : A) (_ : A) (x : A) (x : A) → (x : A)
-      → C
+  ℕeq m n
+  =
+    case m of λ {
+  zero → case n of λ { zero → ⊤; suc _ → ⊥};
+  suc m → case n of λ { zero → ⊥; suc n → ℕeq m n}}
   
-  axiom P : ℕ → Type
+  longfun : Set
   
-  {` This looks a little weird, but I think only because "P" is so short. `}
-  def longfun5 : Type
-    ≔ A → A → A →
-      P
-        (f a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-           a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-           a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-           a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-           a_long_thing) → A → A
-      → B
+  longfun
+  =
+    (x : A) (x : A) (x : A) (x : A) (x : A) (x : A) (x : A) (x : A) (x : A)
+    (x : A)
+    → C
   
-  def wrap (A : Type) : Type ≔ codata [ x .unwrap : A ]
+  longfun1 : Set
   
-  axiom object
+  longfun1
+  =
+    (x : A) → (x : A) → (x : A) → (x : A) → (x : A) → (x : A) → (x : A) →
+    (x : A)
+    → C
+  
+  longfun2 : Set
+  
+  longfun2 = A → A → A → A → A → A → A → A → A → A → B
+  
+  longfun3 : Set
+  
+  longfun3
+  =
+    A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A
+    → B
+  
+  longfun4 : Set
+  
+  longfun4
+  =
+    (x : A) (x : A) (x : A) → A → (x : A) (_ : A) (x : A) (x : A) → (x : A)
+    → C
+  
+  postulate P : ℕ → Set {- This looks a little weird, but I think only because "P" is so short. -}
+  
+  longfun5 : Set
+  
+  longfun5
+  =
+    A → A → A →
+    P
+      (f a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+         a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+         a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+         a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+         a_long_thing) → A → A
+    → B
+  
+  wrap : (A : Set) → Set
+  
+  wrap A = codata [ unwrap x : A ]
+  
+  postulate object
     : A → A → A → A → A → A → A
       → wrap
           (A → A → A → A → A
            → wrap (A → A → A → A → A → A → wrap (A → A → B)))
   
-  def objectb : B
-    ≔ object a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-          a_long_thing a_long_thing
-        .unwrap a_long_thing a_long_thing a_long_thing a_long_thing
-          a_long_thing
-        .unwrap a_long_thing a_long_thing a_long_thing a_long_thing
-          a_long_thing a_long_thing
-        .unwrap a_long_thing a_long_thing
+  objectb : B
   
-  axiom bareobj : wrap (A → A → A → A → A → B)
+  objectb
+  =
+    object a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+      a_long_thing a_long_thing unwrap a_long_thing a_long_thing a_long_thing
+      a_long_thing a_long_thing unwrap a_long_thing a_long_thing a_long_thing
+      a_long_thing a_long_thing a_long_thing unwrap a_long_thing a_long_thing
   
-  def bareb : B
-    ≔ bareobj .unwrap a_long_thing a_long_thing a_long_thing a_long_thing
-        a_long_thing
+  postulate bareobj : wrap (A → A → A → A → A → B)
   
-  axiom toobj : A → A → A → A → A → A → A → A → wrap B
+  bareb : B
   
-  def tob : B
-    ≔ toobj a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-        a_long_thing a_long_thing a_long_thing .unwrap
+  bareb
+  =
+    bareobj unwrap a_long_thing a_long_thing a_long_thing a_long_thing
+      a_long_thing
   
-  axiom wraps
+  postulate toobj : A → A → A → A → A → A → A → A → wrap B
+  
+  tob : B
+  
+  tob
+  =
+    toobj a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+      a_long_thing a_long_thing a_long_thing unwrap
+  
+  postulate wraps
     : wrap
         (wrap
            (wrap
@@ -437,54 +569,88 @@ The supplied files are symlinked into the directory where the test is run, and u
                                                      (wrap
                                                         (wrap (wrap (wrap B)))))))))))))))))))
   
-  def wrapb : B
-    ≔ wraps .unwrap .unwrap .unwrap .unwrap .unwrap .unwrap .unwrap .unwrap
-        .unwrap .unwrap .unwrap .unwrap .unwrap .unwrap .unwrap .unwrap
-        .unwrap .unwrap .unwrap .unwrap
+  wrapb : B
   
-  def bigabs
-    : A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A →
-      A → A
-      → A
-    ≔ longvar longvar longvar longvar longvar longvar longvar longvar longvar
-        longvar longvar longvar longvar longvar longvar longvar longvar
-        longvar longvar longvar ↦
-      longvar
+  wrapb
+  =
+    wraps unwrap unwrap unwrap unwrap unwrap unwrap unwrap unwrap unwrap
+      unwrap unwrap unwrap unwrap unwrap unwrap unwrap unwrap unwrap unwrap
+      unwrap
   
-  def plus : ℕ → ℕ → ℕ ≔ [ zero. ↦ n ↦ n | suc. m ↦ n ↦ suc. (plus m n) ]
+  bigabs : A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A →
+           A → A → A
+           → A
   
-  def tlet0 : ℕ ≔ let a_long_variable : ℕ ≔ 0 in a_long_variable
+  bigabs
+  =
+    longvar longvar longvar longvar longvar longvar longvar longvar longvar
+      longvar longvar longvar longvar longvar longvar longvar longvar longvar
+      longvar longvar ↦
+    longvar
   
-  def tlet00 : ℕ ≔
+  plus : ℕ → ℕ → ℕ
+  
+  plus = λ { zero → λ n → n; suc m → λ n → suc (plus m n)}
+  
+  tlet0 : ℕ
+  
+  tlet0 = let a_long_variable : ℕ ≔ 0 in a_long_variable
+  
+  tlet00 : ℕ
+  
+  tlet00
+  =
+  
     let an_even_longer_variable_name : ℕ ≔ 0 in
     an_even_longer_variable_name
   
-  def tlet : ℕ ≔
+  tlet : ℕ
+  
+  tlet
+  =
+  
     let a_long_variable : ℕ
       ≔ (plus (plus 0 (plus 0 0)) (plus 0 (plus 0 0))) in
     a_long_variable
   
-  def tlet1 : ℕ ≔
+  tlet1 : ℕ
+  
+  tlet1
+  =
+  
     let a_long_variable
       : A → A → A → A → A → A → A → A → A → A → A → A → A → A → ℕ
       ≔ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ↦
         (plus (plus 0 (plus 0 0)) (plus 0 (plus 0 0))) in
     a_long_variable a a a a a a a a a a a a a a
   
-  def tlet2 : prod ℕ ℕ ≔
+  tlet2 : prod ℕ ℕ
+  
+  tlet2
+  =
+  
     let a_long_variable : ℕ
       ≔ (plus (plus 0 (plus 0 0)) (plus 0 (plus 0 0))) in
     (a_long_variable, a_long_variable)
   
-  def dlet : ℕ ≔ let a_long_variable : ℕ ≔ 0 in let y : ℕ ≔ 0 in y
+  dlet : ℕ
   
-  def dlet2 : ℕ ≔
+  dlet = let a_long_variable : ℕ ≔ 0 in let y : ℕ ≔ 0 in y
+  
+  dlet2 : ℕ
+  
+  dlet2
+  =
+  
     let a_long_variable : ℕ ≔ 0 in
     let another_long_variable : ℕ ≔ 0 in
-    another_long_variable
+    another_long_variable {- TODO: Could we collapse those abstractions onto one line? -}
   
-  {` TODO: Could we collapse those abstractions onto one line? `}
-  def dlet3 : A → A → A → A → ℕ ≔
+  dlet3 : A → A → A → A → ℕ
+  
+  dlet3
+  =
+  
     let a_long_variable : ℕ ≔ 0 in
     x y ↦
     z w ↦
@@ -492,71 +658,112 @@ The supplied files are symlinked into the directory where the test is run, and u
     let yet_another_long_variable : ℕ ≔ 0 in
     another_long_variable
   
-  def dlet4 : A → A → A → A → ℕ ≔ x ↦
+  dlet4 : A → A → A → A → ℕ
+  
+  dlet4 x
+  =
+  
     let a_long_variable : ℕ ≔ 0 in
     y z ↦
     let another_long_variable : ℕ ≔ 0 in
     let yet_another_long_variable : ℕ ≔ 0 in
     w ↦ another_long_variable
   
-  def mlet : ℕ → ℕ → ℕ ≔
+  mlet : ℕ → ℕ → ℕ
+  
+  mlet
+  =
+  
     let a_long_variable : ℕ
       ≔ (plus (plus 0 (plus 0 0)) (plus 0 (plus 0 0))) in
-    match a_long_variable [
-    | zero. ↦
-        let another_long_variable : ℕ
-          ≔ (plus (plus 0 (plus 0 0)) (plus 0 (plus 0 0))) in
-        x ↦ y ↦ 0
-    | suc. _ ↦ x ↦ y ↦ 0]
+    case a_long_variable
+    of λ {
+    zero →
   
-  def mtup : ℕ → prod ℕ ℕ ≔ [ zero. ↦ (0, 0) | suc. n ↦ (n, n) ]
+      let another_long_variable : ℕ
+        ≔ (plus (plus 0 (plus 0 0)) (plus 0 (plus 0 0))) in
+      x ↦ y ↦ 0;
+    suc _ → x ↦ y ↦ 0}
   
-  def mtup2 : ℕ → prod ℕ ℕ ≔ [
-  | zero. ↦ (
-      0, `line comment
-      0)
-  | suc. n ↦ (fst ≔ n, snd ≔ n)]
+  mtup : ℕ → prod ℕ ℕ
   
-  def mtm : ℕ → ℕ → prod ℕ ℕ ≔ m ↦ [
-  | zero. ↦ (match m [ zero. ↦ 0 | suc. m ↦ 0 ], 0)
-  | suc. n ↦ (fst ≔ n, snd ≔ match m [ zero. ↦ 0 | suc. m ↦ 0 ])]
+  mtup = λ { zero → (0, 0); suc n → (n, n)}
   
-  axiom blahblah : A → A → A → A
+  mtup2 : ℕ → prod ℕ ℕ
   
-  axiom blahblah2 : A → A
+  mtup2
+  =
+    λ {
+  zero →
+    (
+    0, --line comment
+    0);
+  suc n → (fst ≔ n, snd ≔ n)}
   
-  axiom blahblah3 : A
+  mtm : ℕ → ℕ → prod ℕ ℕ
   
-  def blahblah4 : A
-    ≔ blahblah (blahblah2 blahblah3) (blahblah2 (blahblah2 blahblah3))
-        (blahblah blahblah3 blahblah3 blahblah3)
+  mtm m
+  =
+    λ {
+  zero → (case m of λ { zero → 0; suc m → 0}, 0);
+  suc n → (fst ≔ n, snd ≔ case m of λ { zero → 0; suc m → 0})}
   
-  def blahblah5 : A
-    ≔ blahblah (blahblah2 blahblah3) ` line comment
-        (blahblah2 (blahblah2 blahblah3))
-        (blahblah blahblah3 blahblah3 blahblah3)
+  postulate blahblah : A → A → A → A
   
-  def blahblah6 : A
-    ≔ blahblah ` line comment
-        (blahblah2 blahblah3) (blahblah2 (blahblah2 blahblah3))
-        (blahblah blahblah3 blahblah3 blahblah3)
+  postulate blahblah2 : A → A
   
-  def blahblah7 : A → A
-    ≔ bleh ↦
-      blahblah ` line comment
-        (blahblah2 blahblah3) (blahblah2 (blahblah2 blahblah3))
-        (blahblah blahblah3 blahblah3 blahblah3)
+  postulate blahblah3 : A
   
-  def blahblah8 : A → A → A → A → A → A → A → A → A → A → A → A → A
-    ≔ blehbleh blehbleh blehbleh blehbleh blehbleh blehbleh blehbleh blehbleh
-        blehbleh blehbleh blehbleh blehbleh ↦
-      blahblah ` line comment
-        (blahblah2 blahblah3) (blahblah2 (blahblah2 blahblah3))
-        (blahblah blahblah3 blahblah3 blahblah3)
+  blahblah4 : A
   
-  def blubblub : A → A → A → A → A → Type ≔ _ _ _ _ _ ↦ A
+  blahblah4
+  =
+    blahblah (blahblah2 blahblah3) (blahblah2 (blahblah2 blahblah3))
+      (blahblah blahblah3 blahblah3 blahblah3)
   
-  def bb : A ≔
+  blahblah5 : A
+  
+  blahblah5
+  =
+    blahblah (blahblah2 blahblah3) -- line comment
+      (blahblah2 (blahblah2 blahblah3))
+      (blahblah blahblah3 blahblah3 blahblah3)
+  
+  blahblah6 : A
+  
+  blahblah6
+  =
+    blahblah -- line comment
+      (blahblah2 blahblah3) (blahblah2 (blahblah2 blahblah3))
+      (blahblah blahblah3 blahblah3 blahblah3)
+  
+  blahblah7 : A → A
+  
+  blahblah7 bleh
+  =
+    blahblah -- line comment
+      (blahblah2 blahblah3) (blahblah2 (blahblah2 blahblah3))
+      (blahblah blahblah3 blahblah3 blahblah3)
+  
+  blahblah8 : A → A → A → A → A → A → A → A → A → A → A → A → A
+  
+  blahblah8
+  =
+    blehbleh blehbleh blehbleh blehbleh blehbleh blehbleh blehbleh blehbleh
+      blehbleh blehbleh blehbleh blehbleh ↦
+    blahblah -- line comment
+      (blahblah2 blahblah3) (blahblah2 (blahblah2 blahblah3))
+      (blahblah blahblah3 blahblah3 blahblah3)
+  
+  blubblub : A → A → A → A → A → Set
+  
+  blubblub _ _ _ _ _ = A
+  
+  bb : A
+  
+  bb
+  =
+  
     let bubble
       : blubblub blahblah3 blahblah3 (blahblah2 (blahblah2 blahblah3))
           blahblah3 blahblah3
@@ -564,79 +771,108 @@ The supplied files are symlinked into the directory where the test is run, and u
           (blahblah blahblah3 blahblah3 blahblah3) in
     bubble
   
-  axiom unpair : prod A A → A
+  postulate unpair : prod A A → A
   
-  def unpaired : A ≔ unpair (a, a)
+  unpaired : A
   
-  def unpaired2 : A
-    ≔ unpair
-        (blahblah (blahblah2 blahblah3) (blahblah2 (blahblah2 blahblah3))
-           (blahblah blahblah3 blahblah3 blahblah3),
-         blahblah (blahblah2 blahblah3) (blahblah2 (blahblah2 blahblah3))
-           (blahblah blahblah3 blahblah3 blahblah3))
+  unpaired = unpair (a, a)
   
-  def unpaired3 : A
-    ≔ unpair
-        (blahblah2 (blahblah2 blahblah3), blahblah2 (blahblah2 blahblah3))
+  unpaired2 : A
   
-  def unpaired4 : A
-    ≔ unpair
-        (fst ≔ blahblah2 (blahblah2 blahblah3),
-         snd ≔ blahblah2 (blahblah2 blahblah3))
+  unpaired2
+  =
+    unpair
+      (blahblah (blahblah2 blahblah3) (blahblah2 (blahblah2 blahblah3))
+         (blahblah blahblah3 blahblah3 blahblah3),
+       blahblah (blahblah2 blahblah3) (blahblah2 (blahblah2 blahblah3))
+         (blahblah blahblah3 blahblah3 blahblah3))
   
-  def ml : ℕ → ℕ ≔ let x : ℕ ≔ 0 in [ zero. ↦ 0 | suc. _ ↦ 0 ]
+  unpaired3 : A
   
-  def ml2 : ℕ → ℕ ≔
-    let x : ℕ ≔ 0 in
-    [ zero. ` line comment
-      ↦
-      0
-    | suc. _ ↦ 0]
+  unpaired3
+  =
+    unpair (blahblah2 (blahblah2 blahblah3), blahblah2 (blahblah2 blahblah3))
   
-  def ml3 : ℕ → ℕ ≔
-    let x : ℕ ≔ 0 in
-    [ zero. ↦ 0 ` line comment
-    | suc. _ ↦ 0]
+  unpaired4 : A
   
-  def stream (A : Type) : Type ≔ codata [ x .head : A | x .tail : stream A ]
+  unpaired4
+  =
+    unpair
+      (fst ≔ blahblah2 (blahblah2 blahblah3),
+       snd ≔ blahblah2 (blahblah2 blahblah3))
   
-  def zeros : stream ℕ ≔ [ .head ↦ 0 | .tail ↦ zeros ]
+  ml : ℕ → ℕ
   
-  def zeros2 : stream ℕ ≔ [
-  | .head ↦ 0 `comment
-  | .tail ↦ zeros]
+  ml = let x : ℕ ≔ 0 in λ { zero → 0; suc _ → 0}
   
-  def dup : ℕ → stream ℕ ≔ n ↦ [
-  | .head ↦ match n [ zero. ↦ 0 | suc. _ ↦ 0 ]
-  | .tail ↦ dup n]
+  ml2 : ℕ → ℕ
   
-  def fs : stream ℕ ≔ [
-  | .head ↦
+  ml2 = let x : ℕ ≔ 0 in λ { zero → 0; suc _ → 0}
+  
+  ml3 : ℕ → ℕ
+  
+  ml3 = let x : ℕ ≔ 0 in λ { zero → 0; suc _ → 0}
+  
+  stream : (A : Set) → Set
+  
+  stream A = codata [ head x : A | tail x : stream A ]
+  
+  zeros : stream ℕ
+  
+  zeros = record { head = 0; tail = zeros }
+  
+  zeros2 : stream ℕ
+  
+  zeros2
+  =
+    record {
+  head = 0 --comment
+  ;
+  tail = zeros }
+  
+  dup : ℕ → stream ℕ
+  
+  dup n = record { head = case n of λ { zero → 0; suc _ → 0}; tail = dup n }
+  
+  fs : stream ℕ
+  
+  fs
+  =
+    record {
+  head =
       f a_long_thing a_long_thing a_long_thing a a a a a a a a a a a a a a a
-        a a_long_thing a_long_thing
-  | .tail ↦ zeros]
+        a a_long_thing a_long_thing;
+  tail = zeros }
   
-  def ssz : stream (stream ℕ) ≔ [
-  | .head ↦ [ .head ↦ 0 | .tail ↦ ssz .head ]
-  | .tail ↦ ssz]
+  ssz : stream (stream ℕ)
   
-  axiom fsn
+  ssz = record { head = record { head = 0; tail = ssz head }; tail = ssz }
+  
+  postulate fsn
     : A → A → A → A → A → A → A → A → A → A → stream (stream ℕ)
       → stream (stream ℕ)
   
-  def ssz2 : stream (stream ℕ) ≔ [
-  | .head ↦ [
-    | .head ↦ 0
-    | .tail ↦
-        fsn a_long_thing a a_long_thing a a_long_thing a a_long_thing a
-          a_long_thing a_long_thing ssz2 .head]
-  | .tail ↦ ssz]
+  ssz2 : stream (stream ℕ)
   
-  def mss : ℕ → stream (stream (prod ℕ ℕ)) ≔ n ↦ [
-  | .head ↦ [
-    | .head ↦ match n [ zero. ↦ (0, 0) | suc. n ↦ (0, n) ]
-    | .tail ↦ mss 0 .head]
-  | .tail ↦ mss 0]
+  ssz2
+  =
+    record {
+  head = record {
+    head = 0;
+    tail =
+        fsn a_long_thing a a_long_thing a a_long_thing a a_long_thing a
+          a_long_thing a_long_thing ssz2 head };
+  tail = ssz }
+  
+  mss : ℕ → stream (stream (prod ℕ ℕ))
+  
+  mss n
+  =
+    record {
+  head = record {
+    head = case n of λ { zero → (0, 0); suc n → (0, n)};
+    tail = mss 0 head };
+  tail = mss 0 }
   
   notation(3) A "×" B ≔ prod A B
   
@@ -661,45 +897,68 @@ The supplied files are symlinked into the directory where the test is run, and u
   
   section foo ≔
   
-    def x : ℕ ≔ 3
+    x : ℕ
   
-    def fooflong : ℕ
-      ≔ f a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-          a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-          a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-          a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-          a_long_thing
+    x = 3
+  
+    fooflong : ℕ
+  
+    fooflong
+    =
+      f a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+        a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+        a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+        a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+        a_long_thing
   
     section bar ≔
   
-      def y : ℕ ≔ f a a a a a a a a a a a a a a a a a a a a a
+      y : ℕ
+  
+      y = f a a a a a a a a a a a a a a a a a a a a a
   
     end
   
   end
   
-  def x : ℕ ≔ 0
+  x : ℕ
   
-  and y : ℕ ≔ 0
+  x = 0
   
-  {` block comment `}
-  def x2 : ℕ ≔ 0 ` line comment
+  y : ℕ
   
-  `line comment
-  and y2 : ℕ ≔ 0
+  y = 0 {- block comment -}
   
-  def xy : ℕ ≔ let rec x : ℕ ≔ 0 and y : ℕ ≔ 0 in x
+  x2 : ℕ
   
-  def xy1 : ℕ ≔
-    let rec x : ℕ ≔ 0 `line comment
-    {` block comment `}
+  x2 = 0 --line comment
+  
+  y2 : ℕ
+  
+  y2 = 0
+  
+  xy : ℕ
+  
+  xy = let rec x : ℕ ≔ 0 and y : ℕ ≔ 0 in x
+  
+  xy1 : ℕ
+  
+  xy1
+  =
+  
+    let rec x : ℕ ≔ 0 --line comment
+    {- block comment -}
     and y : ℕ ≔ 0 in
     x
   
-  def xy2 : ℕ ≔
-    let rec x : ℕ `line comment
+  xy2 : ℕ
+  
+  xy2
+  =
+  
+    let rec x : ℕ --line comment
       ≔ 0
-    and y `line comment
+    and y --line comment
       : ℕ
       ≔ 0 in
     x
@@ -712,23 +971,54 @@ The supplied files are symlinked into the directory where the test is run, and u
            renaming squab squish,
            renaming squish squab)
   
-  {` long parameter lists `}
-  def eq (A : Type) (a : A) : A → Type ≔ data [ rfl. : eq A a a ]
+  eq : (A : Set) → (a : A) → A → Set
   
-  def cat (A : Type) (x y z : A) (u : eq A x y) (v : eq A y z) : eq A x z
-    ≔ match v [ rfl. ↦ u ]
+  eq A a = data [ rfl : eq A a a ]
   
-  def cat3 (A : Type) (x y z w : A) (p : eq A x y) (q : eq A y z)
-    (r : eq A z w)
-    : eq A x w
-    ≔ match q, r [ rfl., rfl. ↦ p ]
+  cat : (A : Set) → (x y z : A) → (u : eq A x y) → (v : eq A y z) → eq A x z
   
-  {` empty match `}
+  cat A x y z u v = case v of λ { rfl → u}
   
-  def abort (A : Type) (e : ⊥) : A ≔ match e [ ]
+  cat3 : (A : Set) → (x y z w : A) → (p : eq A x y) → (q : eq A y z) →
+         (r : eq A z w)
+         → eq A x w
   
-  {` fractional tightness notations `}
-  axiom binop : A → A → A
+  cat3 A x y z w p q r = case q, r of λ { rfl, rfl → p} {- empty match -}
+  
+  abort : (A : Set) → (e : ⊥) → A
+  
+  abort A e = case e of λ { } {- fractional tightness notations -}
+  
+  postulate binop : A → A → A
   
   notation(1.5) x "*+*" y ≔ binop x y
   
+  postulate _+_ : A → A → A
+  
+  infixl 6 _+_
+  
+  postulate -_ : A → A
+  
+  infixr 8 -_
+  
+  postulate if_then_else_ : A → A → A → A
+  
+  infix 0 if_then_else_
+  
+  postulate Fam : A → Set
+  
+  postulate All : (X : Set) → (X → Set) → Set
+  
+  notation(0) "∀" [x] ":" A "," B ≔ All A B
+  
+  echo (∀ x y : A, A)
+  
+  echo (∀ x : A, y : Fam x, A)
+  
+  postulate SigmaBody : (x : A) → Fam x → Set
+  
+  postulate Sigma2 : (X : Set) → (Y : X → Set) → ((x : X) → Y x → Set) → Set
+  
+  notation(0) "Σ" [x] ":" X "," [y] ":" Y "," Z ≔ Sigma2 X Y Z
+  
+  echo (Σ x : A, y : Fam x, SigmaBody x y)

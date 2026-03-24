@@ -7,8 +7,8 @@ It is curious that observational nullary parametricity gives us something akin t
 
 .. code-block:: none
 
-   def И (A : Type) : Type ≔ codata [
-   | x .subst.w : A .
+   def И (A : Set) : Set ≔ codata [
+   | subst⟨w⟩ x : A .
    ]
 
-Intuitively, ``И A`` is the type of terms of ``A`` that "bind" a dependence on one additional fresh name.  Accordingly, if we have an element ``a : wk (И A) .`` in the context of an *additional* name, then ``a .subst : wk A .`` is an element of ``A`` depending only on this same additional name, in which that name has been "substituted" for the fresh name bound in ``a``.  And if we have ``b : (И A)⁽ʷʷ⁾ . .`` depending on two additional names, we have both ``b .subst.1 : A⁽ʷʷ⁾ . .`` and ``b .subst.2 : A⁽ʷʷ⁾ . .``, which respectively substitute each of the additional names for the fresh one bound in ``b``.
+Intuitively, ``И A`` is the type of terms of ``A`` that "bind" a dependence on one additional fresh name.  Accordingly, if we have an element ``a : wk (И A) .`` in the context of an *additional* name, then ``a .subst : wk A .`` is an element of ``A`` depending only on this same additional name, in which that name has been "substituted" for the fresh name bound in ``a``.  And if we have ``b : (И A)⁽ʷʷ⁾ . .`` depending on two additional names, we have both ``b subst⟨1⟩ : A⁽ʷʷ⁾ . .`` and ``b subst⟨2⟩ : A⁽ʷʷ⁾ . .``, which respectively substitute each of the additional names for the fresh one bound in ``b``.

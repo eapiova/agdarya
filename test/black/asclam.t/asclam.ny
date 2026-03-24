@@ -1,23 +1,23 @@
-axiom A : Type
+postulate A : Set
 
 synth (x : A) ↦ x
 
-axiom B : A → Type
+postulate B : A → Set
 
-axiom C : A → Type
+postulate C : A → Set
 
-axiom f : (x : A) → B x
+postulate f : (x : A) → B x
 
-axiom g : (x : A) → B x → C x
+postulate g : (x : A) → B x → C x
 
 synth (x : A) ↦ g x (f x)
 
-axiom a : A
+postulate a : A
 
 echo ((x : A) ↦ x) a
-
 echo ((x : A) ↦ g x (f x)) a
 
-def unit : Type ≔ sig ()
+unit : Set
+unit = sig ()
 
 echo ((x : A) ↦ ()) : A → unit

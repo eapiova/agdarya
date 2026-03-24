@@ -1,4 +1,4 @@
-  $ narya -v patterns.ny
+  $ agdarya -source-only -v patterns.ny
    ￫ info[I0000]
    ￮ constant Sum defined
   
@@ -21,20 +21,23 @@
    ￮ constant flop defined
   
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom a assumed
+   ￮ postulate a assumed
   
    ￫ info[I0001]
-   ￮ axiom b assumed
+   ￮ postulate b assumed
   
    ￫ info[I0001]
-   ￮ axiom c assumed
+   ￮ postulate c assumed
   
   b + a + c
     : Triple A
   
    ￫ info[I0000]
    ￮ constant assoc defined
+  
+   ￫ warning[W2305]
+   ￮ can't write compiled file: $TESTCASE_ROOT/patterns.nyo
   

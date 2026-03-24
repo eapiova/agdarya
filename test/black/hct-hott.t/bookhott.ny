@@ -1,193 +1,129 @@
-{` -*- narya-prog-args: ("-proofgeneral" "-parametric" "-direction" "p,rel,Br") -*- `}
+{- -*- agdarya-prog-args: ("-proofgeneral" "-parametric" "-direction" "p,rel,Br") -*- -}
 
-{` Basic facts from Book HoTT using the Martin-Lof identity type.  We are treating this as the outer layer of 2LTT used in Orton-Pitts style to build an inner HOTT layer. `}
+{- Basic facts from Book HoTT using the Martin-Lof identity type.  We are treating this as the outer layer of 2LTT used in Orton-Pitts style to build an inner HOTT layer. -}
 
 section eq ≔
 
-  def eq (A : Type) (a : A) : A → Type ≔ data [ rfl. : eq A a a ]
+  eq : (A : Set) → (a : A) → A → Set
+  eq A a = data [ rfl : eq A a a ]
 
-  def cat (A : Type) (x y z : A) (u : eq A x y) (v : eq A y z) : eq A x z
-    ≔ match v [ rfl. ↦ u ]
+  cat : (A : Set) → (x y z : A) → (u : eq A x y) → (v : eq A y z) → eq A x z
+  cat A x y z u v = match v [ rfl ↦ u ]
 
-  def cat3 (A : Type) (x y z w : A) (p : eq A x y) (q : eq A y z)
-    (r : eq A z w)
-    : eq A x w
-    ≔ match q, r [ rfl., rfl. ↦ p ]
+  cat3 : (A : Set) → (x y z w : A) → (p : eq A x y) → (q : eq A y z) → (r : eq A z w) → eq A x w
+  cat3 A x y z w p q r = match q, r [ rfl, rfl ↦ p ]
 
-  def idl (A : Type) (a0 a1 : A) (a2 : eq A a0 a1)
-    : eq (eq A a0 a1) (cat A a0 a0 a1 rfl. a2) a2
-    ≔ match a2 [ rfl. ↦ rfl. ]
+  idl : (A : Set) → (a0 a1 : A) → (a2 : eq A a0 a1) → eq (eq A a0 a1) (cat A a0 a0 a1 rfl a2) a2
+  idl A a0 a1 a2 = match a2 [ rfl ↦ rfl ]
 
-  def inv (A : Type) (a0 a1 : A) (a2 : eq A a0 a1) : eq A a1 a0
-    ≔ match a2 [ rfl. ↦ rfl. ]
+  inv : (A : Set) → (a0 a1 : A) → (a2 : eq A a0 a1) → eq A a1 a0
+  inv A a0 a1 a2 = match a2 [ rfl ↦ rfl ]
 
-  def ap (A B : Type) (f : A → B) (a0 a1 : A) (a2 : eq A a0 a1)
-    : eq B (f a0) (f a1)
-    ≔ match a2 [ rfl. ↦ rfl. ]
+  ap : (A B : Set) → (f : A → B) → (a0 a1 : A) → (a2 : eq A a0 a1) → eq B (f a0) (f a1)
+  ap A B f a0 a1 a2 = match a2 [ rfl ↦ rfl ]
 
-  def ap_ap (A B C : Type) (f : A → B) (g : B → C) (a0 a1 : A)
-    (a2 : eq A a0 a1)
-    : eq (eq C (g (f a0)) (g (f a1)))
+  ap_ap : (A B C : Set) → (f : A → B) → (g : B → C) → (a0 a1 : A) → (a2 : eq A a0 a1) → eq (eq C (g (f a0)) (g (f a1)))
         (ap B C g (f a0) (f a1) (ap A B f a0 a1 a2))
         (ap A C (x ↦ g (f x)) a0 a1 a2)
-    ≔ match a2 [ rfl. ↦ rfl. ]
+  ap_ap A B C f g a0 a1 a2 = match a2 [ rfl ↦ rfl ]
 
-  def trr (A : Type) (P : A → Type) (a0 a1 : A) (a2 : eq A a0 a1)
-    (p : P a0)
-    : P a1
-    ≔ match a2 [ rfl. ↦ p ]
+  trr : (A : Set) → (P : A → Set) → (a0 a1 : A) → (a2 : eq A a0 a1) → (p : P a0) → P a1
+  trr A P a0 a1 a2 p = match a2 [ rfl ↦ p ]
 
-  def trr_ap (A B : Type) (P : A → Type) (Q : B → Type) (f : A → B)
-    (g : (x : A) → P x → Q (f x)) (a0 a1 : A) (a2 : eq A a0 a1) (p : P a0)
-    : eq (Q (f a1)) (g a1 (trr A P a0 a1 a2 p))
+  trr_ap : (A B : Set) → (P : A → Set) → (Q : B → Set) → (f : A → B) → (g : (x : A) → P x → Q (f x)) → (a0 a1 : A) → (a2 : eq A a0 a1) → (p : P a0) → eq (Q (f a1)) (g a1 (trr A P a0 a1 a2 p))
         (trr B Q (f a0) (f a1) (ap A B f a0 a1 a2) (g a0 p))
-    ≔ match a2 [ rfl. ↦ rfl. ]
+  trr_ap A B P Q f g a0 a1 a2 p = match a2 [ rfl ↦ rfl ]
 
-  def trr2 (A : Type) (B : Type) (P : A → B → Type) (a0 a1 : A)
-    (a2 : eq A a0 a1) (b0 b1 : B) (b2 : eq B b0 b1) (p : P a0 b0)
-    : P a1 b1
-    ≔ match a2, b2 [ rfl., rfl. ↦ p ]
+  trr2 : (A : Set) → (B : Set) → (P : A → B → Set) → (a0 a1 : A) → (a2 : eq A a0 a1) → (b0 b1 : B) → (b2 : eq B b0 b1) → (p : P a0 b0) → P a1 b1
+  trr2 A B P a0 a1 a2 b0 b1 b2 p = match a2, b2 [ rfl, rfl ↦ p ]
 
-  def trl2 (A : Type) (B : Type) (P : A → B → Type) (a0 a1 : A)
-    (a2 : eq A a0 a1) (b0 b1 : B) (b2 : eq B b0 b1) (p : P a1 b1)
-    : P a0 b0
-    ≔ match a2, b2 [ rfl., rfl. ↦ p ]
+  trl2 : (A : Set) → (B : Set) → (P : A → B → Set) → (a0 a1 : A) → (a2 : eq A a0 a1) → (b0 b1 : B) → (b2 : eq B b0 b1) → (p : P a1 b1) → P a0 b0
+  trl2 A B P a0 a1 a2 b0 b1 b2 p = match a2, b2 [ rfl, rfl ↦ p ]
 
-  def trr2_ap (A B : Type) (P : A → B → Type) (C D : Type)
-    (Q : C → D → Type) (f : A → C) (g : B → D)
-    (h : (x : A) (y : B) → P x y → Q (f x) (g y)) (a0 a1 : A)
-    (a2 : eq A a0 a1) (b0 b1 : B) (b2 : eq B b0 b1) (p : P a0 b0)
-    : eq (Q (f a1) (g b1)) (h a1 b1 (trr2 A B P a0 a1 a2 b0 b1 b2 p))
+  trr2_ap : (A B : Set) → (P : A → B → Set) → (C D : Set) → (Q : C → D → Set) → (f : A → C) → (g : B → D) → (h : (x : A) (y : B) → P x y → Q (f x) (g y)) → (a0 a1 : A) → (a2 : eq A a0 a1) → (b0 b1 : B) → (b2 : eq B b0 b1) → (p : P a0 b0) → eq (Q (f a1) (g b1)) (h a1 b1 (trr2 A B P a0 a1 a2 b0 b1 b2 p))
         (trr2 C D Q (f a0) (f a1) (ap A C f a0 a1 a2) (g b0) (g b1)
            (ap B D g b0 b1 b2) (h a0 b0 p))
-    ≔ match a2, b2 [ rfl., rfl. ↦ rfl. ]
+  trr2_ap A B P C D Q f g h a0 a1 a2 b0 b1 b2 p = match a2, b2 [ rfl, rfl ↦ rfl ]
 
-  def whiskerR (A : Type) (a0 a1 a2 : A) (a01 a01' : eq A a0 a1)
-    (a02 : eq (eq A a0 a1) a01 a01') (a12 : eq A a1 a2)
-    : eq (eq A a0 a2) (cat A a0 a1 a2 a01 a12) (cat A a0 a1 a2 a01' a12)
-    ≔ match a12 [ rfl. ↦ a02 ]
+  whiskerR : (A : Set) → (a0 a1 a2 : A) → (a01 a01' : eq A a0 a1) → (a02 : eq (eq A a0 a1) a01 a01') → (a12 : eq A a1 a2) → eq (eq A a0 a2) (cat A a0 a1 a2 a01 a12) (cat A a0 a1 a2 a01' a12)
+  whiskerR A a0 a1 a2 a01 a01' a02 a12 = match a12 [ rfl ↦ a02 ]
 
-  def unwhiskerR (A : Type) (a0 a1 a2 : A) (a01 a01' : eq A a0 a1)
-    (a12 : eq A a1 a2)
-    (a02 : eq (eq A a0 a2) (cat A a0 a1 a2 a01 a12)
-             (cat A a0 a1 a2 a01' a12))
-    : eq (eq A a0 a1) a01 a01'
-    ≔ match a12 [ rfl. ↦ a02 ]
+  unwhiskerR : (A : Set) → (a0 a1 a2 : A) → (a01 a01' : eq A a0 a1) → (a12 : eq A a1 a2) → (a02 : eq (eq A a0 a2) (cat A a0 a1 a2 a01 a12)
+             (cat A a0 a1 a2 a01' a12)) → eq (eq A a0 a1) a01 a01'
+  unwhiskerR A a0 a1 a2 a01 a01' a12 a02 = match a12 [ rfl ↦ a02 ]
 
 end
 
-def eq ≔ eq.eq
+eq = eq⟨eq⟩
 
-def eqd (A : Type) (B : A → Type) (a0 a1 : A) (a2 : eq A a0 a1) (b0 : B a0)
-  (b1 : B a1)
-  : Type
-  ≔ match a2 [ rfl. ↦ eq (B a0) b0 b1 ]
+eqd : (A : Set) → (B : A → Set) → (a0 a1 : A) → (a2 : eq A a0 a1) → (b0 : B a0) → (b1 : B a1) → Set
+eqd A B a0 a1 a2 b0 b1 = match a2 [ eq.rfl ↦ eq (B a0) b0 b1 ]
 
-def ap2d (A : Type) (B : A → Type) (C : Type) (f : (a : A) → B a → C)
-  (a0 a1 : A) (a2 : eq A a0 a1) (b0 : B a0) (b1 : B a1)
-  (b2 : eqd A B a0 a1 a2 b0 b1)
-  : eq C (f a0 b0) (f a1 b1)
-  ≔ match a2, b2 [ rfl., rfl. ↦ rfl. ]
+ap2d : (A : Set) → (B : A → Set) → (C : Set) → (f : (a : A) → B a → C) → (a0 a1 : A) → (a2 : eq A a0 a1) → (b0 : B a0) → (b1 : B a1) → (b2 : eqd A B a0 a1 a2 b0 b1) → eq C (f a0 b0) (f a1 b1)
+ap2d A B C f a0 a1 a2 b0 b1 b2 = match a2, b2 [ eq.rfl, eq.rfl ↦ eq.rfl ]
 
-def eqdd (A : Type) (B : A → Type) (C : (a : A) → B a → Type) (a0 a1 : A)
-  (a2 : eq A a0 a1) (b0 : B a0) (b1 : B a1) (b2 : eqd A B a0 a1 a2 b0 b1)
-  (c0 : C a0 b0) (c1 : C a1 b1)
-  : Type
-  ≔ match a2, b2 [ rfl., rfl. ↦ eq (C a0 b0) c0 c1 ]
+eqdd : (A : Set) → (B : A → Set) → (C : (a : A) → B a → Set) → (a0 a1 : A) → (a2 : eq A a0 a1) → (b0 : B a0) → (b1 : B a1) → (b2 : eqd A B a0 a1 a2 b0 b1) → (c0 : C a0 b0) → (c1 : C a1 b1) → Set
+eqdd A B C a0 a1 a2 b0 b1 b2 c0 c1 = match a2, b2 [ eq.rfl, eq.rfl ↦ eq (C a0 b0) c0 c1 ]
 
-def ap3d (A : Type) (B : A → Type) (C : (a : A) → B a → Type) (D : Type)
-  (f : (a : A) (b : B a) → C a b → D) (a0 a1 : A) (a2 : eq A a0 a1)
-  (b0 : B a0) (b1 : B a1) (b2 : eqd A B a0 a1 a2 b0 b1) (c0 : C a0 b0)
-  (c1 : C a1 b1) (c2 : eqdd A B C a0 a1 a2 b0 b1 b2 c0 c1)
-  : eq D (f a0 b0 c0) (f a1 b1 c1)
-  ≔ match a2, b2, c2 [ rfl., rfl., rfl. ↦ rfl. ]
+ap3d : (A : Set) → (B : A → Set) → (C : (a : A) → B a → Set) → (D : Set) → (f : (a : A) (b : B a) → C a b → D) → (a0 a1 : A) → (a2 : eq A a0 a1) → (b0 : B a0) → (b1 : B a1) → (b2 : eqd A B a0 a1 a2 b0 b1) → (c0 : C a0 b0) → (c1 : C a1 b1) → (c2 : eqdd A B C a0 a1 a2 b0 b1 b2 c0 c1) → eq D (f a0 b0 c0) (f a1 b1 c1)
+ap3d A B C D f a0 a1 a2 b0 b1 b2 c0 c1 c2 = match a2, b2, c2 [ eq.rfl, eq.rfl, eq.rfl ↦ eq.rfl ]
 
 section sq ≔
 
-  def sq (A : Type) (a00 : A)
-    : (a01 : A) (a02 : eq A a00 a01) (a10 a11 : A) (a12 : eq A a10 a11)
+  sq : (A : Set) → (a00 : A) → (a01 : A) (a02 : eq A a00 a01) (a10 a11 : A) (a12 : eq A a10 a11)
       (a20 : eq A a00 a10) (a21 : eq A a01 a11)
-      → Type
-    ≔ data [
-  | rfl. : sq A a00 a00 rfl. a00 a00 rfl. rfl. rfl. ]
+      → Set
+  sq A a00 = data [
+  | rfl : sq A a00 a00 rfl a00 a00 rfl rfl rfl ]
 
-  def hrfl (A : Type) (a0 a1 : A) (a2 : eq A a0 a1)
-    : sq A a0 a0 rfl. a1 a1 rfl. a2 a2
-    ≔ match a2 [ rfl. ↦ rfl. ]
+  hrfl : (A : Set) → (a0 a1 : A) → (a2 : eq A a0 a1) → sq A a0 a0 rfl a1 a1 rfl a2 a2
+  hrfl A a0 a1 a2 = match a2 [ rfl ↦ rfl ]
 
-  def nat_toid (A : Type) (f : A → A) (p : (x : A) → eq A (f x) x)
-    (a0 a1 : A) (a2 : eq A a0 a1)
-    : sq A (f a0) (f a1) (eq.ap A A f a0 a1 a2) a0 a1 a2 (p a0) (p a1)
-    ≔ match a2 [ rfl. ↦ hrfl A (f a0) a0 (p a0) ]
+  nat_toid : (A : Set) → (f : A → A) → (p : (x : A) → eq A (f x) x) → (a0 a1 : A) → (a2 : eq A a0 a1) → sq A (f a0) (f a1) (eq.ap A A f a0 a1 a2) a0 a1 a2 (p a0) (p a1)
+  nat_toid A f p a0 a1 a2 = match a2 [ rfl ↦ hrfl A (f a0) a0 (p a0) ]
 
-  def ap (A B : Type) (f : A → B) (a00 a01 : A) (a02 : eq A a00 a01)
-    (a10 a11 : A) (a12 : eq A a10 a11) (a20 : eq A a00 a10)
-    (a21 : eq A a01 a11) (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21)
-    : sq B (f a00) (f a01) (eq.ap A B f a00 a01 a02) (f a10) (f a11)
+  ap : (A B : Set) → (f : A → B) → (a00 a01 : A) → (a02 : eq A a00 a01) → (a10 a11 : A) → (a12 : eq A a10 a11) → (a20 : eq A a00 a10) → (a21 : eq A a01 a11) → (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21) → sq B (f a00) (f a01) (eq.ap A B f a00 a01 a02) (f a10) (f a11)
         (eq.ap A B f a10 a11 a12) (eq.ap A B f a00 a10 a20)
         (eq.ap A B f a01 a11 a21)
-    ≔ match a22 [ rfl. ↦ rfl. ]
+  ap A B f a00 a01 a02 a10 a11 a12 a20 a21 a22 = match a22 [ rfl ↦ rfl ]
 
-  def act02 (A : Type) (a00 a01 : A) (a02 : eq A a00 a01) (a10 a11 : A)
-    (a12 : eq A a10 a11) (a20 : eq A a00 a10) (a21 : eq A a01 a11)
-    (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21) (a02' : eq A a00 a01)
-    (p : eq (eq A a00 a01) a02 a02')
-    : sq A a00 a01 a02' a10 a11 a12 a20 a21
-    ≔ match p [ rfl. ↦ a22 ]
+  act02 : (A : Set) → (a00 a01 : A) → (a02 : eq A a00 a01) → (a10 a11 : A) → (a12 : eq A a10 a11) → (a20 : eq A a00 a10) → (a21 : eq A a01 a11) → (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21) → (a02' : eq A a00 a01) → (p : eq (eq A a00 a01) a02 a02') → sq A a00 a01 a02' a10 a11 a12 a20 a21
+  act02 A a00 a01 a02 a10 a11 a12 a20 a21 a22 a02' p = match p [ rfl ↦ a22 ]
 
-  def act20 (A : Type) (a00 a01 : A) (a02 : eq A a00 a01) (a10 a11 : A)
-    (a12 : eq A a10 a11) (a20 : eq A a00 a10) (a21 : eq A a01 a11)
-    (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21) (a20' : eq A a00 a10)
-    (p : eq (eq A a00 a10) a20 a20')
-    : sq A a00 a01 a02 a10 a11 a12 a20' a21
-    ≔ match p [ rfl. ↦ a22 ]
+  act20 : (A : Set) → (a00 a01 : A) → (a02 : eq A a00 a01) → (a10 a11 : A) → (a12 : eq A a10 a11) → (a20 : eq A a00 a10) → (a21 : eq A a01 a11) → (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21) → (a20' : eq A a00 a10) → (p : eq (eq A a00 a10) a20 a20') → sq A a00 a01 a02 a10 a11 a12 a20' a21
+  act20 A a00 a01 a02 a10 a11 a12 a20 a21 a22 a20' p = match p [ rfl ↦ a22 ]
 
-  def to_cat (A : Type) (a00 a01 : A) (a02 : eq A a00 a01) (a10 a11 : A)
-    (a12 : eq A a10 a11) (a20 : eq A a00 a10) (a21 : eq A a01 a11)
-    (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21)
-    : eq (eq A a00 a11) (eq.cat A a00 a01 a11 a02 a21)
+  to_cat : (A : Set) → (a00 a01 : A) → (a02 : eq A a00 a01) → (a10 a11 : A) → (a12 : eq A a10 a11) → (a20 : eq A a00 a10) → (a21 : eq A a01 a11) → (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21) → eq (eq A a00 a11) (eq.cat A a00 a01 a11 a02 a21)
         (eq.cat A a00 a10 a11 a20 a12)
-    ≔ match a22 [ rfl. ↦ rfl. ]
+  to_cat A a00 a01 a02 a10 a11 a12 a20 a21 a22 = match a22 [ rfl ↦ rfl ]
 
-  def to_cat3 (A : Type) (a00 a01 : A) (a02 : eq A a00 a01) (a10 a11 : A)
-    (a12 : eq A a10 a11) (a20 : eq A a00 a10) (a21 : eq A a01 a11)
-    (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21)
-    : eq (eq A a10 a11) a12
+  to_cat3 : (A : Set) → (a00 a01 : A) → (a02 : eq A a00 a01) → (a10 a11 : A) → (a12 : eq A a10 a11) → (a20 : eq A a00 a10) → (a21 : eq A a01 a11) → (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21) → eq (eq A a10 a11) a12
         (eq.cat3 A a10 a00 a01 a11 (eq.inv A a00 a10 a20) a02 a21)
-    ≔ match a22 [ rfl. ↦ rfl. ]
+  to_cat3 A a00 a01 a02 a10 a11 a12 a20 a21 a22 = match a22 [ rfl ↦ rfl ]
 
-  def all_rfl_21 (A : Type) (a : A) (a2 : eq A a a)
-    (a22 : sq A a a rfl. a a rfl. rfl. a2)
-    : eq (eq A a a) a2 rfl.
-    ≔ eq.cat (eq A a a) a2 (eq.cat A a a a rfl. a2) rfl.
-        (eq.inv (eq A a a) (eq.cat A a a a rfl. a2) a2 (eq.idl A a a a2))
-        (to_cat A a a rfl. a a rfl. rfl. a2 a22)
+  all_rfl_21 : (A : Set) → (a : A) → (a2 : eq A a a) → (a22 : sq A a a rfl a a rfl rfl a2) → eq (eq A a a) a2 rfl
+  all_rfl_21 A a a2 a22 = eq.cat (eq A a a) a2 (eq.cat A a a a rfl a2) rfl
+        (eq.inv (eq A a a) (eq.cat A a a a rfl a2) a2 (eq.idl A a a a2))
+        (to_cat A a a rfl a a rfl rfl a2 a22)
 
-  def unact21 (A : Type) (a00 a01 : A) (a02 : eq A a00 a01) (a10 a11 : A)
-    (a12 : eq A a10 a11) (a20 : eq A a00 a10) (a21 : eq A a01 a11)
-    (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21) (a21' : eq A a01 a11)
-    (a22' : sq A a00 a01 a02 a10 a11 a12 a20 a21')
-    : eq (eq A a01 a11) a21 a21'
-    ≔ match a22 [
-  | rfl. ↦ eq.inv (eq A a00 a00) a21' rfl. (all_rfl_21 A a00 a21' a22')]
+  unact21 : (A : Set) → (a00 a01 : A) → (a02 : eq A a00 a01) → (a10 a11 : A) → (a12 : eq A a10 a11) → (a20 : eq A a00 a10) → (a21 : eq A a01 a11) → (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21) → (a21' : eq A a01 a11) → (a22' : sq A a00 a01 a02 a10 a11 a12 a20 a21') → eq (eq A a01 a11) a21 a21'
+  unact21 A a00 a01 a02 a10 a11 a12 a20 a21 a22 a21' a22' = match a22 [
+  | rfl ↦ eq.inv (eq A a00 a00) a21' rfl (all_rfl_21 A a00 a21' a22')]
 
-  def cancel_12_eq_21 (A : Type) (a00 a01 : A) (a02 : eq A a00 a01)
-    (a11 : A) (a12 : eq A a01 a11) (a20 : eq A a00 a01)
-    (a22 : sq A a00 a01 a02 a01 a11 a12 a20 a12)
-    : eq (eq A a00 a01) a02 a20
-    ≔ eq.unwhiskerR A a00 a01 a11 a02 a20 a12
+  cancel_12_eq_21 : (A : Set) → (a00 a01 : A) → (a02 : eq A a00 a01) → (a11 : A) → (a12 : eq A a01 a11) → (a20 : eq A a00 a01) → (a22 : sq A a00 a01 a02 a01 a11 a12 a20 a12) → eq (eq A a00 a01) a02 a20
+  cancel_12_eq_21 A a00 a01 a02 a11 a12 a20 a22 = eq.unwhiskerR A a00 a01 a11 a02 a20 a12
         (to_cat A a00 a01 a02 a01 a11 a12 a20 a12 a22)
 
 end
 
-def sq ≔ sq.sq
+sq = sq.sq
 
-def selfnat (A : Type) (f : A → A) (H : (x : A) → eq A (f x) x) (a : A)
-  : eq (eq A (f (f a)) (f a)) (eq.ap A A f (f a) a (H a)) (H (f a))
-  ≔ sq.cancel_12_eq_21 A (f (f a)) (f a) (eq.ap A A f (f a) a (H a)) a
+selfnat : (A : Set) → (f : A → A) → (H : (x : A) → eq A (f x) x) → (a : A) → eq (eq A (f (f a)) (f a)) (eq.ap A A f (f a) a (H a)) (H (f a))
+selfnat A f H a = sq.cancel_12_eq_21 A (f (f a)) (f a) (eq.ap A A f (f a) a (H a)) a
       (H a) (H (f a)) (sq.nat_toid A f H (f a) a (H a))
 
-def eqv (A B : Type) : Type ≔ sig (
+eqv : (A B : Set) → Set
+eqv A B = sig (
   to : A → B,
   fro : B → A,
   fro_to : (a : A) → eq A (fro (to a)) a,
@@ -198,25 +134,23 @@ def eqv (A B : Type) : Type ≔ sig (
 
 notation(1) A "≅" B ≔ eqv A B
 
-def fro_to_fro (A B : Type) (e : A ≅ B) (y : B)
-  : eq (eq A (e .fro (e .to (e .fro y))) (e .fro y))
-      (eq.ap B A (e .fro) (e .to (e .fro y)) y (e .to_fro y))
-      (e .fro_to (e .fro y))
-  ≔
-  let f ≔ e .to in
-  let g ≔ e .fro in
+fro_to_fro : (A B : Set) → (e : A ≅ B) → (y : B) → eq (eq A (e fro (e to (e fro y))) (e fro y))
+      (eq.ap B A (e fro) (e to (e fro y)) y (e to_fro y))
+      (e fro_to (e fro y))
+fro_to_fro A B e y = let f ≔ e to in
+  let g ≔ e fro in
   let ap_f ≔ eq.ap A B f in
   let ap_g ≔ eq.ap B A g in
-  let fg : B → B ≔ x ↦ e .to (e .fro x) in
+  let fg : B → B ≔ x ↦ e to (e fro x) in
   let ap_fg ≔ eq.ap B B fg in
-  let gf : A → A ≔ x ↦ e .fro (e .to x) in
+  let gf : A → A ≔ x ↦ e fro (e to x) in
   let ap_gf ≔ eq.ap A A gf in
-  let gfg : B → A ≔ x ↦ e .fro (e .to (e .fro x)) in
+  let gfg : B → A ≔ x ↦ e fro (e to (e fro x)) in
   let ap_gfg ≔ eq.ap B A gfg in
-  let fgfg : B → B ≔ x ↦ e .to (e .fro (e .to (e .fro x))) in
-  let gfgfg : B → A ≔ x ↦ e .fro (e .to (e .fro (e .to (e .fro x)))) in
-  let η ≔ e .fro_to in
-  let ε ≔ e .to_fro in
+  let fgfg : B → B ≔ x ↦ e to (e fro (e to (e fro x))) in
+  let gfgfg : B → A ≔ x ↦ e fro (e to (e fro (e to (e fro x)))) in
+  let η ≔ e fro_to in
+  let ε ≔ e to_fro in
   sq.unact21 A (gfgfg y) (gfg y)
     (eq.ap A A gf (gfg y) (g y) (ap_g (fg y) y (ε y))) (gfg y) (g y)
     (ap_g (fg y) y (ε y)) (η (gfg y)) (ap_g (fg y) y (ε y))
@@ -248,16 +182,13 @@ def fro_to_fro (A B : Type) (e : A ≅ B) (y : B)
              (ap_g (fgfg y) (fg y) (ε (fg y)))
              (eq.ap (eq B (fgfg y) (fg y)) (eq A (gfgfg y) (gfg y))
                 (ap_g (fgfg y) (fg y)) (ap_f (gfg y) (g y) (η (g y)))
-                (ε (fg y)) (e .to_fro_to (g y))))
+                (ε (fg y)) (e to_fro_to (g y))))
           (eq.ap_ap A B A f g (gfg y) (g y) (η (g y)))
           (selfnat A gf η (g y)))) (η (g y))
     (sq.nat_toid A gf η (gfg y) (g y) (ap_g (fg y) y (ε y)))
 
-def adjointify (A B : Type) (f : A → B) (g : B → A)
-  (η : (a : A) → eq A (g (f a)) a) (ε : (b : B) → eq B (f (g b)) b)
-  : A ≅ B
-  ≔
-  let ap_f ≔ eq.ap A B f in
+adjointify : (A B : Set) → (f : A → B) → (g : B → A) → (η : (a : A) → eq A (g (f a)) a) → (ε : (b : B) → eq B (f (g b)) b) → A ≅ B
+adjointify A B f g η ε = let ap_f ≔ eq.ap A B f in
   let ap_g ≔ eq.ap B A g in
   let fg : B → B ≔ x ↦ f (g x) in
   let ap_fg ≔ eq.ap B B fg in

@@ -3,15 +3,15 @@ open Testutil.Mcp
 let () =
   Parser.Unparse.install ();
   run @@ fun () ->
-  let uu, _ = synth "Type" in
+  let uu, _ = synth "Set" in
   let aa = assume "A" uu in
-  let atou, _ = synth "A → Type" in
+  let atou, _ = synth "A → Set" in
   let bb = assume "B" atou in
   let atob, _ = synth "(x : A) → B x" in
   let f = assume "f" atob in
   let () = unequal atou atob in
   let () = equal f f in
-  let abtou, _ = synth "(x:A)→ B x → Type" in
+  let abtou, _ = synth "(x:A)→ B x → Set" in
   let cc = assume "C" abtou in
   let abtoc, _ = synth "(x:A)→(y:B x)→C x y" in
 
@@ -55,10 +55,10 @@ let () =
   let () = equal ida a0 in
 
   (* Check for the ambiguity bug. *)
-  let _ = synth "(A:Type) → (A:Type) → A" in
+  let _ = synth "(A:Set) → (A:Set) → A" in
 
   (* Efficiency *)
-  let churchnat, _ = synth "(X:Type) → (X → X) → (X → X)" in
+  let churchnat, _ = synth "(X:Set) → (X → X) → (X → X)" in
 
   let cnat n =
     let rec cnat n = if n <= 0 then "x" else "(f " ^ cnat (n - 1) ^ ")" in
@@ -71,30 +71,30 @@ let () =
   let cien = parse_term Emp (cnat 100) in
 
   (* Parsing church numerals starts to take a noticable fraction of a second around 2000. *)
-  Testutil.Repl.def "Σ" "(A : Type) → (A → Type) → Type" "A B ↦ sig ( fst : A, snd : B fst)";
+  Testutil.Repl.def "Σ" "(A : Set) → (A → Set) → Set" "A B ↦ sig ( fst : A, snd : B fst)";
   let sigab, _ = synth "Σ A B" in
   let s = assume "s" sigab in
-  let s1, s1ty = synth "s .fst" in
+  let s1, s1ty = synth "s fst" in
   let () = equal s1ty aa in
-  let s2, s2ty = synth "s .snd" in
-  let s2ty', _ = synth "B (s .fst)" in
+  let s2, s2ty = synth "s snd" in
+  let s2ty', _ = synth "B (s fst)" in
   let () = equal s2ty s2ty' in
   let ba0, _ = synth "B a₀" in
   let b0 = assume "b₀" ba0 in
   let ab0 = check "( fst ≔ a₀, snd := b₀ )" sigab in
   let () = uncheck "( fst ≔ a₁, snd := b₀ )" sigab in
-  let a0', _ = synth "(( fst ≔ a₀, snd ≔ b₀ ) : Σ A B) .fst" in
+  let a0', _ = synth "(( fst ≔ a₀, snd ≔ b₀ ) : Σ A B) fst" in
   let () = equal a0 a0' in
-  let b0', _ = synth "((fst ≔ a₀, snd ≔ b₀ ) : Σ A B) .snd" in
+  let b0', _ = synth "((fst ≔ a₀, snd ≔ b₀ ) : Σ A B) snd" in
   let () = equal b0 b0' in
   let ab0' = check "(a₀ , b₀)" sigab in
   let ab0'' = check "(_ ≔ a₀ , b₀)" sigab in
-  let a0'', _ = synth "((a₀ , b₀) : Σ A B) .fst" in
+  let a0'', _ = synth "((a₀ , b₀) : Σ A B) fst" in
   let () = equal a0 a0'' in
 
   (* 1-tuples *)
   Testutil.Repl.gel_install ();
-  let rrty, _ = synth "A → X → Type" in
+  let rrty, _ = synth "A → X → Set" in
   let rr = assume "R" rrty in
   let r0ty, _ = synth "R a₀ x00" in
   let r0 = assume "r" r0ty in
@@ -117,31 +117,31 @@ let () =
   let () = uncheck "(a , d , e)" aaddee in
 
   (* Let's try some comments *)
-  let _ = synth "(x : A) → ` a line comment
+  let _ = synth "(x : A) → -- a line comment
  B x" in
 
-  let _ = synth "(x : A) {` a block comment `} →  B x" in
+  let _ = synth "(x : A) {- a block comment -} →  B x" in
 
-  let _ = synth "(x : A) {` a block comment
+  let _ = synth "(x : A) {- a block comment
  spanning multiple
-lines `}
+lines -}
   →  B x" in
 
   let _ =
     unparse
-      "(x : A) {` a block comment
- containing ` a line comment
- and showing that {` block comments
-nest `}
+      "(x : A) {- a block comment
+ containing -- a line comment
+ and showing that {- block comments
+nest -}
 →  B x"
   in
 
   let _ =
     synth
-      "(x : A) {` a block comment
- containing ` a line comment
- and showing that {` block `} comments
-nest `}
+      "(x : A) {- a block comment
+ containing -- a line comment
+ and showing that {- block -} comments
+nest -}
 →  B x"
   in
 
@@ -150,9 +150,9 @@ nest `}
   let _ = check "0a ↦ 0a" atoa in
   let () = uncheck "0 ↦ 0" atoa in
 
-  (* Local variables, constructors, and fields can't contain periods *)
+  (* Local variables and constructors can't contain periods, and lower field-dot syntax is gone. *)
   let () = unparse "x.x ↦ x.x" in
-  let () = unparse "x .y.z" in
+  let () = unparse "x .y" in
   let () = unparse "x.y. z" in
   let () = unparse "(x.x : A) → B x.x" in
 

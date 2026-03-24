@@ -1,9 +1,9 @@
-  $ narya -fake-interact "section foo ≔ def A : Type ≔ sig () def B : A ≔ ? def C : A ≔ ? end show hole 0 show hole 1"
+  $ agdarya -fake-interact $'section foo ≔\npostulate A : Set\nB : A\nB = ?\nC : A\nC = ?\nend\nshow hole 0\nshow hole 1'
    ￫ info[I0007]
    ￮ section foo opened
   
-   ￫ info[I0000]
-   ￮ constant A defined
+   ￫ info[I0001]
+   ￮ postulate A assumed
   
    ￫ info[I0000]
    ￮ constant B defined, containing 1 hole

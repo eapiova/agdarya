@@ -1,4 +1,4 @@
-  $ narya -v even_odd_rec.ny
+  $ agdarya -v even_odd_rec.ny
    ￫ info[I0000]
    ￮ constant ℕ defined
   
@@ -15,13 +15,16 @@
    ￮ constant even_odd defined
   
   ⊤
-    : Type
+    : Set
   
   ⊥
-    : Type
+    : Set
+  
+   ￫ warning[W2305]
+   ￮ can't write compiled file: $TESTCASE_ROOT/even_odd_rec.nyo
   
 
-  $ narya -v even_odd_sig.ny
+  $ agdarya -v even_odd_sig.ny
    ￫ info[I0000]
    ￮ constant ℕ defined
   
@@ -47,7 +50,7 @@
    ￮ constant all_even_or_odd defined
   
 
-  $ narya -v even_odd_rec_canonical.ny
+  $ agdarya -v even_odd_rec_canonical.ny
    ￫ info[I0000]
    ￮ constant ℕ defined
   
@@ -57,15 +60,15 @@
    ￫ info[I0000]
    ￮ constant even_odd defined
   
-  even_odd .even 8
-    : Type
+  even_odd even 8
+    : Set
   
-  even_odd .odd 8
-    : Type
+  even_odd odd 8
+    : Set
   
 
 
-  $ narya -v ctx_ty_sig.ny
+  $ agdarya -v ctx_ty_sig.ny
    ￫ info[I0000]
    ￮ constant ctx_ty_type defined
   
@@ -79,7 +82,7 @@
    ￮ constant ctx_ty_tm defined
   
 
-  $ narya -v univ_sig.ny
+  $ agdarya -v univ_sig.ny
    ￫ info[I0000]
    ￮ constant bool defined
   
@@ -90,7 +93,7 @@
    ￮ constant uu_el defined
   
 
-  $ narya -v even_odd_and.ny
+  $ agdarya -v even_odd_and.ny
    ￫ info[I0000]
    ￮ constant ℕ defined
   
@@ -108,22 +111,31 @@
    ￫ info[I0000]
    ￮ constant all_even_or_odd defined
   
+   ￫ warning[W2305]
+   ￮ can't write compiled file: $TESTCASE_ROOT/even_odd_and.nyo
+  
 
-  $ narya -v ctx_el_and.ny
+  $ agdarya -v ctx_el_and.ny
    ￫ info[I0000]
    ￮ constants defined mutually:
        ctx
        ty
   
-  $ narya -v ctx_el_and_tm.ny
+   ￫ warning[W2305]
+   ￮ can't write compiled file: $TESTCASE_ROOT/ctx_el_and.nyo
+  
+  $ agdarya -v ctx_el_and_tm.ny
    ￫ info[I0000]
    ￮ constants defined mutually:
        ctx
        ty
        tm
   
+   ￫ warning[W2305]
+   ￮ can't write compiled file: $TESTCASE_ROOT/ctx_el_and_tm.nyo
+  
 
-  $ narya -v univ_and.ny
+  $ agdarya -v univ_and.ny
    ￫ info[I0000]
    ￮ constant bool defined
   
@@ -132,4 +144,6 @@
        uu
        el
   
-
+   ￫ warning[W2305]
+   ￮ can't write compiled file: $TESTCASE_ROOT/univ_and.nyo
+  

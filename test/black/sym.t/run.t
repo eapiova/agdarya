@@ -1,33 +1,33 @@
-  $ narya -v sym.ny
+  $ agdarya -v sym.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom a00 assumed
+   ￮ postulate a00 assumed
   
    ￫ info[I0001]
-   ￮ axiom a01 assumed
+   ￮ postulate a01 assumed
   
    ￫ info[I0001]
-   ￮ axiom a02 assumed
+   ￮ postulate a02 assumed
   
    ￫ info[I0001]
-   ￮ axiom a10 assumed
+   ￮ postulate a10 assumed
   
    ￫ info[I0001]
-   ￮ axiom a11 assumed
+   ￮ postulate a11 assumed
   
    ￫ info[I0001]
-   ￮ axiom a12 assumed
+   ￮ postulate a12 assumed
   
    ￫ info[I0001]
-   ￮ axiom a20 assumed
+   ￮ postulate a20 assumed
   
    ￫ info[I0001]
-   ￮ axiom a21 assumed
+   ￮ postulate a21 assumed
   
    ￫ info[I0001]
-   ￮ axiom a22 assumed
+   ￮ postulate a22 assumed
   
   sym a22
     : A⁽ᵉᵉ⁾ a20 a21 a02 a12
@@ -39,10 +39,10 @@
    ￮ constant sym_involution defined
   
    ￫ info[I0001]
-   ￮ axiom B assumed
+   ￮ postulate B assumed
   
    ￫ info[I0001]
-   ￮ axiom f assumed
+   ￮ postulate f assumed
   
   f⁽ᵉᵉ⁾ (sym a22)
     : B⁽ᵉᵉ⁾ (refl f a20) (refl f a21) (refl f a02) (refl f a12)
@@ -54,7 +54,7 @@
    ￮ constant ap_sym defined
   
 
-  $ narya sym.ny -e "echo sym a00"
+  $ agdarya sym.ny -e "echo sym a00"
   sym a22
     : A⁽ᵉᵉ⁾ a20 a21 a02 a12
   
@@ -75,7 +75,7 @@
   
   [1]
 
-  $ narya sym.ny -e "echo sym a02"
+  $ agdarya sym.ny -e "echo sym a02"
   sym a22
     : A⁽ᵉᵉ⁾ a20 a21 a02 a12
   
@@ -96,90 +96,90 @@
   
   [1]
 
-  $ narya -v symsym.ny
+  $ agdarya -v symsym.ny
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom a000 assumed
+   ￮ postulate a000 assumed
   
    ￫ info[I0001]
-   ￮ axiom a001 assumed
+   ￮ postulate a001 assumed
   
    ￫ info[I0001]
-   ￮ axiom a002 assumed
+   ￮ postulate a002 assumed
   
    ￫ info[I0001]
-   ￮ axiom a010 assumed
+   ￮ postulate a010 assumed
   
    ￫ info[I0001]
-   ￮ axiom a011 assumed
+   ￮ postulate a011 assumed
   
    ￫ info[I0001]
-   ￮ axiom a012 assumed
+   ￮ postulate a012 assumed
   
    ￫ info[I0001]
-   ￮ axiom a020 assumed
+   ￮ postulate a020 assumed
   
    ￫ info[I0001]
-   ￮ axiom a021 assumed
+   ￮ postulate a021 assumed
   
    ￫ info[I0001]
-   ￮ axiom a022 assumed
+   ￮ postulate a022 assumed
   
    ￫ info[I0001]
-   ￮ axiom a100 assumed
+   ￮ postulate a100 assumed
   
    ￫ info[I0001]
-   ￮ axiom a101 assumed
+   ￮ postulate a101 assumed
   
    ￫ info[I0001]
-   ￮ axiom a102 assumed
+   ￮ postulate a102 assumed
   
    ￫ info[I0001]
-   ￮ axiom a110 assumed
+   ￮ postulate a110 assumed
   
    ￫ info[I0001]
-   ￮ axiom a111 assumed
+   ￮ postulate a111 assumed
   
    ￫ info[I0001]
-   ￮ axiom a112 assumed
+   ￮ postulate a112 assumed
   
    ￫ info[I0001]
-   ￮ axiom a120 assumed
+   ￮ postulate a120 assumed
   
    ￫ info[I0001]
-   ￮ axiom a121 assumed
+   ￮ postulate a121 assumed
   
    ￫ info[I0001]
-   ￮ axiom a122 assumed
+   ￮ postulate a122 assumed
   
    ￫ info[I0001]
-   ￮ axiom a200 assumed
+   ￮ postulate a200 assumed
   
    ￫ info[I0001]
-   ￮ axiom a201 assumed
+   ￮ postulate a201 assumed
   
    ￫ info[I0001]
-   ￮ axiom a202 assumed
+   ￮ postulate a202 assumed
   
    ￫ info[I0001]
-   ￮ axiom a210 assumed
+   ￮ postulate a210 assumed
   
    ￫ info[I0001]
-   ￮ axiom a211 assumed
+   ￮ postulate a211 assumed
   
    ￫ info[I0001]
-   ￮ axiom a212 assumed
+   ￮ postulate a212 assumed
   
    ￫ info[I0001]
-   ￮ axiom a220 assumed
+   ￮ postulate a220 assumed
   
    ￫ info[I0001]
-   ￮ axiom a221 assumed
+   ￮ postulate a221 assumed
   
    ￫ info[I0001]
-   ￮ axiom a222 assumed
+   ￮ postulate a222 assumed
   
   a222
     : A⁽ᵉᵉᵉ⁾ a022 a122 a202 a212 a220 a221
@@ -237,45 +237,45 @@
    ￮ constant braid2 defined
   
 
-  $ narya -v symfield.ny
+  $ agdarya -v symfield.ny
    ￫ info[I0001]
-   ￮ axiom B assumed
+   ￮ postulate B assumed
   
    ￫ info[I0000]
    ￮ constant A defined
   
    ￫ info[I0001]
-   ￮ axiom a00 assumed
+   ￮ postulate a00 assumed
   
    ￫ info[I0001]
-   ￮ axiom a01 assumed
+   ￮ postulate a01 assumed
   
    ￫ info[I0001]
-   ￮ axiom a02 assumed
+   ￮ postulate a02 assumed
   
    ￫ info[I0001]
-   ￮ axiom a10 assumed
+   ￮ postulate a10 assumed
   
    ￫ info[I0001]
-   ￮ axiom a11 assumed
+   ￮ postulate a11 assumed
   
    ￫ info[I0001]
-   ￮ axiom a12 assumed
+   ￮ postulate a12 assumed
   
    ￫ info[I0001]
-   ￮ axiom a20 assumed
+   ￮ postulate a20 assumed
   
    ￫ info[I0001]
-   ￮ axiom a21 assumed
+   ￮ postulate a21 assumed
   
    ￫ info[I0001]
-   ￮ axiom a22 assumed
+   ￮ postulate a22 assumed
   
-  sym a22 .unwrap
-    : B⁽ᵉᵉ⁾ (a20 .unwrap) (a21 .unwrap) (a02 .unwrap) (a12 .unwrap)
+  sym a22 unwrap
+    : B⁽ᵉᵉ⁾ (a20 unwrap) (a21 unwrap) (a02 unwrap) (a12 unwrap)
   
-  sym a22 .unwrap
-    : B⁽ᵉᵉ⁾ (a20 .unwrap) (a21 .unwrap) (a02 .unwrap) (a12 .unwrap)
+  sym a22 unwrap
+    : B⁽ᵉᵉ⁾ (a20 unwrap) (a21 unwrap) (a02 unwrap) (a12 unwrap)
   
    ￫ info[I0000]
    ￮ constant Jd defined

@@ -9,6 +9,7 @@ and parse_tree =
   | App of parse_tree * parse_tree
   | Placeholder
   | Ident of string list
+  | HigherField of string * string list
   | Constr of string
   | Field of string * string list
   | Superscript of parse_tree option * string
@@ -26,6 +27,7 @@ and get_tree : type lt ls rt rs. (lt, ls, rt, rs) Notation.parse -> parse_tree =
   | App a -> App (get_tree a.fn.value, get_tree a.arg.value)
   | Placeholder _ -> Placeholder
   | Ident (x, _) -> Ident x
+  | HigherField (x, b, _) -> HigherField (x, b)
   | Constr (x, _, _) -> Constr x
   | Field (x, b, _) -> Field (x, b)
   | Superscript (None, s, _) -> Superscript (None, s.value)

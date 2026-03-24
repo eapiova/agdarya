@@ -1,7 +1,7 @@
 (tests
-  (names lexer parse_arith ambiguity prefixes permute_args)
+  (names lexer parse_arith ambiguity prefixes permute_args higher_fields a4 a6)
 	(libraries parser testutil)
 	(instrumentation (backend landmarks --auto)))
 (cram
-  (deps ../../bin/narya.exe))
+  (deps ../../bin/agdarya.exe))
 (env (_ (flags (:standard -w -26 -w -27))))

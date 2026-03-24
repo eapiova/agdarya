@@ -15,16 +15,25 @@ let pp_var : string option -> document = function
   | None -> Token.pp Underscore
 
 (* Print constructors and fields *)
-let pp_constr (c : string) : document = utf8string c ^^ char '.'
+let pp_constr (c : string) : document = utf8string c
+
+let compact_numeric_suffix = function
+  | [] -> None
+  | parts ->
+      if List.for_all (fun s -> s <> "" && String.length s = 1) parts then
+        Some (String.concat "" parts)
+      else None
 
 let pp_field (c : string) (p : string list) : document =
-  char '.'
-  ^^ utf8string c
-  ^^
-  if List.is_empty p then empty
-  else if List.fold_right (fun s m -> max (String.length s) m) p 0 > 1 then
-    char '.' ^^ concat_map (fun p -> char '.' ^^ utf8string p) p
-  else char '.' ^^ concat_map utf8string p
+  if List.is_empty p then
+    if Lexer.all_digits c then char '.' ^^ utf8string c else utf8string c
+  else
+    let suffix =
+      match compact_numeric_suffix p with
+      | Some digits -> utf8string digits
+      | None -> separate_map (char ',') utf8string p
+    in
+    utf8string c ^^ Token.pp LAngle ^^ suffix ^^ Token.pp RAngle
 
 let pp_space (space : space) : document =
   match space with
@@ -59,7 +68,7 @@ let pp_ws ?(space_before_starting_comment = 1) (space : space) (ws : Whitespace.
     match ws with
     | [] -> empty
     | [ `Newlines n ] -> repeat n hardline
-    | [ `Line str ] -> char '`' ^^ utf8string str ^^ hardline
+    | [ `Line str ] -> string "--" ^^ utf8string str ^^ hardline
     | [ `Block str ] ->
         let ls = unindented_lines str in
         let ending =
@@ -67,14 +76,14 @@ let pp_ws ?(space_before_starting_comment = 1) (space : space) (ws : Whitespace.
           | (`Cut | `Break) when not any_hardlines -> break 1
           | `Hard when not any_hardlines -> hardline
           | _ -> blank 1 in
-        string "{`" ^^ separate hardline ls ^^ string "`}" ^^ ending
+        string "{-" ^^ separate hardline ls ^^ string "-}" ^^ ending
     | `Newlines n :: ws -> repeat n hardline ^^ pp ws true
-    | `Line str :: ws -> char '`' ^^ utf8string str ^^ hardline ^^ pp ws true
+    | `Line str :: ws -> string "--" ^^ utf8string str ^^ hardline ^^ pp ws true
     | `Block str :: ws ->
         let ls = unindented_lines str in
-        string "{`"
+        string "{-"
         ^^ separate hardline ls
-        ^^ string "`}"
+        ^^ string "-}"
         ^^ blank 1
         ^^ pp ws (any_hardlines || List.length ls > 1) in
   match ws with
@@ -154,6 +163,7 @@ let rec pp_term : type lt ls rt rs.
       (group doc, ws <|> Anomaly "missing ws in pp_term")
   | Placeholder w -> (Token.pp Underscore, w)
   | Ident (x, w) -> (separate_map (char '.') utf8string x, w)
+  | HigherField (f, p, w) -> (pp_field f p, w)
   | Constr (c, suffix, w) -> (Token.pp (Token.Constr (c, suffix)), w)
   | Field (f, p, w) -> (pp_field f p, w)
   | Superscript (Some x, s, w) ->

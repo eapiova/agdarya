@@ -27,9 +27,9 @@ let interact_js : string -> string =
   Out_channel.flush stdout;
   Buffer.contents buf
 
-(* We interface with JavaScript by exporting an object called 'Narya' with methods. *)
+(* We interface with JavaScript by exporting an object called 'Agdarya' with methods. *)
 let _ =
-  Js.export "Narya"
+  Js.export "Agdarya"
     (object%js
        (* The 'start' method gets things started by setting up the configuration flags and calling the initializer function. *)
        method start ar dir intr disc startup =

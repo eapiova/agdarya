@@ -8,7 +8,10 @@ module Trie = Yuujinchou.Trie
 (* Parameter module for Yuujinchou *)
 module Param = struct
   type data =
-    [ `Constant of Constant.t | `Notation of User.prenotation * User.notation ]
+    [ `Constant of Constant.t
+    | `Constructor of Constr.t * Constant.t
+    | `Field of string * Constant.t
+    | `Notation of User.prenotation * User.notation ]
     * Asai.Range.t option
 
   (* Currently we have no nontrivial tags, hooks, or contexts. *)
@@ -127,6 +130,11 @@ module Situation = struct
 
   let left_opens : Token.t -> No.interval option = fun tok -> left_opens (get ()) tok
 
+  let binders_at : Origin.t -> Token.t -> User.notation list =
+   fun origin tok -> binders (get_at origin) tok
+
+  let binders : Token.t -> User.notation list = fun tok -> binders (get ()) tok
+
   let unparse : Situation.PrintKey.t -> User.notation option =
    fun c -> Situation.PrintMap.find_opt c (get ()).unparse
 
@@ -148,6 +156,48 @@ module Situation = struct
 end
 
 let export_prefix () = (Versioned.get scopes).inner.prefix
+
+let constructor_tag = ".constructors"
+let constructor_path path = path @ [ constructor_tag ]
+let field_tag = ".fields"
+let field_path path = path @ [ field_tag ]
+
+let local_constructors : (Trie.path * Constr.t) list list ref = ref []
+let local_fields : string list list ref = ref []
+
+let with_local_constrs constrs f =
+  let old = !local_constructors in
+  local_constructors := constrs :: old;
+  match f () with
+  | ans ->
+      local_constructors := old;
+      ans
+  | exception e ->
+      local_constructors := old;
+      raise e
+
+let rec lookup_local_constr name = function
+  | [] -> None
+  | constrs :: rest -> (
+      match List.assoc_opt name constrs with
+      | Some c -> Some c
+      | None -> lookup_local_constr name rest)
+
+let with_local_fields fields f =
+  let old = !local_fields in
+  local_fields := fields :: old;
+  match f () with
+  | ans ->
+      local_fields := old;
+      ans
+  | exception e ->
+      local_fields := old;
+      raise e
+
+let rec lookup_local_field name = function
+  | [] -> None
+  | fields :: rest ->
+      if List.mem name fields then Some name else lookup_local_field name rest
 
 (* The following operations are copied from Yuujinchou.Scope, but acting only on the inner scope. *)
 
@@ -218,13 +268,22 @@ let original_names = Hashtbl.create 100
 let define ?loc name =
   let c = Constant.make () in
   Hashtbl.add original_names c name;
+  Constant.register_name c name;
   include_singleton (name, ((`Constant c, loc), ()));
   c
+
+let define_constr ?loc name constr data =
+  include_singleton (constructor_path name, ((`Constructor (constr, data), loc), ()))
+
+let define_field ?loc name field data =
+  include_singleton (field_path name, ((`Field (field, data), loc), ()))
 
 (* Re-create a Constant.t at linking, and associate its old original name to the new re-created version. *)
 let redefine old_original_names find_in_table oldc =
   let newc = Constant.remake find_in_table oldc in
-  Hashtbl.add original_names newc (Hashtbl.find old_original_names oldc);
+  let name = Hashtbl.find old_original_names oldc in
+  Hashtbl.add original_names newc name;
+  Constant.register_name newc name;
   newc
 
 (* Install a user notation and define a name to equal it.  Returns a list of the old notations shadowed by this one. *)
@@ -324,8 +383,60 @@ let end_section () =
 let lookup name =
   match resolve name with
   | Some ((`Constant c, _), ()) -> Some c
+  | Some ((`Constructor _, _), ()) -> None
+  | Some ((`Field _, _), ()) -> None
   | Some ((`Notation _, _), ()) -> None
   | None -> None
+
+let lookup_notation name =
+  match resolve [ "notations"; name ] with
+  | Some ((`Notation (user, notn), _), ()) -> Some (user, notn)
+  | Some ((`Constant _, _), ())
+  | Some ((`Constructor _, _), ())
+  | Some ((`Field _, _), ()) -> None
+  | None -> None
+
+let lookup_constr name =
+  match resolve (constructor_path name) with
+  | Some ((`Constructor (c, data), _), ()) -> Some (c, data)
+  | Some ((`Constant _, _), ())
+  | Some ((`Field _, _), ())
+  | Some ((`Notation _, _), ()) -> None
+  | None -> None
+
+let lookup_field name =
+  match resolve (field_path name) with
+  | Some ((`Field (fld, data), _), ()) -> Some (fld, data)
+  | Some ((`Constant _, _), ())
+  | Some ((`Constructor _, _), ())
+  | Some ((`Notation _, _), ()) -> None
+  | None -> None
+
+let lookup_field_at origin name =
+  M.exclusively @@ fun () ->
+  let visible =
+    match Versioned.get_at scopes origin with
+    | Some s -> s.inner.visible
+    | None -> fatal (Anomaly "invalid origin in Scope.lookup_field_at") in
+  match Trie.find_singleton (field_path name) visible with
+  | Some ((`Field (fld, data), _), ()) -> Some (fld, data)
+  | Some ((`Constant _, _), ())
+  | Some ((`Constructor _, _), ())
+  | Some ((`Notation _, _), ()) -> None
+  | None -> None
+
+let resolve_constr name =
+  match lookup_local_constr name !local_constructors with
+  | Some c -> Some c
+  | None -> Option.map fst (lookup_constr name)
+
+let resolve_field name =
+  match name with
+  | [ fld ] -> (
+      match lookup_local_field fld !local_fields with
+      | Some fld -> Some fld
+      | None -> Option.map fst (lookup_field name))
+  | _ -> Option.map fst (lookup_field name)
 
 (* Backwards lookup of a constant to find its name. *)
 let find_data trie x =
@@ -357,6 +468,8 @@ let to_channel chan trie flags =
     (Trie.map
        (fun _ -> function
          | (`Constant c, loc), tag -> ((`Constant c, loc), tag)
+         | (`Constructor (c, data), loc), tag -> ((`Constructor (c, data), loc), tag)
+         | (`Field (fld, data), loc), tag -> ((`Field (fld, data), loc), tag)
          | (`Notation (u, _), loc), tag -> ((`Notation u, loc), tag))
        trie)
     flags
@@ -367,6 +480,9 @@ let from_istream chan find_in_table =
     (fun _ (data, tag) ->
       match data with
       | `Constant c, loc -> ((`Constant (redefine old_original_names find_in_table c), loc), tag)
+      | `Constructor (c, data), loc ->
+          ((`Constructor (c, Constant.remake find_in_table data), loc), tag)
+      | `Field (fld, data), loc -> ((`Field (fld, Constant.remake find_in_table data), loc), tag)
       | `Notation (User.User u), loc ->
           (* We also have to re-make the notation objects since they contain constant names (print keys) and their own autonumbers (but those are only used for comparison locally so don't need to be walked elsewhere). *)
           let key =
@@ -376,6 +492,10 @@ let from_istream chan find_in_table =
           let u = User.User { u with key } in
           ((`Notation (u, User.make_user u), loc), tag))
     (Istream.unmarshal chan
-      : ( [ `Constant of Constant.t | `Notation of User.prenotation ] * Asai.Range.t option,
+      : ( [ `Constant of Constant.t
+          | `Constructor of Constr.t * Constant.t
+          | `Field of string * Constant.t
+          | `Notation of User.prenotation ]
+          * Asai.Range.t option,
           Param.tag )
         Trie.t)

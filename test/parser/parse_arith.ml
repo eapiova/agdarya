@@ -8,6 +8,9 @@ let () =
   Parser.Lexer.Specials.run @@ fun () ->
   install_arith ();
   assert (parse "x" = Ident [ "x" ]);
+  assert (parse "head⟨e⟩" = HigherField ("head", [ "e" ]));
+  assert (parse "head⟨e,f⟩" = HigherField ("head", [ "e"; "f" ]));
+  assert (parse "m head⟨e⟩" = App (Ident [ "m" ], HigherField ("head", [ "e" ])));
   assert (parse "x + y" = Notn ("+", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]));
 
   assert (
@@ -152,8 +155,8 @@ let () =
                    Ident [ "u" ] ));
           ] ));
 
-  assert (parse "a. b c" = App (App (Constr "a", Ident [ "b" ]), Ident [ "c" ]));
-  assert (parse "a .b c" = App (App (Ident [ "a" ], Field ("b", [])), Ident [ "c" ]))
+  assert (parse "a b c" = App (App (Ident [ "a" ], Ident [ "b" ]), Ident [ "c" ]));
+  assert (parse "a .1 c" = App (App (Ident [ "a" ], Field ("1", [])), Ident [ "c" ]))
 
 (* Parsing the church numeral 500, or even 1000, takes a near-negligible amount of time.  I think it helps that we have minimized backtracking. *)
 let rec cnat n = if n <= 0 then "x" else "(f " ^ cnat (n - 1) ^ ")"

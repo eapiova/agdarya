@@ -29,6 +29,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
   (* We aren't using Fmlib's error reporting, so there's no point in supplying it nonempty "expect" strings. *)
   let step f = step "" f
   let followed_by f = followed_by f ""
+  let token x = step (fun state _ (tok, w) -> if tok = x then Some (w, state) else None)
 
   (* Similarly, we want locations reported using Asai ranges rather than Fmlib ones. *)
   let located c =
@@ -37,6 +38,101 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
 
   let locate (loc : Asai.Range.t) (value : 'a) : 'a Asai.Range.located = { value; loc = Some loc }
   let locate_opt (loc : Asai.Range.t option) (value : 'a) : 'a Asai.Range.located = { value; loc }
+
+  let higher_field_segment =
+    step (fun state _ (tok, _) ->
+        match tok with
+        | Ident [ x ] -> Some (x, state)
+        | _ -> None)
+
+  let higher_field_suffix =
+    let* _ = token LAngle in
+    let* first = higher_field_segment in
+    let* rest =
+         zero_or_more
+        (let* _ = token (Op ",") in
+         higher_field_segment)
+    in
+    let* ws = token RAngle in
+    return (first :: rest, ws)
+
+  let stop_on tok =
+    TokMap.singleton tok (Lazy (lazy (fatal (Anomaly "dummy notation tree accessed"))), `Noss)
+
+  type simple_field_atom =
+    [ `Ident of string | `HigherField of string * string list | `Field of string * string list ]
+
+  type simple_atom =
+    [ `Ident of string list
+    | `HigherField of string * string list
+    | `Constr of string * string list
+    | `Placeholder
+    | `Hole of int * string option ]
+
+  let simple_term =
+    located
+      (let* tm, w =
+         step (fun state _ (tok, w) ->
+             match tok with
+             | Ident x -> Some (((`Ident x : simple_atom), w), state)
+             | Constr (x, suffix) -> Some (((`Constr (x, suffix) : simple_atom), w), state)
+             | Underscore -> Some (((`Placeholder : simple_atom), w), state)
+             | Hole { number; contents } ->
+                 let open Monad.Ops (Monad.Maybe) in
+                 let* number = int_of_string_opt (Option.value ~default:"0" number) in
+                 return (((`Hole (number, contents) : simple_atom), w), state)
+             | _ -> None)
+       in
+       match tm with
+       | `Ident [ x ] when not (Lexer.all_digits x) ->
+           (let* suffix, ws = higher_field_suffix in
+            return (`HigherField (x, suffix), ws))
+           </> return (tm, w)
+       | _ -> return (tm, w))
+
+  let simple_app_arg =
+    located
+      (let* tm, w =
+         step (fun state _ (tok, w) ->
+             match tok with
+             | Ident x -> Some ((`Ident x, w), state)
+             | Constr (x, suffix) -> Some ((`Constr (x, suffix), w), state)
+             | Field (x, p) -> Some ((`Field (x, p), w), state)
+             | Underscore -> Some ((`Placeholder, w), state)
+             | Hole { number; contents } ->
+                 let open Monad.Ops (Monad.Maybe) in
+                 let* number = int_of_string_opt (Option.value ~default:"0" number) in
+                 return ((`Hole (number, contents), w), state)
+             | _ -> None)
+       in
+       match tm with
+       | `Ident [ x ] when not (Lexer.all_digits x) ->
+           (let* suffix, ws = higher_field_suffix in
+            return (`HigherField (x, suffix), ws))
+           </> return (tm, w)
+       | _ -> return (tm, w))
+
+  let simple_field : (Asai.Range.t * (simple_field_atom * Whitespace.t list)) Basic.t =
+    located
+      ((let* x =
+         step (fun state _ (tok, _w) ->
+             match tok with
+             | Ident [ x ]
+               when Lexer.valid_field x && not (Lexer.all_digits x) && Scope.lookup_field_at state [ x ] <> None ->
+                 Some (x, state)
+             | _ -> None)
+       in
+       (let* suffix, ws = higher_field_suffix in
+        return ((`HigherField (x, suffix) : simple_field_atom), ws))
+       </> return ((`Ident x : simple_field_atom), []))
+      </>
+      let* tm, w =
+        step (fun state _ (tok, w) ->
+            match tok with
+            | Field (x, p) -> Some (((`Field (x, p) : simple_field_atom), w), state)
+            | _ -> None)
+      in
+      return (tm, w))
 
   let rec tree : type tight strict.
       (tight, strict) tree ->
@@ -64,22 +160,28 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
       Observations.partial ->
       (Observations.partial * (tight, strict) notation_in_interval) t =
    fun { ops; field; term = _ } obs ->
-    let* loc, (br, x) =
-      located
-        (step (fun state _ (tok, w) ->
-             match TokMap.find_opt tok ops with
-             | Some (br, ss) -> Some ((br, `Token (tok, ss, w)), state)
-             | None -> (
-                 (* Field names have already been validated by the lexer. *)
-                 match (field, tok) with
-                 | Some br, Field (x, p) -> Some ((br, `Term (Field (x, p, w))), state)
-                 | _ -> None))) in
-    match x with
-    | `Token (tok, `Noss, w) -> tree br (Observations.snoc_tok obs (tok, (w, Some loc)))
-    | `Token (tok, `Ss, w) ->
-        let* sups = supers in
-        tree br (Observations.snoc_sstok obs ((tok, (w, Some loc)), sups))
-    | `Term x -> tree br (Observations.snoc_term obs (locate loc x))
+    (let* loc, (br, ss, tok, w) =
+       located
+         (step (fun state _ (tok, w) ->
+              match TokMap.find_opt tok ops with
+              | Some (br, ss) -> Some ((br, ss, tok, w), state)
+              | None -> None)) in
+     match ss with
+     | `Noss -> tree br (Observations.snoc_tok obs (tok, (w, Some loc)))
+     | `Ss ->
+         let* sups = supers in
+         tree br (Observations.snoc_sstok obs ((tok, (w, Some loc)), sups)))
+    </>
+    match field with
+    | None -> step (fun _ _ _ -> None)
+    | Some br ->
+        let* loc, (tm, w) = simple_field in
+        let tm =
+          match tm with
+          | `Ident x -> Ident ([ x ], w)
+          | `HigherField (x, suffix) -> HigherField (x, suffix, w)
+          | `Field (x, p) -> Field (x, p, w) in
+        tree br (Observations.snoc_term obs (locate loc tm))
 
   and tree_op : type tight strict.
       (tight, strict) tokmap ->
@@ -104,6 +206,155 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
    fun ops ->
     let* obs, op = tree_op ops Observations.empty in
     return (Observations.of_partial obs, op)
+
+  and binder_notation : type lt ls rt rs.
+      Origin.t -> (rt, rs) tokmap -> (Asai.Range.t * (lt, ls) right_wrapped_parse) t =
+   fun origin stop ->
+    let binder_names tok =
+      List.map
+        (fun (notn : User.notation) ->
+          let (Wrap n) = notn.notn in
+          name n)
+        (Scope.Situation.binders_at origin tok)
+    in
+    let* start_loc, (user_notn, start_tok, wsstart) =
+      located
+        (step (fun state _ (tok, ws) ->
+             match Scope.Situation.binders_at origin tok with
+             | [] -> None
+             | [ notn ] -> Some ((notn, tok, ws), state)
+             | _ :: _ -> fatal (Parsing_ambiguity (binder_names tok)))) in
+    let binder =
+      match user_notn.User.binder with
+      | Some binder -> binder
+      | None -> fatal (Anomaly "missing binder metadata for binder notation")
+    in
+    match user_notn.notn with
+    | Wrap (id, ((Prefix _) as fixity)) ->
+        let notn = (id, fixity) in
+        let colon_stop = stop_on Colon in
+        let parse_closed what stop =
+          let* tm = lclosed No.Interval.entire stop in
+          match tm.get No.Interval.entire with
+          | Ok tm -> return tm
+          | Error n -> fatal (Anomaly (Printf.sprintf "%s failed on notation %s" what n))
+        in
+        let rec parse_tokens partial = function
+          | [] -> return partial
+          | tok :: toks ->
+              let* loc, ws = located (token tok) in
+              parse_tokens (Observations.snoc_tok partial (tok, (ws, Some loc))) toks
+        in
+        let synthetic_prefix prefix_tokens =
+          List.fold_left
+            (fun partial tok -> Observations.snoc_tok partial (tok, ([], None)))
+            Observations.empty prefix_tokens
+        in
+        let build inner last =
+          {
+            get =
+              (fun ivl ->
+                match (last.get ivl, No.Interval.contains ivl (tightness notn)) with
+                | Ok last, Some right_ok ->
+                    Ok
+                      {
+                        value = prefix ~notn ~inner:(Observations.of_partial inner) ~last ~right_ok;
+                        loc = Range.merge_opt (Some start_loc) last.loc;
+                      }
+                | Error e, _ -> Error e
+                | _, None -> Error (name notn));
+          }
+        in
+        (match (binder.slots, binder.body_prefix_tokens) with
+        | [ slot ], [ Op "," ] ->
+            let comma_stop = stop_on (Op ",") in
+            let rec body () =
+              backtrack
+                (let* vars = parse_closed "binder vars" colon_stop in
+                 let* colon_loc, wscolon = located (token Colon) in
+                 let* dom = parse_closed "binder domain" comma_stop in
+                 let* comma_loc, wscomma = located (token (Op ",")) in
+                 let* rest = body () in
+                 let inner =
+                   let partial = synthetic_prefix slot.prefix_tokens in
+                   let partial = Observations.snoc_term partial vars in
+                   let partial = Observations.snoc_tok partial (Colon, (wscolon, Some colon_loc)) in
+                   let partial = Observations.snoc_term partial dom in
+                   Observations.snoc_tok partial ((Op ","), (wscomma, Some comma_loc))
+                 in
+                 return
+                   {
+                     get =
+                       (fun ivl ->
+                         match (rest.get ivl, No.Interval.contains ivl (tightness notn)) with
+                         | Ok last, Some right_ok ->
+                             Ok
+                               {
+                                 value =
+                                   prefix ~notn ~inner:(Observations.of_partial inner) ~last ~right_ok;
+                                 loc = Range.merge_opt3 vars.loc dom.loc last.loc;
+                               }
+                         | Error e, _ -> Error e
+                         | _, None -> Error (name notn));
+                   })
+                ""
+              </> lclosed (interval_right notn) stop
+            in
+            let prefix_tail =
+              match slot.prefix_tokens with
+              | _ :: toks -> toks
+              | [] -> fatal (Anomaly "binder notation missing start token")
+            in
+            let partial = Observations.snoc_tok Observations.empty (start_tok, (wsstart, Some start_loc)) in
+            let* partial = parse_tokens partial prefix_tail in
+            let* vars = parse_closed "binder vars" colon_stop in
+            let partial = Observations.snoc_term partial vars in
+            let* colon_loc, wscolon = located (token Colon) in
+            let partial = Observations.snoc_tok partial (Colon, (wscolon, Some colon_loc)) in
+            let* dom = parse_closed "binder domain" comma_stop in
+            let partial = Observations.snoc_term partial dom in
+            let* comma_loc, wscomma = located (token (Op ",")) in
+            let partial = Observations.snoc_tok partial ((Op ","), (wscomma, Some comma_loc)) in
+            let* last_arg = body () in
+            return (start_loc, build partial last_arg)
+        | first_slot :: rest_slots, _ ->
+            let rec after_prefix partial _slot rest =
+              let* vars = parse_closed "binder vars" colon_stop in
+              let partial = Observations.snoc_term partial vars in
+              let* colon_loc, wscolon = located (token Colon) in
+              let partial = Observations.snoc_tok partial (Colon, (wscolon, Some colon_loc)) in
+              let next_tokens =
+                match rest with
+                | next :: _ -> next.User.prefix_tokens
+                | [] -> binder.body_prefix_tokens
+              in
+              let stop =
+                match next_tokens with
+                | tok :: _ -> stop_on tok
+                | [] -> fatal (Anomaly "binder notation missing body separator")
+              in
+              let* dom = parse_closed "binder domain" stop in
+              let partial = Observations.snoc_term partial dom in
+              match rest with
+              | next :: rest ->
+                  let* partial = parse_tokens partial next.User.prefix_tokens in
+                  after_prefix partial next rest
+              | [] ->
+                  let* partial = parse_tokens partial binder.body_prefix_tokens in
+                  let* last = lclosed (interval_right notn) stop in
+                  return (partial, last)
+            in
+            let prefix_tail =
+              match first_slot.prefix_tokens with
+              | _ :: toks -> toks
+              | [] -> fatal (Anomaly "binder notation missing start token")
+            in
+            let partial = Observations.snoc_tok Observations.empty (start_tok, (wsstart, Some start_loc)) in
+            let* partial = parse_tokens partial prefix_tail in
+            let* partial, last_arg = after_prefix partial first_slot rest_slots in
+            return (start_loc, build partial last_arg)
+        | [], _ -> fatal (Anomaly "binder notation must have at least one slot"))
+    | Wrap _ -> fatal (Anomaly "binder notation must be prefix")
 
   (* "lclosed" is passed an upper tightness interval and an additional set of ending ops (stored as a map, since that's how they occur naturally, but here we ignore the values and look only at the keys).  It parses an arbitrary left-closed tree (pre-merged).  The interior terms are calls to "lclosed" with the next ops passed as the ending ones. *)
   and lclosed : type lt ls rt rs.
@@ -139,19 +390,13 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                                  }
                            | Error e -> Error e));
                  }))
-      (* Otherwise, we parse a single ident or constructor. *)
-      </> let* loc, (tm, w) =
-            located
-              (step (fun state _ (tok, w) ->
-                   match tok with
-                   | Ident x -> Some ((`Ident x, w), state)
-                   | Constr (x, suffix) -> Some ((`Constr (x, suffix), w), state)
-                   | Underscore -> Some ((`Placeholder, w), state)
-                   | Hole { number; contents } ->
-                       let open Monad.Ops (Monad.Maybe) in
-                       let* number = int_of_string_opt (Option.value ~default:"0" number) in
-                       return ((`Hole (number, contents), w), state)
-                   | _ -> None)) in
+      </> backtrack
+            (let* origin = get in
+             let* _, binder = binder_notation origin stop in
+             return binder)
+            ""
+      (* Otherwise, we parse a single identifier-like atom. *)
+      </> let* loc, (tm, w) = simple_term in
           with_supers
             {
               get =
@@ -160,6 +405,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                     (locate loc
                        (match tm with
                        | `Ident x -> Ident (x, w)
+                       | `HigherField (x, suffix) -> HigherField (x, suffix, w)
                        | `Constr (x, suffix) -> Constr (x, suffix, w)
                        | `Placeholder -> Placeholder w
                        | `Hole (number, contents) ->
@@ -272,7 +518,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                                 | Error e, _ -> Error e
                                 | _, None -> Error (name notn));
                           })
-                | Closed_in_interval notn -> (
+               | Closed_in_interval notn -> (
                     match (first_arg.get No.Interval.plus_omega_only, right notn) with
                     | Error e, _ -> fail (No_relative_precedence (inner_loc, e, "application"))
                     | Ok fn, Closed ->
@@ -330,20 +576,30 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                                 | _, None, _ -> Error (name notn)
                                 | _, _, None -> Error "application 2");
                           }))
+               </> backtrack
+                     (let* binder_loc, arg = binder_notation origin stop in
+                      match first_arg.get No.Interval.plus_omega_only with
+                      | Error e -> fail (No_relative_precedence (binder_loc, e, "application"))
+                      | Ok fn ->
+                          return
+                            {
+                              get =
+                                (fun ivl ->
+                                  match No.Interval.contains ivl No.plus_omega with
+                                  | Some right_ok -> (
+                                      match arg.get ivl with
+                                      | Ok arg ->
+                                          Ok
+                                            {
+                                              value = App { fn; arg; left_ok = nontrivial; right_ok };
+                                              loc = Range.merge_opt fn.loc arg.loc;
+                                            }
+                                      | Error e -> Error e)
+                                  | None -> Error "application 2b");
+                            })
+                     ""
                (* If this fails, we can parse a single variable name, constr, or field projection and apply the first term to it.  Constructors are allowed here because they might have no arguments. *)
-               </> let* arg_loc, (arg, w) =
-                     located
-                       (step (fun state _ (tok, w) ->
-                            match tok with
-                            | Ident x -> Some ((`Ident x, w), state)
-                            | Constr (x, suffix) -> Some ((`Constr (x, suffix), w), state)
-                            | Underscore -> Some ((`Placeholder, w), state)
-                            | Field (x, p) -> Some ((`Field (x, p), w), state)
-                            | Hole { number; contents } ->
-                                let open Monad.Ops (Monad.Maybe) in
-                                let* number = int_of_string_opt (Option.value ~default:"0" number) in
-                                return ((`Hole (number, contents), w), state)
-                            | _ -> None)) in
+               </> let* arg_loc, (arg, w) = simple_app_arg in
                    let* sups = supers in
                    match first_arg.get No.Interval.plus_omega_only with
                    | Error e -> fail (No_relative_precedence (arg_loc, e, "application"))
@@ -363,6 +619,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                                                (locate arg_loc
                                                   (match arg with
                                                   | `Ident x -> Ident (x, w)
+                                                  | `HigherField (x, suffix) -> HigherField (x, suffix, w)
                                                   | `Constr (x, suffix) -> Constr (x, suffix, w)
                                                   | `Placeholder -> Placeholder w
                                                   | `Field (x, p) -> Field (x, p, w)

@@ -1,19 +1,19 @@
   $ cat >jd.ny <<EOF
-  > def Jd (X:Type) (x:X) : X → Type ≔ data [ rfl. : Jd X x x ]
+  > data Jd (X:Set) (x:X) : X → Set where { rfl : Jd X x x }
   > EOF
 
 Arbitrary types are not discrete:
 
   $ cat >arb.ny <<EOF
-  > axiom A : Type
-  > axiom a : A
-  > def T ≔ A⁽ᵈ⁾ a
+  > postulate A : Set
+  > postulate a : A
+  > T = A⁽ᵈ⁾ a
   > EOF
 
-  $ narya -source-only -parametric -arity 1 -direction d arb.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ agdarya -source-only -parametric -arity 1 -direction d arb.ny jd.ny -e 'test : (t1 : T) → (t2 : T) → Jd T t1 t2' -e 'test t1 t2 = rfl'
    ￫ error[E1003]
    ￭ command-line exec string
-   1 | def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.
+   1 | test t1 t2 = rfl
      ^ index
          t1
        of constructor application doesn't match the corresponding index
@@ -27,10 +27,10 @@ Arbitrary types are not discrete:
 
 They remain so even when discreteness is on:
 
-  $ narya -source-only -parametric -arity 1 -direction d -discreteness arb.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ agdarya -source-only -parametric -arity 1 -direction d -discreteness arb.ny jd.ny -e 'test : (t1 : T) → (t2 : T) → Jd T t1 t2' -e 'test t1 t2 = rfl'
    ￫ error[E1003]
    ￭ command-line exec string
-   1 | def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.
+   1 | test t1 t2 = rfl
      ^ index
          t1
        of constructor application doesn't match the corresponding index
@@ -45,17 +45,17 @@ They remain so even when discreteness is on:
 There are no discrete datatypes if discreteness is off:
 
   $ cat >natd.ny <<EOF
-  > def ℕ : Type ≔ data [ zero. | suc. (_:ℕ) ]
-  > axiom n : ℕ
-  > def T ≔ ℕ⁽ᵈ⁾ n
+  > data ℕ : Set where { zero : ℕ; suc : ℕ → ℕ }
+  > postulate n : ℕ
+  > T = ℕ⁽ᵈ⁾ n
   > EOF
 
-  $ narya -source-only -v -parametric -arity 1 -direction d natd.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ agdarya -source-only -v -parametric -arity 1 -direction d natd.ny jd.ny -e 'test : (t1 : T) → (t2 : T) → Jd T t1 t2' -e 'test t1 t2 = rfl'
    ￫ info[I0000]
    ￮ constant ℕ defined
   
    ￫ info[I0001]
-   ￮ axiom n assumed
+   ￮ postulate n assumed
   
    ￫ info[I0000]
    ￮ constant T defined
@@ -65,7 +65,7 @@ There are no discrete datatypes if discreteness is off:
   
    ￫ error[E1003]
    ￭ command-line exec string
-   1 | def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.
+   1 | test t1 t2 = rfl
      ^ index
          t1
        of constructor application doesn't match the corresponding index
@@ -80,10 +80,10 @@ There are no discrete datatypes if discreteness is off:
 Discrete datatypes are not themselves propositions:
 
   $ cat >nat.ny <<EOF
-  > def T : Type ≔ data [ zero. | suc. (_:T) ]
+  > data T : Set where { zero : T; suc : T → T }
   > EOF
 
-  $ narya -source-only -v -parametric -arity 1 -direction d -discreteness nat.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ agdarya -source-only -v -parametric -arity 1 -direction d -discreteness nat.ny jd.ny -e 'test : (t1 : T) → (t2 : T) → Jd T t1 t2' -e 'test t1 t2 = rfl'
    ￫ info[I0000]
    ￮ discrete constant T defined
   
@@ -92,7 +92,7 @@ Discrete datatypes are not themselves propositions:
   
    ￫ error[E1003]
    ￭ command-line exec string
-   1 | def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.
+   1 | test t1 t2 = rfl
      ^ index
          t1
        of constructor application doesn't match the corresponding index
@@ -107,17 +107,17 @@ Discrete datatypes are not themselves propositions:
 But their degenerate versions are:
 
   $ cat >natd.ny <<EOF
-  > def ℕ : Type ≔ data [ zero. | suc. (_:ℕ) ]
-  > axiom n : ℕ
-  > def T ≔ ℕ⁽ᵈ⁾ n
+  > data ℕ : Set where { zero : ℕ; suc : ℕ → ℕ }
+  > postulate n : ℕ
+  > T = ℕ⁽ᵈ⁾ n
   > EOF
 
-  $ narya -source-only -v -parametric -arity 1 -direction d -discreteness natd.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ agdarya -source-only -v -parametric -arity 1 -direction d -discreteness natd.ny jd.ny -e 'test : (t1 : T) → (t2 : T) → Jd T t1 t2' -e 'test t1 t2 = rfl'
    ￫ info[I0000]
    ￮ discrete constant ℕ defined
   
    ￫ info[I0001]
-   ￮ axiom n assumed
+   ￮ postulate n assumed
   
    ￫ info[I0000]
    ￮ constant T defined
@@ -132,21 +132,21 @@ But their degenerate versions are:
 Datatypes with nondiscrete parameters are not discrete:
 
   $ cat >param.ny <<EOF
-  > def List (A:Type) : Type ≔ data [ nil. | cons. (_:A) (_:List A) ]
-  > axiom A : Type
-  > axiom l : List A
-  > def T ≔ (List A)⁽ᵈ⁾ l
+  > data List (A:Set) : Set where { nil : List A; cons : A → List A → List A }
+  > postulate A : Set
+  > postulate l : List A
+  > T = (List A)⁽ᵈ⁾ l
   > EOF
 
-  $ narya -source-only -v -parametric -arity 1 -direction d -discreteness param.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ agdarya -source-only -v -parametric -arity 1 -direction d -discreteness param.ny jd.ny -e 'test : (t1 : T) → (t2 : T) → Jd T t1 t2' -e 'test t1 t2 = rfl'
    ￫ info[I0000]
    ￮ constant List defined
   
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom l assumed
+   ￮ postulate l assumed
   
    ￫ info[I0000]
    ￮ constant T defined
@@ -156,7 +156,7 @@ Datatypes with nondiscrete parameters are not discrete:
   
    ￫ error[E1003]
    ￭ command-line exec string
-   1 | def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.
+   1 | test t1 t2 = rfl
      ^ index
          t1
        of constructor application doesn't match the corresponding index
@@ -171,21 +171,21 @@ Datatypes with nondiscrete parameters are not discrete:
 Even trivial parameters:
 
   $ cat >param2.ny <<EOF
-  > def param_empty (A:Type) : Type ≔ data [ ]
-  > axiom A : Type
-  > axiom l : param_empty A
-  > def T ≔ (param_empty A)⁽ᵈ⁾ l
+  > data param_empty (A:Set) : Set where { }
+  > postulate A : Set
+  > postulate l : param_empty A
+  > T = (param_empty A)⁽ᵈ⁾ l
   > EOF
 
-  $ narya -source-only -v -parametric -arity 1 -direction d -discreteness param2.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ agdarya -source-only -v -parametric -arity 1 -direction d -discreteness param2.ny jd.ny -e 'test : (t1 : T) → (t2 : T) → Jd T t1 t2' -e 'test t1 t2 = rfl'
    ￫ info[I0000]
    ￮ constant param_empty defined
   
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ postulate A assumed
   
    ￫ info[I0001]
-   ￮ axiom l assumed
+   ￮ postulate l assumed
   
    ￫ info[I0000]
    ￮ constant T defined
@@ -195,7 +195,7 @@ Even trivial parameters:
   
    ￫ error[E1003]
    ￭ command-line exec string
-   1 | def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.
+   1 | test t1 t2 = rfl
      ^ index
          t1
        of constructor application doesn't match the corresponding index
@@ -211,13 +211,13 @@ Even trivial parameters:
 But datatypes with discrete parameters are discrete:
 
   $ cat >param3.ny <<EOF
-  > def ℕ : Type ≔ data [ zero. | suc. (_:ℕ) ]
-  > def param_empty (n:ℕ) : Type ≔ data [ ]
-  > axiom l : param_empty zero.
-  > def T ≔ (param_empty zero.)⁽ᵈ⁾ l
+  > data ℕ : Set where { zero : ℕ; suc : ℕ → ℕ }
+  > data param_empty (n:ℕ) : Set where { }
+  > postulate l : param_empty zero
+  > T = (param_empty zero)⁽ᵈ⁾ l
   > EOF
 
-  $ narya -source-only -v -parametric -arity 1 -direction d -discreteness param3.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ agdarya -source-only -v -parametric -arity 1 -direction d -discreteness param3.ny jd.ny -e 'test : (t1 : T) → (t2 : T) → Jd T t1 t2' -e 'test t1 t2 = rfl'
    ￫ info[I0000]
    ￮ discrete constant ℕ defined
   
@@ -225,7 +225,7 @@ But datatypes with discrete parameters are discrete:
    ￮ discrete constant param_empty defined
   
    ￫ info[I0001]
-   ￮ axiom l assumed
+   ￮ postulate l assumed
   
    ￫ info[I0000]
    ￮ constant T defined
@@ -241,14 +241,14 @@ But datatypes with discrete parameters are discrete:
 Datatypes with discrete indices are discrete:
 
   $ cat >index.ny <<EOF
-  > def ℕ : Type ≔ data [ zero. | suc. (_:ℕ) ]
-  > def iszero : ℕ → Type ≔ data [ iszero. : iszero zero. ]
-  > axiom n : ℕ
-  > axiom z : iszero n
-  > def T ≔ (iszero n)⁽ᵈ⁾ z
+  > data ℕ : Set where { zero : ℕ; suc : ℕ → ℕ }
+  > data iszero : ℕ → Set where { iszero : iszero zero }
+  > postulate n : ℕ
+  > postulate z : iszero n
+  > T = (iszero n)⁽ᵈ⁾ z
   > EOF
 
-  $ narya -source-only -v -parametric -arity 1 -direction d -discreteness index.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ agdarya -source-only -v -parametric -arity 1 -direction d -discreteness index.ny jd.ny -e 'test : (t1 : T) → (t2 : T) → Jd T t1 t2' -e 'test t1 t2 = rfl'
    ￫ info[I0000]
    ￮ discrete constant ℕ defined
   
@@ -256,10 +256,10 @@ Datatypes with discrete indices are discrete:
    ￮ discrete constant iszero defined
   
    ￫ info[I0001]
-   ￮ axiom n assumed
+   ￮ postulate n assumed
   
    ￫ info[I0001]
-   ￮ axiom z assumed
+   ￮ postulate z assumed
   
    ￫ info[I0000]
    ￮ constant T defined
@@ -274,25 +274,25 @@ Datatypes with discrete indices are discrete:
 But datatypes with nondiscrete indices, even trivial ones, are not discrete:
 
   $ cat >index2.ny <<EOF
-  > axiom N : Type
-  > axiom n : N
-  > def index_unit : N → Type ≔ data [ foo. : index_unit n ]
-  > axiom z : index_unit n
-  > def T ≔ (index_unit n)⁽ᵈ⁾ z
+  > postulate N : Set
+  > postulate n : N
+  > data index_unit : N → Set where { foo : index_unit n }
+  > postulate z : index_unit n
+  > T = (index_unit n)⁽ᵈ⁾ z
   > EOF
 
-  $ narya -source-only -v -parametric -arity 1 -direction d -discreteness index2.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ agdarya -source-only -v -parametric -arity 1 -direction d -discreteness index2.ny jd.ny -e 'test : (t1 : T) → (t2 : T) → Jd T t1 t2' -e 'test t1 t2 = rfl'
    ￫ info[I0001]
-   ￮ axiom N assumed
+   ￮ postulate N assumed
   
    ￫ info[I0001]
-   ￮ axiom n assumed
+   ￮ postulate n assumed
   
    ￫ info[I0000]
    ￮ constant index_unit defined
   
    ￫ info[I0001]
-   ￮ axiom z assumed
+   ￮ postulate z assumed
   
    ￫ info[I0000]
    ￮ constant T defined
@@ -302,7 +302,7 @@ But datatypes with nondiscrete indices, even trivial ones, are not discrete:
   
    ￫ error[E1003]
    ￭ command-line exec string
-   1 | def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.
+   1 | test t1 t2 = rfl
      ^ index
          t1
        of constructor application doesn't match the corresponding index
@@ -318,17 +318,17 @@ But datatypes with nondiscrete indices, even trivial ones, are not discrete:
 Datatypes with constructors having non-discrete arguments are not discrete:
 
   $ cat >constr.ny <<EOF
-  > def foo : Type ≔ data [ foo. (_:Type) ]
-  > axiom f : foo
-  > def T ≔ foo⁽ᵈ⁾ f
+  > data foo : Set where { foo : Set → foo }
+  > postulate f : foo
+  > T = foo⁽ᵈ⁾ f
   > EOF
 
-  $ narya -source-only -v -parametric -arity 1 -direction d -discreteness constr.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ agdarya -source-only -v -parametric -arity 1 -direction d -discreteness constr.ny jd.ny -e 'test : (t1 : T) → (t2 : T) → Jd T t1 t2' -e 'test t1 t2 = rfl'
    ￫ info[I0000]
    ￮ constant foo defined
   
    ￫ info[I0001]
-   ￮ axiom f assumed
+   ￮ postulate f assumed
   
    ￫ info[I0000]
    ￮ constant T defined
@@ -338,7 +338,7 @@ Datatypes with constructors having non-discrete arguments are not discrete:
   
    ￫ error[E1003]
    ￭ command-line exec string
-   1 | def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.
+   1 | test t1 t2 = rfl
      ^ index
          t1
        of constructor application doesn't match the corresponding index
@@ -354,20 +354,19 @@ Datatypes with constructors having non-discrete arguments are not discrete:
 Trivially mutually datatypes are discrete:
 
   $ cat >mutual2.ny <<EOF
-  > def empty : Type ≔ data [ ]
-  > and unit : Type ≔ data [ ]
-  > axiom e : unit
-  > def T ≔ unit⁽ᵈ⁾ e
+  > data empty : Set where { } and unit : Set where { }
+  > postulate e : unit
+  > T = unit⁽ᵈ⁾ e
   > EOF
 
-  $ narya -source-only -v -parametric -arity 1 -direction d -discreteness mutual2.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ agdarya -source-only -v -parametric -arity 1 -direction d -discreteness mutual2.ny jd.ny -e 'test : (t1 : T) → (t2 : T) → Jd T t1 t2' -e 'test t1 t2 = rfl'
    ￫ info[I0000]
    ￮ discrete constants defined mutually:
        empty
        unit
   
    ￫ info[I0001]
-   ￮ axiom e assumed
+   ￮ postulate e assumed
   
    ￫ info[I0000]
    ￮ constant T defined
@@ -383,20 +382,19 @@ Trivially mutually datatypes are discrete:
 Nontrivially mutual datatypes can also be discrete, if treating them all as discrete validates all of their discreteness:
 
   $ cat >mutual3.ny <<EOF
-  > def even : Type ≔ data [ zero. | suc. (_ : odd) ]
-  > and odd : Type ≔ data [ suc. (_:even) ]
-  > axiom e : even
-  > def T ≔ even⁽ᵈ⁾ e
+  > data even : Set where { zero : even; suc : odd → even } and odd : Set where { suc : even → odd }
+  > postulate e : even
+  > T = even⁽ᵈ⁾ e
   > EOF
 
-  $ narya -source-only -v -parametric -arity 1 -direction d -discreteness mutual3.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ agdarya -source-only -v -parametric -arity 1 -direction d -discreteness mutual3.ny jd.ny -e 'test : (t1 : T) → (t2 : T) → Jd T t1 t2' -e 'test t1 t2 = rfl'
    ￫ info[I0000]
    ￮ discrete constants defined mutually:
        even
        odd
   
    ￫ info[I0001]
-   ￮ axiom e assumed
+   ￮ postulate e assumed
   
    ￫ info[I0000]
    ￮ constant T defined
@@ -412,14 +410,13 @@ Nontrivially mutual datatypes can also be discrete, if treating them all as disc
 Including if they have discrete indices:
 
   $ cat >mutual4.ny <<EOF
-  > def ℕ : Type ≔ data [ zero. | suc. (_:ℕ) ]
-  > def even : ℕ → Type ≔ data [ zero. : even zero. | suc. (n : ℕ) (_ : odd n) : even (suc. n) ]
-  > and odd : ℕ → Type ≔ data [ suc. (n:ℕ) (_ : even n) : odd (suc. n) ]
-  > axiom e : even 2
-  > def T ≔ even⁽ᵈ⁾ {2} 2 e
+  > data ℕ : Set where { zero : ℕ; suc : ℕ → ℕ }
+  > data even : ℕ → Set where { zero : even zero; suc : (n : ℕ) → odd n → even (suc n) } and odd : ℕ → Set where { suc : (n:ℕ) → even n → odd (suc n) }
+  > postulate e : even 2
+  > T = even⁽ᵈ⁾ {2} 2 e
   > EOF
 
-  $ narya -source-only -v -parametric -arity 1 -direction d -discreteness mutual4.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ agdarya -source-only -v -parametric -arity 1 -direction d -discreteness mutual4.ny jd.ny -e 'test : (t1 : T) → (t2 : T) → Jd T t1 t2' -e 'test t1 t2 = rfl'
    ￫ info[I0000]
    ￮ discrete constant ℕ defined
   
@@ -429,7 +426,7 @@ Including if they have discrete indices:
        odd
   
    ￫ info[I0001]
-   ￮ axiom e assumed
+   ￮ postulate e assumed
   
    ￫ info[I0000]
    ￮ constant T defined
@@ -444,20 +441,19 @@ Including if they have discrete indices:
 But nondiscreteness of any of them throws the others off:
 
   $ cat >mutual5.ny <<EOF
-  > def empty1 (A : Type) : Type ≔ data []
-  > and empty2 : Type ≔ data [ ]
-  > axiom e : empty2
-  > def T ≔ empty2⁽ᵈ⁾ e
+  > data empty1 (A : Set) : Set where { } and empty2 : Set where { }
+  > postulate e : empty2
+  > T = empty2⁽ᵈ⁾ e
   > EOF
 
-  $ narya -source-only -v -parametric -arity 1 -direction d -discreteness mutual5.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ agdarya -source-only -v -parametric -arity 1 -direction d -discreteness mutual5.ny jd.ny -e 'test : (t1 : T) → (t2 : T) → Jd T t1 t2' -e 'test t1 t2 = rfl'
    ￫ info[I0000]
    ￮ constants defined mutually:
        empty1
        empty2
   
    ￫ info[I0001]
-   ￮ axiom e assumed
+   ￮ postulate e assumed
   
    ￫ info[I0000]
    ￮ constant T defined
@@ -467,7 +463,7 @@ But nondiscreteness of any of them throws the others off:
   
    ￫ error[E1003]
    ￭ command-line exec string
-   1 | def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.
+   1 | test t1 t2 = rfl
      ^ index
          t1
        of constructor application doesn't match the corresponding index
@@ -481,7 +477,7 @@ But nondiscreteness of any of them throws the others off:
 
 Some other discrete types:
 
-  $ narya -source-only -v -parametric -arity 1 -direction d -discreteness -e 'def ℕ : Type ≔ data [ zero. | suc. (_:ℕ) ]' -e 'def ℤ : Type ≔ data [ zero. | suc. (_:ℕ) | negsuc. (_:ℕ) ]' -e 'def btree : Type ≔ data [ leaf. | node. (_:btree) (_:btree) ]'
+  $ agdarya -source-only -v -parametric -arity 1 -direction d -discreteness -e 'data ℕ : Set where { zero : ℕ; suc : ℕ → ℕ }' -e 'data ℤ : Set where { zero : ℤ; suc : ℕ → ℤ; negsuc : ℕ → ℤ }' -e 'data btree : Set where { leaf : btree; node : btree → btree → btree }'
    ￫ info[I0000]
    ￮ discrete constant ℕ defined
   
@@ -491,4 +487,3 @@ Some other discrete types:
    ￫ info[I0000]
    ￮ discrete constant btree defined
   
-
