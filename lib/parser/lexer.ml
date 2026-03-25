@@ -435,8 +435,14 @@ let get_reserved_word = function
   | "infixl" -> Some Infixl
   | "infixr" -> Some Infixr
   | "do" -> Some Do
+  | "hiding" -> Some Hiding
   | "import" -> Some Import
   | "export" -> Some Export
+  | "module" -> Some Module
+  | "open" -> Some Open
+  | "private" -> Some Private
+  | "public" -> Some Public
+  | "renaming" -> Some Renaming
   | "chdir" -> Some Chdir
   | "solve" -> Some Solve
   | "split" -> Some Split
@@ -447,6 +453,7 @@ let get_reserved_word = function
   | "fmt" -> Some Fmt
   | "end" -> Some End
   | "_" -> Some Underscore
+  | "using" -> Some Using
   | _ -> None
 
 let is_single_reserved_word = function

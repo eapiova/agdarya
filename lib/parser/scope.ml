@@ -11,6 +11,7 @@ module Param = struct
     [ `Constant of Constant.t
     | `Constructor of Constr.t * Constant.t
     | `Field of string * Constant.t
+    | `Module of Parameter.t list
     | `Notation of User.prenotation * User.notation ]
     * Asai.Range.t option
 
@@ -161,6 +162,8 @@ let constructor_tag = ".constructors"
 let constructor_path path = path @ [ constructor_tag ]
 let field_tag = ".fields"
 let field_path path = path @ [ field_tag ]
+let module_tag = ".module"
+let module_path path = path @ [ module_tag ]
 
 let local_constructors : (Trie.path * Constr.t) list list ref = ref []
 let local_fields : string list list ref = ref []
@@ -278,6 +281,9 @@ let define_constr ?loc name constr data =
 let define_field ?loc name field data =
   include_singleton (field_path name, ((`Field (field, data), loc), ()))
 
+let define_module ?loc name params =
+  include_singleton (module_path name, ((`Module params, loc), ()))
+
 (* Re-create a Constant.t at linking, and associate its old original name to the new re-created version. *)
 let redefine old_original_names find_in_table oldc =
   let newc = Constant.remake find_in_table oldc in
@@ -342,6 +348,10 @@ let import_subtree ?context_modifier ?context_visible ?modifier (path, ns) =
 let get_visible () = M.exclusively @@ fun () -> (Versioned.get scopes).inner.visible
 let get_export () = M.exclusively @@ fun () -> (Versioned.get scopes).inner.export
 
+let set_export export =
+  M.exclusively @@ fun () ->
+  Versioned.modify scopes (fun s -> { s with inner = { s.inner with export } })
+
 (* Set the visible namespace for the current origin, e.g. before going into interactive mode.  Also set the notation situation to consist of the user notations from that namespace. *)
 let set_visible visible =
   M.exclusively @@ fun () ->
@@ -385,6 +395,7 @@ let lookup name =
   | Some ((`Constant c, _), ()) -> Some c
   | Some ((`Constructor _, _), ()) -> None
   | Some ((`Field _, _), ()) -> None
+  | Some ((`Module _, _), ()) -> None
   | Some ((`Notation _, _), ()) -> None
   | None -> None
 
@@ -393,7 +404,17 @@ let lookup_notation name =
   | Some ((`Notation (user, notn), _), ()) -> Some (user, notn)
   | Some ((`Constant _, _), ())
   | Some ((`Constructor _, _), ())
+  | Some ((`Module _, _), ())
   | Some ((`Field _, _), ()) -> None
+  | None -> None
+
+let lookup_module name =
+  match resolve (module_path name) with
+  | Some ((`Module params, _), ()) -> Some params
+  | Some ((`Constant _, _), ())
+  | Some ((`Constructor _, _), ())
+  | Some ((`Field _, _), ())
+  | Some ((`Notation _, _), ()) -> None
   | None -> None
 
 let lookup_constr name =
@@ -401,6 +422,7 @@ let lookup_constr name =
   | Some ((`Constructor (c, data), _), ()) -> Some (c, data)
   | Some ((`Constant _, _), ())
   | Some ((`Field _, _), ())
+  | Some ((`Module _, _), ())
   | Some ((`Notation _, _), ()) -> None
   | None -> None
 
@@ -409,6 +431,7 @@ let lookup_field name =
   | Some ((`Field (fld, data), _), ()) -> Some (fld, data)
   | Some ((`Constant _, _), ())
   | Some ((`Constructor _, _), ())
+  | Some ((`Module _, _), ())
   | Some ((`Notation _, _), ()) -> None
   | None -> None
 
@@ -422,6 +445,7 @@ let lookup_field_at origin name =
   | Some ((`Field (fld, data), _), ()) -> Some (fld, data)
   | Some ((`Constant _, _), ())
   | Some ((`Constructor _, _), ())
+  | Some ((`Module _, _), ())
   | Some ((`Notation _, _), ()) -> None
   | None -> None
 
@@ -470,6 +494,7 @@ let to_channel chan trie flags =
          | (`Constant c, loc), tag -> ((`Constant c, loc), tag)
          | (`Constructor (c, data), loc), tag -> ((`Constructor (c, data), loc), tag)
          | (`Field (fld, data), loc), tag -> ((`Field (fld, data), loc), tag)
+         | (`Module params, loc), tag -> ((`Module params, loc), tag)
          | (`Notation (u, _), loc), tag -> ((`Notation u, loc), tag))
        trie)
     flags
@@ -483,6 +508,7 @@ let from_istream chan find_in_table =
       | `Constructor (c, data), loc ->
           ((`Constructor (c, Constant.remake find_in_table data), loc), tag)
       | `Field (fld, data), loc -> ((`Field (fld, Constant.remake find_in_table data), loc), tag)
+      | `Module params, loc -> ((`Module params, loc), tag)
       | `Notation (User.User u), loc ->
           (* We also have to re-make the notation objects since they contain constant names (print keys) and their own autonumbers (but those are only used for comparison locally so don't need to be walked elsewhere). *)
           let key =
@@ -495,6 +521,7 @@ let from_istream chan find_in_table =
       : ( [ `Constant of Constant.t
           | `Constructor of Constr.t * Constant.t
           | `Field of string * Constant.t
+          | `Module of Parameter.t list
           | `Notation of User.prenotation ]
           * Asai.Range.t option,
           Param.tag )

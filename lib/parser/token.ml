@@ -53,14 +53,20 @@ type t =
   | Bind
   | Chdir
   | Do
+  | Hiding
   | In
   | Let
   | Match
+  | Module
   | Notation
   | Of
+  | Open
+  | Private
+  | Public
   | Quit
   | Rec
   | Record
+  | Renaming
   | Return
   | Section
   | Fmt
@@ -69,6 +75,8 @@ type t =
   | Solve
   | Split
   | Synth
+  | To
+  | Using
   | Where
   | Constructor_kw
   | Undo
@@ -231,7 +239,13 @@ let to_string = function
   | Import -> "import"
   | Chdir -> "chdir"
   | Do -> "do"
+  | Hiding -> "hiding"
   | Export -> "export"
+  | Module -> "module"
+  | Open -> "open"
+  | Private -> "private"
+  | Public -> "public"
+  | Renaming -> "renaming"
   | Solve -> "solve"
   | Split -> "split"
   | Show -> "show"
@@ -243,6 +257,8 @@ let to_string = function
   | Let -> "let"
   | Rec -> "rec"
   | In -> "in"
+  | To -> "to"
+  | Using -> "using"
   | Op s -> s
   | Ident s -> String.concat "." s
   | Superscript s -> to_super s

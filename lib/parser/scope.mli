@@ -8,6 +8,7 @@ module Param : sig
     [ `Constant of Constant.t
     | `Constructor of Constr.t * Constant.t
     | `Field of string * Constant.t
+    | `Module of Parameter.t list
     | `Notation of User.prenotation * User.notation ]
     * Asai.Range.t option
 
@@ -78,10 +79,13 @@ val import_subtree :
 
 val get_visible : unit -> trie
 val get_export : unit -> trie
+val set_export : trie -> unit
 val set_visible : trie -> unit
 val start_section : string list -> unit
 val end_section : unit -> string list option
 val count_sections : unit -> int
+val define_module : ?loc:Asai.Range.t -> Trie.path -> Parameter.t list -> unit
+val lookup_module : Trie.path -> Parameter.t list option
 val lookup : Trie.path -> Constant.t option
 val lookup_notation : string -> (User.prenotation * User.notation) option
 val lookup_constr : Trie.path -> (Constr.t * Constant.t) option

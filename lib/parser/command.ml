@@ -90,6 +90,28 @@ and clause = {
   where_block : where_block option;
 }
 
+type module_name_list = {
+  wslparen : Whitespace.t list;
+  items : (Trie.path * Whitespace.t list) list;
+  wsrparen : Whitespace.t list;
+}
+
+type module_renaming = {
+  source : Trie.path;
+  wssource : Whitespace.t list;
+  wsto : Whitespace.t list;
+  target : Trie.path;
+  wstarget : Whitespace.t list;
+}
+
+type module_modifiers = {
+  filter :
+    [ `Using of Whitespace.t list * module_name_list
+    | `Hiding of Whitespace.t list * module_name_list ]
+    option;
+  renaming : (Whitespace.t list * Whitespace.t list * module_renaming list * Whitespace.t list) option;
+}
+
 type extracted_record_field = string * wrapped_parse
 
 let tokws t = (t, ([], None))
@@ -252,6 +274,37 @@ module Command = struct
         val_vars : string list;
       }
         -> t
+    | Module_decl of {
+        wsmodule : Whitespace.t list;
+        name : Trie.path;
+        loc : Asai.Range.t option;
+        wsname : Whitespace.t list;
+        parameters : Parameter.t list;
+        wswhere : Whitespace.t list;
+        body : module_body;
+      }
+    | Module_app of {
+        wsmodule : Whitespace.t list;
+        name : Trie.path;
+        loc : Asai.Range.t option;
+        wsname : Whitespace.t list;
+        parameters : Parameter.t list;
+        wseq : Whitespace.t list;
+        source : Trie.path;
+        wssource : Whitespace.t list;
+        args : (Whitespace.t list * wrapped_parse) list;
+        modifiers : module_modifiers;
+      }
+    | Open_decl of {
+        wsopen : Whitespace.t list;
+        wsimport : Whitespace.t list option;
+        path : Trie.path;
+        loc : Asai.Range.t option;
+        wspath : Whitespace.t list;
+        public_ : Whitespace.t list option;
+        modifiers : module_modifiers;
+      }
+    | Private of { wsprivate : Whitespace.t list; cmd : t }
     | Import of {
         wsimport : Whitespace.t list;
         export : bool;
@@ -320,6 +373,12 @@ module Command = struct
     | Quit of Whitespace.t list
     | Bof of Whitespace.t list
     | Eof
+  and module_body = {
+    wslbrace : Whitespace.t list;
+    first : t;
+    rest : (Whitespace.t list * t) list;
+    wsrbrace : Whitespace.t list;
+  }
 end
 
 include Command
@@ -1032,6 +1091,77 @@ module Parse = struct
     </> let* wsdot = token Dot in
         return ([], wsdot)
 
+  let module_name_list =
+    let* wslparen = token LParen in
+    let* item, wsitem = path in
+    let* rest =
+      zero_or_more
+        (let* wssemi = token (Op ";") in
+         let* item, wsitem = path in
+         return (item, wssemi @ wsitem))
+    in
+    let* wsrparen = token RParen in
+    return { wslparen; items = (item, wsitem) :: rest; wsrparen }
+
+  let to_keyword =
+    step "" (fun state _ (tok, ws) ->
+        match tok with
+        | Ident [ "to" ] -> Some (ws, state)
+        | _ -> None)
+
+  let module_renaming_item =
+    let* source, wssource = path in
+    let* wsto = to_keyword in
+    let* target, wstarget = path in
+    return { source; wssource; wsto; target; wstarget }
+
+  let module_modifiers =
+    let* filter =
+      optional
+        ((let* wsusing = token Using in
+          let* names = module_name_list in
+          return (`Using (wsusing, names)))
+        </> let* wshiding = token Hiding in
+            let* names = module_name_list in
+            return (`Hiding (wshiding, names)))
+    in
+    let* renaming =
+      optional
+        (let* wsrenaming = token Renaming in
+         let* wslparen = token LParen in
+         let* first = module_renaming_item in
+         let* rest =
+           zero_or_more
+             (let* _ = token (Op ";") in
+              module_renaming_item)
+         in
+         let* wsrparen = token RParen in
+         return (wsrenaming, wslparen, first :: rest, wsrparen))
+    in
+    return { filter; renaming }
+
+  let rec split_module_app_rhs accum wrapped =
+    match strip_outer_parens wrapped with
+    | Wrap { value = App { fn; arg; _ }; _ } -> split_module_app_rhs (Wrap arg :: accum) (Wrap fn)
+    | head -> (head, accum)
+
+  let module_app_source rhs =
+    let head, args = split_module_app_rhs [] rhs in
+    match head with
+    | Wrap { value = Ident (source, _); loc } ->
+        (source, loc, List.map (fun arg -> ([], arg)) args)
+    | Wrap { loc; _ } -> fatal ?loc Parse_error
+
+  let removed_module_surface () =
+    (let* _ = token Import in
+     fatal Parse_error)
+    </> (let* _ = token Export in
+         fatal Parse_error)
+    </> (let* _ = token Section in
+         fatal Parse_error)
+    </> let* _ = token End in
+        fatal Parse_error
+
   let rec modifier () =
     let* m =
       step "" (fun state _ (tok, ws) ->
@@ -1100,28 +1230,6 @@ module Parse = struct
             (Option.fold ~none:[] ~some:(fun x -> [ (x, []) ]) lastop) in
         let* wsrparen = token RParen in
         return (Union { wsunion; wslparen; ops; wsrparen })
-
-  let import =
-    let* wsimport, export =
-      (let* wsimport = token Import in
-       return (wsimport, false))
-      </> let* wsimport = token Export in
-          return (wsimport, true) in
-    let* origin, wsorigin =
-      step "" (fun state _ (tok, ws) ->
-          match tok with
-          | String file -> Some ((`File file, ws), state)
-          | Ident x -> Some ((`Path x, ws), state)
-          | Dot -> Some ((`Path [], ws), state)
-          | _ -> None) in
-    let* op =
-      optional
-        (backtrack
-           (let* wsbar = token (Op "|") in
-            let* m = modifier () in
-            return (wsbar, m))
-           "") in
-    return (Import { wsimport; export; origin; wsorigin; op })
 
   let chdir =
     let* wschdir = token Chdir in
@@ -1249,16 +1357,6 @@ module Parse = struct
     let* count, wscount = integer in
     return (Command.Undo { wsundo; count; wscount })
 
-  let section =
-    let* wssection = token Section in
-    let* prefix, wsprefix = ident in
-    let* wscoloneq = token Coloneq in
-    return (Command.Section { wssection; prefix; wsprefix; wscoloneq })
-
-  let endcmd =
-    let* wsend = token End in
-    return (Command.End { wsend })
-
   let quit =
     let* wsquit = token Quit in
     return (Command.Quit wsquit)
@@ -1280,9 +1378,8 @@ module Parse = struct
     let* cmd = command () in
     return (Fmt { wsfmt; instant; wsinstant; wscoloneq; cmd })
 
-  and command () =
-    bof
-    </> axiom
+  and module_body_command () =
+    axiom
     </> removed_def
     </> data_decl_and
     </> record_decl_and
@@ -1291,7 +1388,10 @@ module Parse = struct
     </> echo
     </> notation
     </> fixity_decl
-    </> import
+    </> module_decl_or_app ()
+    </> open_decl ()
+    </> private_cmd ()
+    </> removed_module_surface ()
     </> chdir
     </> solve
     </> split
@@ -1299,9 +1399,73 @@ module Parse = struct
     </> display
     </> pragma
     </> undo
-    </> section
     </> fmt ()
-    </> endcmd
+
+  and module_body () =
+    let* wslbrace = token LBrace in
+    let* first = module_body_command () in
+    let* rest =
+      zero_or_more
+        (let* wssemi = token (Op ";") in
+         let* cmd = module_body_command () in
+         return (wssemi, cmd))
+    in
+    let* wsrbrace = token RBrace in
+    return { wslbrace; first; rest; wsrbrace }
+
+  and module_decl_or_app () =
+    let* wsmodule = token Module in
+    let* nameloc, (name, wsname) = located ident in
+    let loc = Some (Range.convert nameloc) in
+    if not (valid_name name) then fatal ?loc (Invalid_constant_name (name, None));
+    let* parameters = zero_or_more parameter in
+    (let* wswhere = token Where in
+     let* body = module_body () in
+     return (Command.Module_decl { wsmodule; name; loc; wsname; parameters; wswhere; body }))
+    </> (let* wseq = token (Op "=") in
+         let* rhs = C.term [ Using; Hiding; Renaming ] in
+         let source, _source_loc, args = module_app_source rhs in
+         let* modifiers = module_modifiers in
+         return
+           (Command.Module_app
+              {
+                wsmodule;
+                name;
+                loc;
+                wsname;
+                parameters;
+                wseq;
+                source;
+                wssource = [];
+                args;
+                modifiers;
+              }))
+
+  and open_decl () =
+    let* wsopen = token Open in
+    let* wsimport = optional (token Import) in
+    let* pathloc, (path, wspath) = located path in
+    let loc = Some (Range.convert pathloc) in
+    let* public_ = optional (token Public) in
+    let* modifiers = module_modifiers in
+    return (Command.Open_decl { wsopen; wsimport; path; loc; wspath; public_; modifiers })
+
+  and private_target () =
+    axiom
+    </> data_decl_and
+    </> record_decl_and
+    </> type_sig
+    </> clause
+    </> module_decl_or_app ()
+
+  and private_cmd () =
+    let* wsprivate = token Private in
+    let* cmd = private_target () in
+    return (Command.Private { wsprivate; cmd })
+
+  and command () =
+    bof
+    </> module_body_command ()
     </> quit
     </> eof
 
@@ -1465,10 +1629,21 @@ let decompose_clause_head ?(prefer_ordinary = fun _ -> false) (lhs : wrapped_par
       | None -> fatal ?loc (Invalid_notation_head (name notn)))
   | Wrap { loc; _ } -> fatal ?loc Parse_error
 
+let ordinary_inner_command : Command.t -> Command.t option = function
+  | TypeSig _ as cmd | Clause _ as cmd -> Some cmd
+  | Private { cmd = (TypeSig _ as cmd); _ } -> Some cmd
+  | Private { cmd = (Clause _ as cmd); _ } -> Some cmd
+  | _ -> None
+
+let ordinary_private = function
+  | Private { cmd = TypeSig _; _ } | Private { cmd = Clause _; _ } -> true
+  | TypeSig _ | Clause _ -> false
+  | _ -> false
+
 let ordinary_source_head ?(prefer_ordinary = fun _ -> false) : Command.t -> (Trie.path * Asai.Range.t option) option =
   function
-  | TypeSig { name; loc; _ } -> Some (name, loc)
-  | Clause { lhs; _ } ->
+  | TypeSig { name; loc; _ } | Private { cmd = TypeSig { name; loc; _ }; _ } -> Some (name, loc)
+  | Clause { lhs; _ } | Private { cmd = Clause { lhs; _ }; _ } ->
       let { name; loc; _ } = decompose_clause_head ~prefer_ordinary lhs in
       Some (name, loc)
   | _ -> None
@@ -1624,7 +1799,7 @@ let command_of_local_cmd = function
   | Local_type_sig sig_cmd -> Command.TypeSig sig_cmd
   | Local_clause clause -> Command.Clause clause
 
-let cmds_of_where_block { first; rest; _ } =
+let cmds_of_where_block ({ first; rest; _ } : where_block) =
   command_of_local_cmd first :: List.map (fun (_, cmd) -> command_of_local_cmd cmd) rest
 
 let string_of_local_name ?loc = function
@@ -1754,8 +1929,10 @@ and defs_of_pending_commands ?(infer_missing_tys = false) cmds =
   let signature_names =
     List.fold_left
       (fun names -> function
-        | TypeSig { name; _ } -> StringsMap.add name () names
-        | _ -> names)
+        | cmd -> (
+            match ordinary_inner_command cmd with
+            | Some (TypeSig { name; _ }) -> StringsMap.add name () names
+            | _ -> names))
       StringsMap.empty cmds
   in
   let prefer_ordinary grouped name =
@@ -1766,8 +1943,9 @@ and defs_of_pending_commands ?(infer_missing_tys = false) cmds =
   in
   let grouped, order =
     List.fold_left
-      (fun (grouped, order) -> function
-        | TypeSig sig_cmd ->
+      (fun (grouped, order) cmd ->
+        match ordinary_inner_command cmd with
+        | Some (TypeSig sig_cmd) ->
             let entry =
               match StringsMap.find_opt sig_cmd.name grouped with
               | Some entry ->
@@ -1777,7 +1955,7 @@ and defs_of_pending_commands ?(infer_missing_tys = false) cmds =
               | None -> { signature = Some sig_cmd; clauses = [] }
             in
             (StringsMap.add sig_cmd.name entry grouped, add_first_seen sig_cmd.name order)
-        | Clause clause ->
+        | Some (Clause clause) ->
             let head = decompose_clause_head ~prefer_ordinary:(prefer_ordinary grouped) clause.lhs in
             let entry =
               match StringsMap.find_opt head.name grouped with
@@ -1857,15 +2035,18 @@ let pending_commands_are_complete cmds =
   let signature_names =
     List.fold_left
       (fun names -> function
-        | TypeSig { name; _ } -> StringsMap.add name () names
-        | _ -> names)
+        | cmd -> (
+            match ordinary_inner_command cmd with
+            | Some (TypeSig { name; _ }) -> StringsMap.add name () names
+            | _ -> names))
       StringsMap.empty cmds
   in
   let signatures, clauses =
     List.fold_left
-      (fun (signatures, clauses) -> function
-        | TypeSig { name; _ } -> (StringsMap.add name () signatures, clauses)
-        | Clause { lhs; _ } ->
+      (fun (signatures, clauses) cmd ->
+        match ordinary_inner_command cmd with
+        | Some (TypeSig { name; _ }) -> (StringsMap.add name () signatures, clauses)
+        | Some (Clause { lhs; _ }) ->
             let { name; _ } =
               decompose_clause_head ~prefer_ordinary:(fun name -> StringsMap.mem name signature_names) lhs
             in
@@ -1950,9 +2131,10 @@ and clause_mentions_name target ({ tm; where_block; _ } : clause) =
 
 let pending_commands_reference_name cmds target =
   List.exists
-    (function
-      | TypeSig { ty; _ } -> term_mentions_name target ty
-      | Clause clause -> clause_mentions_name target clause
+    (fun cmd ->
+      match ordinary_inner_command cmd with
+      | Some (TypeSig { ty; _ }) -> term_mentions_name target ty
+      | Some (Clause clause) -> clause_mentions_name target clause
       | _ -> false)
     cmds
 
@@ -2150,8 +2332,8 @@ let register_syntax_fields ?loc name const tm =
   register_field_names ?loc name const (Builtins.local_fields_of_term tm)
 
 let predeclare_ordinary_syntax cmd existing =
-  match cmd with
-  | Clause { lhs; tm; _ } -> (
+  match ordinary_inner_command cmd with
+  | Some (Clause { lhs; tm; _ }) -> (
       let { name; loc; _ } = decompose_clause_head lhs in
       match StringsMap.find_opt name existing with
       | Some const ->
@@ -2176,6 +2358,9 @@ let to_string : Command.t -> string = function
   | Echo { eval = false; _ } -> "synth"
   | Notation _ -> "notation"
   | Fixity_decl { keyword; _ } -> Token.to_string (token_of_fixity_keyword keyword)
+  | Module_decl _ | Module_app _ -> "module"
+  | Open_decl _ -> "open"
+  | Private _ -> "private"
   | Import _ -> "import"
   | Chdir _ -> "chdir"
   | Solve _ -> "solve"
@@ -2197,6 +2382,8 @@ let needs_interactive : Command.t -> bool = function
   | _ -> false
 
 let condense : Command.t -> [ `Import | `Pragma | `None | `Bof ] = function
+  | Open_decl _ -> `Import
+  | Private { cmd; _ } -> condense cmd
   | Import _ -> `Import
   | Pragma _ -> `Pragma
   | _ -> `None
@@ -2334,6 +2521,112 @@ let exec_defs ?(existing = StringsMap.empty) (defs : def list) =
 
 let exec_defs_current ?(existing = StringsMap.empty) (defs : def list) =
   exec_defs_with Global.run_command_current ~existing defs
+
+let with_private_export private_ f =
+  if not private_ then f ()
+  else
+    let export = Scope.get_export () in
+    match f () with
+    | ans ->
+        Scope.set_export export;
+        ans
+    | exception e ->
+        Scope.set_export export;
+        raise e
+
+let flatten_parameters (params : Parameter.t list) =
+  List.concat_map
+    (fun ({ names; ty; _ } : Parameter.t) ->
+      List.map
+        (fun (name, _) -> { wslparen = []; names = [ (name, []) ]; wscolon = []; ty; wsrparen = [] })
+        names)
+    params
+
+let prefix_def_params prefix ({ parameters; _ } as def : def) = { def with parameters = prefix @ parameters }
+let prefix_defs_params prefix defs = List.map (prefix_def_params prefix) defs
+
+let module_parameter_terms params =
+  List.map
+    (fun ({ names; _ } : Parameter.t) ->
+      match names with
+      | [ (Some x, _) ] -> ident_tm x
+      | [ (None, _) ] ->
+          fatal
+            (Invalid_notation_pattern
+               "module parameters participating in module application must be named")
+      | _ -> fatal (Anomaly "flatten_parameters produced grouped module parameter"))
+    params
+
+let string_of_term_as_arg tm = "(" ^ string_of_term tm ^ ")"
+
+let build_constant_app_term head args =
+  parse_generated_term
+    (String.concat " " (string_of_public_name head :: List.map string_of_term_as_arg args))
+
+let hidden_module_segment = function
+  | ".constructors" | ".fields" | ".module" -> true
+  | _ -> false
+
+let public_module_entry path = not (List.exists hidden_module_segment path)
+
+let process_module_modifiers ({ filter; renaming } : module_modifiers) =
+  let module Language = Yuujinchou.Language in
+  let ops =
+    (match filter with
+    | None -> []
+    | Some (`Using (_, { items; _ })) ->
+        [
+          (match List.map (fun (path, _) -> Language.only path) items with
+          | [] -> Language.id
+          | [ op ] -> op
+          | ops -> Language.union ops);
+        ]
+    | Some (`Hiding (_, { items; _ })) ->
+        List.map (fun (path, _) -> Language.except path) items)
+    @
+    match renaming with
+    | None -> []
+    | Some (_, _, items, _) -> List.map (fun { source; target; _ } -> Language.renaming source target) items
+  in
+  match ops with
+  | [] -> Language.id
+  | [ op ] -> op
+  | ops -> Language.seq ops
+
+let module_file_of_path path = String.concat "/" path ^ ".ny"
+
+let module_alias_defs ~name ~params ~source ~source_trie ~applied_args =
+  Seq.fold_left
+    (fun defs (rel, ((data, loc), _)) ->
+      match data with
+      | `Constant _ when public_module_entry rel ->
+          let full_name = name @ rel in
+          {
+            wsdef = [];
+            head = Head_name full_name;
+            name = full_name;
+            loc;
+            wshead = [];
+            parameters = params;
+            ty = None;
+            wscoloneq = [];
+            tm = build_constant_app_term (source @ rel) (applied_args @ module_parameter_terms params);
+          }
+          :: defs
+      | _ -> defs)
+    [] (Trie.to_seq source_trie)
+  |> List.rev
+
+let register_module_alias_syntax ~name ~source_trie =
+  Seq.iter
+    (fun (rel, ((data, loc), _)) ->
+      match data with
+      | `Constant c when public_module_entry rel ->
+          let full_name = name @ rel in
+          register_data_constructors ?loc full_name c;
+          register_data_fields ?loc full_name c
+      | _ -> ())
+    (Trie.to_seq source_trie)
 
 let execute ~(action_taken : unit -> unit) ~(get_file : string -> Scope.trie) (cmd : Command.t) :
     int option * (int * int * int) list =
