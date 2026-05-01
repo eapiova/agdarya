@@ -680,7 +680,7 @@ module Code = struct
           textf "field dot syntax removed; use bare name, name⟨…⟩, or M.(name): %s" str
       | Standalone_field_name str ->
           textf "field '%s' cannot be used standalone; use M %s or M.(%s)" str str str
-      | Match_syntax_removed -> text "match syntax removed; use case … of λ { … }"
+      | Match_syntax_removed -> text "match syntax removed; use case … of"
       | Embedded_data_syntax_removed ->
           text "embedded datatype syntax removed; use a top-level data … where { … } declaration"
       | Embedded_record_syntax_removed ->

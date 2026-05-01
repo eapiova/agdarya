@@ -631,26 +631,26 @@ echo f a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
 synth f a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
         a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
 
-section foo ≔
+module foo where {
 
-  x : ℕ
-  x = 3
+  x : ℕ;
+  x = 3;
 
-  fooflong : ℕ
+  fooflong : ℕ;
   fooflong = f a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
         a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
         a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
         a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
-        a_long_thing
+        a_long_thing;
 
-  section bar ≔
+  module bar where {
 
-    y : ℕ
+    y : ℕ;
     y = f a a a a a a a a a a a a a a a a a a a a a
 
-  end
+  }
 
-end
+}
 
 x : ℕ
 x = 0
@@ -683,15 +683,15 @@ xy2 = let rec x : ℕ --line comment
     ≔ 0 in
   x
 
-import "importable"
+open import importable
 
-import "importable" | all
+open import importable
 
-import "importable"
-  | seq (renaming squab squish,
-         renaming squish squab,
-         renaming squab squish,
-         renaming squish squab)
+open import importable
+  renaming (squab to squish;
+            squish to squab;
+            squab to squish;
+            squish to squab)
 
 {- long parameter lists -}
 eq : (A : Set) → (a : A) → A → Set

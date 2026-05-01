@@ -71,6 +71,24 @@ type type_sig = {
   ty : wrapped_parse;
 }
 
+type axiom_entry = {
+  nonparam : unit attribute option;
+  name : Trie.path;
+  loc : Asai.Range.t option;
+  wsname : Whitespace.t list;
+  parameters : Parameter.t list;
+  wscolon : Whitespace.t list;
+  ty : wrapped_parse;
+}
+
+type postulate_block = {
+  wsaxiom : Whitespace.t list;
+  wslbrace : Whitespace.t list;
+  first : axiom_entry;
+  rest : (Whitespace.t list * axiom_entry) list;
+  wsrbrace : Whitespace.t list;
+}
+
 type local_cmd =
   | Local_type_sig of type_sig
   | Local_clause of clause
@@ -83,11 +101,29 @@ and where_block = {
   wsrbrace : Whitespace.t list;
 }
 
+and clause_rhs =
+  | Body of {
+      wseq : Whitespace.t list;
+      tm : wrapped_parse;
+      where_block : where_block option;
+    }
+  | With_block of {
+      items : wrapped_parse list;
+      branches : clause_branch list;
+    }
+  | Rewrite_block of {
+      proofs : wrapped_parse list;
+      tail : clause_rhs;
+    }
+
+and clause_branch = {
+  patterns : wrapped_parse list;
+  rhs : clause_rhs;
+}
+
 and clause = {
   lhs : wrapped_parse;
-  wseq : Whitespace.t list;
-  tm : wrapped_parse;
-  where_block : where_block option;
+  body : clause_rhs;
 }
 
 type module_name_list = {
@@ -233,6 +269,7 @@ module Command = struct
         wscolon : Whitespace.t list;
         ty : wrapped_parse;
       }
+    | Postulate_block of postulate_block
     | TypeSig of type_sig
     | Clause of clause
     | Def of def list
@@ -470,15 +507,29 @@ module Parse = struct
         | None -> fatal ?loc:tm.loc Unrecognized_attribute
         | Some attr -> return (Some { wshash; wslparen; loc = tm.loc; attr; wsattr; wsrparen }))
 
-  let axiom =
-    let* wsaxiom = token Axiom in
+  let axiom_entry_until stops =
     let* nonparam = attribute (StringsMap.of_list [ ([ "nonparametric" ], ()) ]) in
     let* nameloc, (name, wsname) = located ident in
     let loc = Some (Range.convert nameloc) in
     let* parameters = zero_or_more parameter in
     let* wscolon = token Colon in
-    let* ty = C.term [] in
-    return (Command.Axiom { wsaxiom; nonparam; name; loc; wsname; parameters; wscolon; ty })
+    let* ty = C.term stops in
+    return ({ nonparam; name; loc; wsname; parameters; wscolon; ty } : axiom_entry)
+
+  let axiom =
+    let* wsaxiom = token Axiom in
+    (let* wslbrace = token LBrace in
+     let* first = axiom_entry_until [ Op ";"; RBrace; Eof ] in
+     let* rest =
+       zero_or_more
+         (let* wssemi = token (Op ";") in
+          let* entry = axiom_entry_until [ Op ";"; RBrace; Eof ] in
+          return (wssemi, entry))
+     in
+     let* wsrbrace = token RBrace in
+     return (Command.Postulate_block { wsaxiom; wslbrace; first; rest; wsrbrace }))
+    </> let* { nonparam; name; loc; wsname; parameters; wscolon; ty } = axiom_entry_until [] in
+        return (Command.Axiom { wsaxiom; nonparam; name; loc; wsname; parameters; wscolon; ty })
 
   let integer =
     step "" (fun state _ (tok, ws) ->
@@ -893,16 +944,16 @@ module Parse = struct
   let type_sig = type_sig_until []
 
   let rec local_cmd () =
-    (let* sig_cmd = type_sig_until [ Op ";"; RBrace ] in
+    (let* sig_cmd = type_sig_until [ Token.Op ";"; RBrace; Eof ] in
      match sig_cmd with
      | Command.TypeSig sig_cmd -> return (Local_type_sig sig_cmd)
      | _ -> fatal (Anomaly "local signature parsed as non-signature command"))
-    </> let* clause = clause_until [ Token.Where; Op ";"; RBrace ] in
+    </> let* clause = clause_until [ Token.Op ";"; RBrace; Eof ] in
         return (Local_clause clause)
 
   and where_block () =
     let* wswhere = token Where in
-    let* wslbrace = token LBrace in
+    let* _loclbrace, wslbrace = located (token LBrace) in
     let* first = local_cmd () in
     let* rest =
       zero_or_more
@@ -914,14 +965,57 @@ module Parse = struct
     return { wswhere; wslbrace; first; rest; wsrbrace }
 
   and clause_until stops =
-    let* lhs = C.term [ Op "=" ] in
+    let* lhs = C.term [ Token.Op "="; With; Rewrite ] in
+    let* rhs = clause_rhs_until stops in
+    return { lhs; body = rhs }
+
+  and clause_body_until stops =
     let* wseq = token (Op "=") in
-    let* tm = C.term stops in
+    let* tm = C.term (Token.Where :: stops) in
     let* where_block = optional (where_block ()) in
-    return { lhs; wseq; tm; where_block }
+    return (Body { wseq; tm; where_block })
+
+  and clause_items_until stops =
+    let* first = C.term (Token.Op "|" :: stops) in
+    let* rest =
+      zero_or_more
+        (let* _ = token (Op "|") in
+         let* tm = C.term (Token.Op "|" :: stops) in
+         return tm)
+    in
+    return (first :: rest)
+
+  and clause_branch_until stops =
+    let* _ = token Ellipsis in
+    let* first =
+      let* _ = token (Op "|") in
+      C.term [ Token.Op "|"; Token.Op "="; With; Rewrite ]
+    in
+    let* rest =
+      zero_or_more
+        (let* _ = token (Op "|") in
+         let* tm = C.term [ Token.Op "|"; Token.Op "="; With; Rewrite ] in
+         return tm)
+    in
+    let* rhs = clause_rhs_until (Ellipsis :: stops) in
+    return { patterns = first :: rest; rhs }
+
+  and clause_rhs_until stops =
+    clause_body_until stops
+    </>
+    (let* _ = token With in
+     let* items = clause_items_until [ Token.Ellipsis ] in
+     let* first = clause_branch_until stops in
+     let* rest = zero_or_more (clause_branch_until stops) in
+     return (With_block { items; branches = first :: rest }))
+    </>
+    let* _ = token Rewrite in
+    let* proofs = clause_items_until [ Token.Op "="; With; Rewrite ] in
+    let* tail = clause_rhs_until stops in
+    return (Rewrite_block { proofs; tail })
 
   let clause =
-    let* clause = clause_until [ Token.Where ] in
+    let* clause = clause_until [ Eof ] in
     return (Command.Clause clause)
 
   let field_name =
@@ -931,7 +1025,7 @@ module Parse = struct
     | _ -> fatal ~loc:(Range.convert loc) Parse_error
 
   let data_decl_clause =
-    let* tm = C.term [ Op ";"; RBrace ] in
+    let* tm = C.term [ Op ";"; RBrace; Eof ] in
     return tm
 
   let data_decl tok =
@@ -943,14 +1037,18 @@ module Parse = struct
     let* wscolon = token Colon in
     let* ty = C.term [ Where ] in
     let* _ = token Where in
-    let* _ = token LBrace in
+    let* _loclbrace, _ = located (token LBrace) in
     let* first = optional data_decl_clause in
     let* rest =
       zero_or_more
         (let* _ = token (Op ";") in
          data_decl_clause)
     in
-    let* _ = token RBrace in
+    let* _ =
+      match first with
+      | None -> token RBrace
+      | Some _ -> token RBrace
+    in
     let constrs = Option.fold ~none:[] ~some:(fun tm -> tm :: rest) first in
     return
       {
@@ -975,8 +1073,20 @@ module Parse = struct
      fatal Unsupported_record_constructor_clause)
     </> let* fld, _wsfld = field_name in
         let* _ = token Colon in
-        let* ty = C.term [ Op ";"; RBrace ] in
+        let* ty = C.term [ Op ";"; RBrace; Eof ] in
         return (fld, ty)
+
+  let record_field_block =
+    let* _ = token Field_kw in
+    let* _loclbrace, _ = located (token LBrace) in
+    let* _firstloc, first = located record_field_clause in
+    let* rest =
+      zero_or_more
+        (let* _ = token (Op ";") in
+         record_field_clause)
+    in
+    let* _ = token RBrace in
+    return (first :: rest)
 
   let record_decl tok =
     let* wsdef = token tok in
@@ -993,15 +1103,9 @@ module Parse = struct
        return [])
       </> (let* _ = token Constructor_kw in
            fatal Unsupported_record_constructor_clause)
-      </> let* _ = token Field_kw in
-          let* first = record_field_clause in
-          let* rest =
-            zero_or_more
-              (let* _ = token (Op ";") in
-               record_field_clause)
-          in
+      </> let* fields = record_field_block in
           let* _ = token RBrace in
-          return (first :: rest)
+          return fields
     in
     return
       {
@@ -1402,7 +1506,7 @@ module Parse = struct
     </> fmt ()
 
   and module_body () =
-    let* wslbrace = token LBrace in
+    let* _loclbrace, wslbrace = located (token LBrace) in
     let* first = module_body_command () in
     let* rest =
       zero_or_more
@@ -1463,19 +1567,33 @@ module Parse = struct
     let* cmd = private_target () in
     return (Command.Private { wsprivate; cmd })
 
-  and command () =
-    bof
-    </> module_body_command ()
+  and command_after_bof () =
+    module_body_command ()
     </> quit
     </> eof
 
-  let command_or_echo () =
-    command ()
+  and command () =
+    bof
+    </> command_after_bof ()
+
+  let command_or_echo_after_bof () =
+    command_after_bof ()
     </> let* tm = C.term [] in
         return
           (Command.Echo { wsecho = []; number = None; wsin = []; wsnumber = []; tm; eval = true })
 
+  let command_or_echo () = command () </> let* tm = C.term [] in
+      return
+        (Command.Echo { wsecho = []; number = None; wsin = []; wsnumber = []; tm; eval = true })
+
   type open_source = Range.Data.t * [ `String of int * string | `File of In_channel.t ]
+
+  let rec settle_parse run _source p fuel =
+    let source, p = run p in
+    if fuel <= 0 || C.Lex_and_parse.has_succeeded p || C.Lex_and_parse.needs_more p then
+      (source, p)
+    else
+      settle_parse run source p (fuel - 1)
 
   let start_parse ?(or_echo = false) source : C.Lex_and_parse.t * open_source =
     let (env : Range.Data.t), run =
@@ -1493,10 +1611,11 @@ module Parse = struct
           with Sys_error _ -> fatal (No_such_file name)) in
     Range.run ~env @@ fun () ->
     let p =
-      C.Lex_and_parse.make Lexer.Parser.start
+      C.Lex_and_parse.make (Lexer.Parser.fresh ())
         (C.Basic.make_partial (Origin.current ())
            (if or_echo then command_or_echo () else command ())) in
     let out, p = run p in
+    let out, p = settle_parse run out p 255 in
     (C.ensure_success p, (env, out))
 
   let restart_parse ?(or_echo = false) (p : C.Lex_and_parse.t) ((env, source) : open_source) :
@@ -1514,10 +1633,33 @@ module Parse = struct
         (C.Basic.make_partial (Origin.current ())
            (if or_echo then command_or_echo () else command ())) in
     let out, p = run p in
+    let out, p = settle_parse run out p 255 in
     (C.ensure_success p, (env, out))
 
   let final p = C.Lex_and_parse.final p
   let has_consumed_end p = C.Lex_and_parse.has_consumed_end p
+
+  let parse_one ?(or_echo = false) (source : source) : Command.t =
+    let (env : Range.Data.t), run =
+      match source with
+      | `String src ->
+          ( { source = `String src; length = Int64.of_int (String.length src.content) },
+            fun p -> C.Lex_and_parse.run_on_string src.content p )
+      | `File name ->
+          let ic = In_channel.open_text name in
+          ( { source = `File name; length = In_channel.length ic },
+            fun p -> C.Lex_and_parse.run_on_channel ic p ) in
+    Range.run ~env @@ fun () ->
+    let parser =
+      let* _ = bof in
+      if or_echo then command_or_echo_after_bof () else command_after_bof ()
+    in
+    let p =
+      C.Lex_and_parse.make (Lexer.Parser.fresh ()) (C.Basic.make (Origin.current ()) parser)
+    in
+    let p = run p in
+    let p = C.ensure_success p in
+    C.Lex_and_parse.final p
 end
 
 let string_of_public_name name =
@@ -1532,17 +1674,14 @@ let valid_source_name = function
 
 let parse_single ?title (content : string) : Whitespace.t list * Command.t option =
   let src : source = `String { content; title } in
-  let p, src = Parse.start_parse ~or_echo:true src in
-  match Parse.final p with
-  | Bof ws ->
-      let p, src = Parse.restart_parse ~or_echo:true p src in
-      let cmd = Parse.final p in
-      if cmd <> Eof then
-        let p, _ = Parse.restart_parse ~or_echo:true p src in
-        let eof = Parse.final p in
-        if eof = Eof then (ws, Some cmd) else Core.Reporter.fatal Too_many_commands
-      else (ws, None)
-  | _ -> Core.Reporter.fatal (Anomaly "interactive parse doesn't start with Bof")
+  let ws =
+    let p, _src = Parse.start_parse src in
+    match Parse.final p with
+    | Bof ws -> ws
+    | _ -> Core.Reporter.fatal (Anomaly "interactive parse doesn't start with Bof")
+  in
+  let cmd = Parse.parse_one ~or_echo:true src in
+  if cmd = Eof then (ws, None) else (ws, Some cmd)
 
 type decomposed_clause_head = {
   name : Trie.path;
@@ -1630,7 +1769,7 @@ let decompose_clause_head ?(prefer_ordinary = fun _ -> false) (lhs : wrapped_par
   | Wrap { loc; _ } -> fatal ?loc Parse_error
 
 let ordinary_inner_command : Command.t -> Command.t option = function
-  | TypeSig _ as cmd | Clause _ as cmd -> Some cmd
+  | (TypeSig _ | Clause _) as cmd -> Some cmd
   | Private { cmd = (TypeSig _ as cmd); _ } -> Some cmd
   | Private { cmd = (Clause _ as cmd); _ } -> Some cmd
   | _ -> None
@@ -1659,6 +1798,7 @@ let compact_doc doc =
   Buffer.contents buf
 
 let string_of_term tm = compact_doc (pp_complete_term tm `None)
+let string_of_generated_term = Builtins.string_of_generated_term
 
 let parse_generated_term content =
   let p = TermParse.Term.parse (`String { title = Some "generated definition"; content }) in
@@ -1723,10 +1863,13 @@ let typed_case_args args clauses =
 let infer_clause_result_type clauses =
   match
     List.fold_left
-      (fun acc ({ tm; _ }, _) ->
-        match infer_term_type tm with
-        | None -> acc
-        | Some ty -> string_of_term ty :: acc)
+      (fun acc (({ body; _ } : clause), _) ->
+        match body with
+        | Body { tm; where_block = None; _ } -> (
+            match infer_term_type tm with
+            | None -> acc
+            | Some ty -> string_of_term ty :: acc)
+        | _ -> acc)
       [] clauses
     |> List.sort_uniq String.compare
   with
@@ -1777,23 +1920,52 @@ let fresh_clause_args arity terms =
   in
   choose 1 []
 
-let string_of_case_clause args body =
-  String.concat ", " (List.map string_of_term args) ^ " → " ^ string_of_term body
+let token_obs tok = `Tok tok
+let term_obs tm = `Term tm
 
-let string_of_record_field fld pbij body =
-  compact_doc (Print.pp_field fld pbij) ^ " = " ^ string_of_term body
+let higher_field_tm fld pbij =
+  if List.is_empty pbij then ident_tm fld else Wrap (locate_opt None (HigherField (fld, pbij, [])))
+
+let build_case_term discrs branches =
+  let discr_obs =
+    match discrs with
+    | [] -> fatal (Anomaly "empty discriminees in generated case")
+    | discr :: discrs ->
+        [ term_obs discr ] @ List.concat_map (fun tm -> [ token_obs (Token.Op ","); term_obs tm ]) discrs
+  in
+  let branch_obs (patterns, rhs) =
+    let rec pats acc = function
+      | [] -> acc
+      | [ pat ] -> acc @ [ term_obs pat ]
+      | pat :: rest -> pats (acc @ [ term_obs pat; token_obs (Token.Op ",") ]) rest
+    in
+    pats [] patterns @ [ token_obs Token.Arrow; term_obs rhs ]
+  in
+  let branches_obs =
+    match branches with
+    | [] -> []
+    | first :: rest ->
+        branch_obs first @ List.concat_map (fun branch -> [ token_obs (Token.Op ";") ] @ branch_obs branch) rest
+  in
+  build_outfix_tm Builtins.implicit_case
+    ([ token_obs Token.Case ]
+    @ discr_obs
+    @ [ token_obs Token.Of; token_obs Token.LBrace ]
+    @ branches_obs
+    @ [ token_obs Token.RBrace ])
 
 let build_record_term fields =
-  let content =
-    match fields with
-    | [] -> "record { }"
-    | _ ->
-        "record { "
-        ^ String.concat "; "
-            (List.map (fun (fld, pbij, tm) -> string_of_record_field fld pbij tm) fields)
-        ^ " }"
+  let field_obs (fld, pbij, tm) =
+    [ term_obs (higher_field_tm fld pbij); token_obs (Token.Op "="); term_obs tm ]
   in
-  parse_generated_term content
+  let fields_obs =
+    match fields with
+    | [] -> []
+    | first :: rest ->
+        field_obs first @ List.concat_map (fun field -> [ token_obs (Token.Op ";") ] @ field_obs field) rest
+  in
+  build_outfix_tm Builtins.comatch
+    ([ token_obs Token.Record; token_obs Token.LBrace ] @ fields_obs @ [ token_obs Token.RBrace ])
 
 let command_of_local_cmd = function
   | Local_type_sig sig_cmd -> Command.TypeSig sig_cmd
@@ -1810,14 +1982,14 @@ let string_of_local_name ?loc = function
            ("local definitions in where-blocks must use unqualified names, not " ^ String.concat "." name))
 
 let build_local_letrec_term defs body =
-  let binding_of_def ({ name; loc; ty; tm; _ } : def) =
+  let cmd_string_of_def ({ name; loc; ty; tm; _ } : def) =
     let name = string_of_local_name ?loc name in
-    let ty = Option.fold ~none:"_" ~some:(fun (_, ty) -> string_of_term ty) ty in
-    name ^ " : " ^ ty ^ " = " ^ string_of_term tm
+    match ty with
+    | Some (_, ty) -> name ^ " : " ^ string_of_term ty ^ "; " ^ name ^ " = " ^ string_of_term tm
+    | None -> name ^ " = " ^ string_of_term tm
   in
-  let body = string_of_term body in
-  parse_generated_term
-    ("let rec " ^ String.concat " and " (List.map binding_of_def defs) ^ " in " ^ body)
+  let defs = String.concat "; " (List.map cmd_string_of_def defs) in
+  parse_generated_term ("let { " ^ defs ^ " } in " ^ string_of_term body)
 
 type clause_binder = string option * [ `Explicit | `Implicit ]
 
@@ -1853,21 +2025,75 @@ let wrap_abs binders tm =
                (Left (Token.Lambda, ([], None)), Emp <: Term vars, Left (Token.Arrow, ([], None))))
           ~last:(parenthesize body) ~right_ok:(No.le_refl No.minus_omega)))
 
-let lower_case_only_body args clauses =
-  match clauses with
-  | [ ({ tm; _ }, ({ args = []; _ } : decomposed_clause_head)) ] when List.is_empty args -> tm
-  | _ ->
-      let discrs = String.concat ", " (List.map string_of_term (typed_case_args args clauses)) in
-      let branches =
-        String.concat "; "
-          (List.map (fun ({ tm; _ }, ({ args; _ } : decomposed_clause_head)) -> string_of_case_clause args tm) clauses)
-      in
-      parse_generated_term ("case " ^ discrs ^ " of λ { " ^ branches ^ " }")
+type grouped_definition = {
+  signature : type_sig option;
+  clauses : (clause * decomposed_clause_head) list;
+}
 
-let lower_clause_body args clauses =
+let rec build_clause_rhs_tm = function
+  | Body { wseq = _; tm; where_block = None } -> tm
+  | Body { wseq = _; tm; where_block = Some block } ->
+      let defs = defs_of_pending_commands ~infer_missing_tys:true (cmds_of_where_block block) in
+      build_local_letrec_term defs tm
+  | With_block { items; branches } ->
+      let items_obs =
+        match items with
+        | [] -> fatal (Invalid_notation_pattern "with requires at least one item")
+        | first :: rest ->
+            [ term_obs first ] @ List.concat_map (fun tm -> [ token_obs (Token.Op "|"); term_obs tm ]) rest
+      in
+      let branch_obs ({ patterns; rhs } : clause_branch) =
+        [ token_obs Token.Ellipsis ]
+        @ List.concat_map (fun pat -> [ token_obs (Token.Op "|"); term_obs pat ]) patterns
+        @ [ term_obs (build_clause_rhs_tm rhs) ]
+      in
+      let branches_obs =
+        match branches with
+        | [] -> fatal (Invalid_notation_pattern "with requires at least one branch")
+        | first :: rest ->
+            branch_obs first @ List.concat_map (fun branch -> [ token_obs (Token.Op ";") ] @ branch_obs branch) rest
+      in
+      build_outfix_tm Builtins.internal_with
+        ([ token_obs Token.With; token_obs Token.LBrace ]
+        @ items_obs
+        @ [ token_obs (Token.Op ";") ]
+        @ branches_obs
+        @ [ token_obs Token.RBrace ])
+  | Rewrite_block { proofs; tail } ->
+      let proofs_obs =
+        match proofs with
+        | [] -> fatal (Invalid_notation_pattern "rewrite requires at least one proof")
+        | first :: rest ->
+            [ term_obs first ] @ List.concat_map (fun tm -> [ token_obs (Token.Op "|"); term_obs tm ]) rest
+      in
+      build_outfix_tm Builtins.internal_with
+        ([ token_obs Token.Rewrite; token_obs Token.LBrace ]
+        @ proofs_obs
+        @ [ token_obs (Token.Op ";"); term_obs (build_clause_rhs_tm tail); token_obs Token.RBrace ])
+
+and lower_case_only_body args clauses =
+  let clause_tm ({ body; _ } : clause) =
+    match body with
+    | Body { tm; where_block = None; _ } -> tm
+    | _ -> fatal (Anomaly "clause body not lowered before case lowering")
+  in
   match clauses with
-  | [ ({ tm; _ }, ({ args = []; _ } : decomposed_clause_head)) ] when List.is_empty args -> tm
-  | [ ({ tm; _ }, ({ args = pats; _ } : decomposed_clause_head)) ] -> (
+  | [ (clause, ({ args = []; _ } : decomposed_clause_head)) ] when List.is_empty args -> clause_tm clause
+  | _ ->
+      let discrs = typed_case_args args clauses in
+      let branches =
+        List.map
+          (fun (clause, ({ args; _ } : decomposed_clause_head)) -> (args, clause_tm clause))
+          clauses
+      in
+      build_case_term discrs branches
+
+and lower_clause_body args clauses =
+  match clauses with
+  | [ ({ body = Body { tm; where_block = None; _ }; _ }, ({ args = []; _ } : decomposed_clause_head)) ]
+    when List.is_empty args ->
+      tm
+  | [ ({ body = Body { tm; where_block = None; _ }; _ }, ({ args = pats; _ } : decomposed_clause_head)) ] -> (
       match List.map simple_clause_binder pats with
       | binders when List.for_all Option.is_some binders ->
           let binders = List.map Option.get binders in
@@ -1875,13 +2101,15 @@ let lower_clause_body args clauses =
       | _ -> wrap_abs (List.map (fun x -> (Some x, `Explicit)) args) (lower_case_only_body args clauses))
   | _ -> wrap_abs (List.map (fun x -> (Some x, `Explicit)) args) (lower_case_only_body args clauses)
 
-let lower_copattern_body args clauses =
+and lower_copattern_body args clauses =
   let fields, clause_args =
     List.fold_left
-      (fun (fields, clause_args) ({ tm; _ }, ({ args = pats; kind; loc = _; _ } : decomposed_clause_head)) ->
-        match kind with
-        | Ordinary_clause -> fatal (Anomaly "ordinary clause in copattern lowering")
-        | Copattern_clause (fld, pbij) ->
+      (fun (fields, clause_args)
+           ((clause : clause), ({ args = pats; kind; loc = _; _ } : decomposed_clause_head)) ->
+        match (clause.body, kind) with
+        | Body { tm = _; where_block = None; _ }, Ordinary_clause ->
+            fatal (Anomaly "ordinary clause in copattern lowering")
+        | Body { tm; where_block = None; _ }, Copattern_clause (fld, pbij) ->
             let clause_args =
               match clause_args with
               | None -> Some pats
@@ -1895,7 +2123,8 @@ let lower_copattern_body args clauses =
             if List.exists (fun (fld', pbij', _) -> fld = fld' && pbij = pbij') fields then (
               let (Wrap tm) = tm in
               fatal ?loc:tm.loc (Duplicate_method_in_comatch (fld, pbij)));
-            (fields @ [ (fld, pbij, tm) ], clause_args))
+            (fields @ [ (fld, pbij, tm) ], clause_args)
+        | _ -> fatal (Anomaly "copattern clause body not lowered before lowering"))
       ([], None) clauses
   in
   let clause_args = Option.value ~default:[] clause_args in
@@ -1908,22 +2137,27 @@ let lower_copattern_body args clauses =
           let binders = List.map Option.get binders in
           wrap_abs binders record_tm
       | _ ->
-          let discrs = String.concat ", " (List.map string_of_term (typed_case_args args clauses)) in
-          let branch = String.concat ", " (List.map string_of_term pats) ^ " → " ^ string_of_term record_tm in
-          wrap_abs (List.map (fun x -> (Some x, `Explicit)) args)
-            (parse_generated_term ("case " ^ discrs ^ " of λ { " ^ branch ^ " }")))
+          let discrs = typed_case_args args clauses in
+          wrap_abs (List.map (fun x -> (Some x, `Explicit)) args) (build_case_term discrs [ (pats, record_tm) ]))
 
-type grouped_definition = {
-  signature : type_sig option;
-  clauses : (clause * decomposed_clause_head) list;
-}
+and lower_clause_rhs ({ body; _ } : clause) = build_clause_rhs_tm body
 
-let rec lower_clause_rhs ({ tm; where_block; _ } : clause) =
-  match where_block with
-  | None -> tm
-  | Some block ->
-      let defs = defs_of_pending_commands ~infer_missing_tys:true (cmds_of_where_block block) in
-      build_local_letrec_term defs tm
+and terms_of_clause_rhs = function
+  | Body { tm; where_block = None; _ } -> [ tm ]
+  | Body { tm; where_block = Some block; _ } ->
+      tm
+      :: List.concat_map
+           (fun cmd ->
+             match command_of_local_cmd cmd with
+             | Clause clause -> clause.lhs :: terms_of_clause_rhs clause.body
+             | TypeSig { ty; _ } -> [ ty ]
+             | _ -> [])
+           (first_of_where_block block)
+  | With_block { items; branches } ->
+      items @ List.concat_map (fun { patterns; rhs } -> patterns @ terms_of_clause_rhs rhs) branches
+  | Rewrite_block { proofs; tail } -> proofs @ terms_of_clause_rhs tail
+
+and first_of_where_block ({ first; rest; _ } : where_block) = first :: List.map snd rest
 
 and defs_of_pending_commands ?(infer_missing_tys = false) cmds =
   let signature_names =
@@ -1999,7 +2233,10 @@ and defs_of_pending_commands ?(infer_missing_tys = false) cmds =
             | None -> first_head.loc
           in
           let clauses =
-            List.map (fun ((clause : clause), head) -> ({ clause with tm = lower_clause_rhs clause; where_block = None }, head)) clauses
+            List.map
+              (fun ((clause : clause), head) ->
+                ({ clause with body = Body { wseq = []; tm = lower_clause_rhs clause; where_block = None } }, head))
+              clauses
           in
           let inferred_ty =
             match (infer_missing_tys, signature, first_head.kind) with
@@ -2008,7 +2245,7 @@ and defs_of_pending_commands ?(infer_missing_tys = false) cmds =
           in
           let used_terms =
             List.concat_map
-              (fun ({ tm; _ }, ({ args; _ } : decomposed_clause_head)) -> tm :: args)
+              (fun ({ body; _ }, ({ args; _ } : decomposed_clause_head)) -> terms_of_clause_rhs body @ args)
               clauses
           in
           let clause_args = fresh_clause_args arity used_terms in
@@ -2120,14 +2357,8 @@ let rec local_cmd_mentions_name target = function
   | Local_type_sig { ty; _ } -> term_mentions_name target ty
   | Local_clause clause -> clause_mentions_name target clause
 
-and clause_mentions_name target ({ tm; where_block; _ } : clause) =
-  term_mentions_name target tm
-  ||
-  match where_block with
-  | None -> false
-  | Some { first; rest; _ } ->
-      local_cmd_mentions_name target first
-      || List.exists (fun (_, cmd) -> local_cmd_mentions_name target cmd) rest
+and clause_mentions_name target ({ body; _ } : clause) =
+  List.exists (term_mentions_name target) (terms_of_clause_rhs body)
 
 let pending_commands_reference_name cmds target =
   List.exists
@@ -2333,8 +2564,9 @@ let register_syntax_fields ?loc name const tm =
 
 let predeclare_ordinary_syntax cmd existing =
   match ordinary_inner_command cmd with
-  | Some (Clause { lhs; tm; _ }) -> (
+  | Some (Clause ({ lhs; _ } as clause)) -> (
       let { name; loc; _ } = decompose_clause_head lhs in
+      let tm = lower_clause_rhs clause in
       match StringsMap.find_opt name existing with
       | Some const ->
           register_syntax_constructors ?loc name const tm;
@@ -2349,6 +2581,7 @@ let token_of_fixity_keyword = function
 
 let to_string : Command.t -> string = function
   | Axiom _ -> "postulate"
+  | Postulate_block _ -> "postulate"
   | TypeSig _ -> "signature"
   | Clause _ -> "clause"
   | Def _ -> "def"
@@ -2381,7 +2614,7 @@ let needs_interactive : Command.t -> bool = function
   | Solve _ | Split _ | Show _ | Undo _ -> true
   | _ -> false
 
-let condense : Command.t -> [ `Import | `Pragma | `None | `Bof ] = function
+let rec condense : Command.t -> [ `Import | `Pragma | `None | `Bof ] = function
   | Open_decl _ -> `Import
   | Private { cmd; _ } -> condense cmd
   | Import _ -> `Import
@@ -2538,7 +2771,9 @@ let flatten_parameters (params : Parameter.t list) =
   List.concat_map
     (fun ({ names; ty; _ } : Parameter.t) ->
       List.map
-        (fun (name, _) -> { wslparen = []; names = [ (name, []) ]; wscolon = []; ty; wsrparen = [] })
+        (fun (name, _) ->
+          let open Parameter in
+          { wslparen = []; names = [ (name, []) ]; wscolon = []; ty; wsrparen = [] })
         names)
     params
 
@@ -2595,11 +2830,46 @@ let process_module_modifiers ({ filter; renaming } : module_modifiers) =
 
 let module_file_of_path path = String.concat "/" path ^ ".ny"
 
-let module_alias_defs ~name ~params ~source ~source_trie ~applied_args =
+let rec drop_n n xs =
+  if n <= 0 then xs
+  else
+    match xs with
+    | [] -> []
+    | _ :: xs -> drop_n (n - 1) xs
+
+let strip_module_marker rel =
+  match List.rev rel with
+  | ".module" :: rev_rel -> Some (List.rev rev_rel)
+  | _ -> None
+
+let module_param_map ~applied_count ~source_params source_trie =
+  Seq.fold_left
+    (fun map (rel, ((data, _loc), _)) ->
+      match (data, strip_module_marker rel) with
+      | `Module params, Some rel_module -> StringsMap.add rel_module (drop_n applied_count params) map
+      | _ -> map)
+    (StringsMap.add [] (drop_n applied_count source_params) StringsMap.empty)
+    (Trie.to_seq source_trie)
+
+let params_for_relative_path param_map rel =
+  let rec prefixes acc prefix = function
+    | [] -> [] :: List.rev acc
+    | x :: xs ->
+        let prefix = prefix @ [ x ] in
+        prefixes (prefix :: acc) prefix xs
+  in
+  List.fold_left
+    (fun found prefix -> Option.value ~default:found (StringsMap.find_opt prefix param_map))
+    [] (prefixes [] [] rel)
+
+let module_alias_defs ~name ~source ~source_params ~source_trie ~applied_args =
+  let applied_count = List.length applied_args in
+  let param_map = module_param_map ~applied_count ~source_params source_trie in
   Seq.fold_left
     (fun defs (rel, ((data, loc), _)) ->
       match data with
       | `Constant _ when public_module_entry rel ->
+          let params = params_for_relative_path param_map rel in
           let full_name = name @ rel in
           {
             wsdef = [];
@@ -2628,11 +2898,170 @@ let register_module_alias_syntax ~name ~source_trie =
       | _ -> ())
     (Trie.to_seq source_trie)
 
+let register_module_alias_modules ~name ~applied_count ~source_trie =
+  Seq.iter
+    (fun (rel, ((data, loc), _)) ->
+      match (data, strip_module_marker rel) with
+      | `Module params, Some rel_module -> Scope.define_module ?loc (name @ rel_module) (drop_n applied_count params)
+      | _ -> ())
+    (Trie.to_seq source_trie)
+
 let execute ~(action_taken : unit -> unit) ~(get_file : string -> Scope.trie) (cmd : Command.t) :
     int option * (int * int * int) list =
   (match (Origin.current (), needs_interactive cmd) with
   | Top, true | File _, true -> fatal (Forbidden_interactive_command (to_string cmd))
   | _ -> ());
+  let exec_defs_runner =
+    match Origin.current () with
+    | Instant _ -> exec_defs_current
+    | Top | File _ -> exec_defs
+  in
+  let rec execute_nested module_params cmd =
+    let execute_postulate_block parameters ({ first; rest; _ } : postulate_block) =
+      let exec_entry ({ nonparam; name; loc; ty; _ } : axiom_entry) parameters =
+        execute_nested_axiom parameters
+          (Axiom { wsaxiom = []; nonparam; name; loc; wsname = []; parameters = []; wscolon = []; ty })
+      in
+      let _ = exec_entry first parameters in
+      List.iter (fun (_, entry) -> ignore (exec_entry entry parameters)) rest;
+      (None, [])
+    in
+    let rec execute_body_commands module_params cmds =
+      let pending_cmds = ref [] in
+      let pending_existing = ref StringsMap.empty in
+      let pending_private = ref false in
+      let has_pending = ref false in
+      let ordinary_head existing cmd =
+        ordinary_source_head ~prefer_ordinary:(fun name -> StringsMap.mem name existing) cmd
+      in
+      let flush_pending () =
+        if !has_pending then (
+          let cmds = !pending_cmds in
+          let existing = !pending_existing in
+          let private_ = !pending_private in
+          pending_cmds := [];
+          pending_existing := StringsMap.empty;
+          pending_private := false;
+          has_pending := false;
+          let defs = defs_of_pending_commands cmds |> prefix_defs_params module_params in
+          with_private_export private_ (fun () -> ignore (exec_defs_runner ~existing defs)))
+      in
+      let enqueue cmd =
+        let private_ = ordinary_private cmd in
+        if !has_pending && private_ <> !pending_private then flush_pending ();
+        (match (if !has_pending then ordinary_head !pending_existing cmd else None) with
+        | Some (name, _loc) when not (StringsMap.mem name !pending_existing) ->
+            let shadows_existing_syntax =
+              Scope.lookup_field name <> None || Scope.lookup_constr name <> None
+            in
+            if
+              shadows_existing_syntax
+              ||
+              (pending_commands_are_complete !pending_cmds
+              && not (pending_commands_reference_name !pending_cmds name))
+            then flush_pending ()
+        | _ -> ());
+        let existing =
+          let existing = if !has_pending then !pending_existing else StringsMap.empty in
+          match ordinary_head existing cmd with
+          | Some (name, loc) when not (StringsMap.mem name existing) ->
+              let const = predeclare_constant ?loc name in
+              StringsMap.add name const existing
+          | _ -> existing
+        in
+        predeclare_ordinary_syntax cmd existing;
+        pending_cmds := !pending_cmds @ [ cmd ];
+        pending_existing := existing;
+        pending_private := private_;
+        has_pending := true
+      in
+      List.iter
+        (fun cmd ->
+          match ordinary_inner_command cmd with
+          | Some _ -> enqueue cmd
+          | None ->
+              flush_pending ();
+              ignore (execute_nested module_params cmd))
+        cmds;
+      flush_pending ();
+      (None, [])
+    and execute_module_decl module_params = function
+      | Module_decl { name; loc; parameters; body; _ } ->
+          let module_params = module_params @ flatten_parameters parameters in
+          Scope.start_section name;
+          ignore (execute_body_commands module_params (body.first :: List.map snd body.rest));
+          (match Scope.end_section () with
+          | Some _ -> ()
+          | None -> fatal No_such_section);
+          Scope.define_module ?loc name module_params;
+          (None, [])
+      | _ -> fatal (Anomaly "execute_module_decl called on non-module declaration")
+    and execute_module_app module_params = function
+      | Module_app { name; loc; parameters; source; args; modifiers; _ } ->
+          let source_params =
+            match Scope.lookup_module source with
+            | Some params -> params
+            | None -> fatal ?loc Parse_error
+          in
+          let applied_args = List.map snd args in
+          let alias_params = module_params @ flatten_parameters parameters in
+          if List.length source_params <> List.length applied_args + List.length alias_params then
+            fatal ?loc Parse_error;
+          let source_trie = Trie.find_subtree source (Scope.get_visible ()) in
+          let source_trie = Scope.Mod.modify (process_module_modifiers modifiers) source_trie in
+          let defs =
+            module_alias_defs ~name ~source ~source_params ~source_trie ~applied_args
+          in
+          if defs <> [] then ignore (exec_defs_runner defs);
+          register_module_alias_syntax ~name ~source_trie;
+          register_module_alias_modules ~name ~applied_count:(List.length applied_args) ~source_trie;
+          (None, [])
+      | _ -> fatal (Anomaly "execute_module_app called on non-module application")
+    and execute_open = function
+      | Open_decl { path; public_; modifiers; wsimport; loc = _; _ } ->
+          Global.run_command ~holes_allowed:(Error (to_string cmd)) @@ fun () ->
+          let trie =
+            match wsimport with
+            | Some _ -> get_file (module_file_of_path path)
+            | None -> (
+                match Scope.lookup_module path with
+                | Some _ -> Trie.find_subtree path (Scope.get_visible ())
+                | None -> fatal Parse_error)
+          in
+          let trie = Scope.Mod.modify (process_module_modifiers modifiers) trie in
+          if Option.is_some public_ then Scope.include_subtree ([], trie) else Scope.import_subtree ([], trie);
+          (None, fun _ -> None)
+      | _ -> fatal (Anomaly "execute_open called on non-open command")
+    in
+    match cmd with
+    | Axiom { parameters; _ } as cmd ->
+        execute_nested_axiom (module_params @ parameters) cmd
+    | Postulate_block block ->
+        execute_postulate_block module_params block
+    | TypeSig _ | Clause _ -> fatal (Anomaly "top-level signatures and clauses must be batched")
+    | Def defs -> exec_defs_runner (prefix_defs_params module_params defs)
+    | Data_decl defs -> exec_defs_runner (prefix_defs_params module_params defs)
+    | Record_decl defs -> exec_defs_runner (prefix_defs_params module_params defs)
+    | Module_decl _ as cmd -> execute_module_decl module_params cmd
+    | Module_app _ as cmd -> execute_module_app module_params cmd
+    | Open_decl _ as cmd -> execute_open cmd
+    | Private { cmd; _ } -> with_private_export true (fun () -> execute_nested module_params cmd)
+    | cmd -> execute_unprefixed cmd
+  and execute_nested_axiom parameters = function
+    | Axiom { name; nonparam; loc; ty = Wrap ty; _ } ->
+        Global.run_command ~holes_allowed:(Ok ()) @@ fun () ->
+        (match name with
+        | [ str ] ->
+            if Option.is_some (deg_of_name str) then
+              fatal (Invalid_constant_name (name, Some "that's a degeneracy name"))
+        | _ -> ());
+        Scope.check_name name loc;
+        let const = Scope.define ?loc name in
+        let (Processed_tel (params, ctx, _)) = process_tel Emp parameters in
+        let parametric = Option.is_none nonparam in
+        Core.Command.execute (Axiom { name = const; params; ty = process ctx ty; parametric })
+    | _ -> fatal (Anomaly "execute_nested_axiom called on non-axiom")
+  and execute_unprefixed cmd =
   match cmd with
   | Axiom { name; nonparam; loc; parameters; ty = Wrap ty; _ } ->
       Global.run_command ~holes_allowed:(Ok ()) @@ fun () ->
@@ -2646,7 +3075,28 @@ let execute ~(action_taken : unit -> unit) ~(get_file : string -> Scope.trie) (c
       let (Processed_tel (params, ctx, _)) = process_tel Emp parameters in
       let parametric = Option.is_none nonparam in
       Core.Command.execute (Axiom { name = const; params; ty = process ctx ty; parametric })
+  | Postulate_block { first; rest; _ } ->
+      let exec_entry ({ nonparam; name; loc; parameters; ty = Wrap ty; _ } : axiom_entry) =
+        Global.run_command ~holes_allowed:(Ok ()) @@ fun () ->
+        (match name with
+        | [ str ] ->
+            if Option.is_some (deg_of_name str) then
+              fatal (Invalid_constant_name (name, Some "that's a degeneracy name"))
+        | _ -> ());
+        Scope.check_name name loc;
+        let const = Scope.define ?loc name in
+        let (Processed_tel (params, ctx, _)) = process_tel Emp parameters in
+        let parametric = Option.is_none nonparam in
+        Core.Command.execute (Axiom { name = const; params; ty = process ctx ty; parametric })
+      in
+      let _ = exec_entry first in
+      List.iter (fun (_, entry) -> ignore (exec_entry entry)) rest;
+      (None, [])
   | TypeSig _ | Clause _ -> fatal (Anomaly "top-level signatures and clauses must be batched")
+  | Module_decl data -> execute_nested [] (Module_decl data)
+  | Module_app data -> execute_nested [] (Module_app data)
+  | Open_decl data -> execute_nested [] (Open_decl data)
+  | Private { cmd; _ } -> execute_nested [] (Private { wsprivate = []; cmd })
   | Def defs | Data_decl defs | Record_decl defs -> exec_defs defs
   | Echo { tm = Wrap tm; eval; number; _ } -> (
       let module Scope_and_ctx = struct
@@ -3020,6 +3470,8 @@ let execute ~(action_taken : unit -> unit) ~(get_file : string -> Scope.trie) (c
   | Quit _ -> fatal (Quit None)
   | Bof _ -> (None, [])
   | Eof -> fatal (Anomaly "EOF cannot be executed")
+  in
+  execute_unprefixed cmd
 
 let tightness_of_fixity : type left tight right. (left, tight, right) fixity -> string option =
   function
@@ -3128,6 +3580,41 @@ let pp_record_fields fields =
   in
   go empty fields
 
+let pp_layout_term_list items =
+  let open PPrint in
+  let rec go accum = function
+    | [] -> (accum, [])
+    | [ Wrap tm ] ->
+        let ptm, wtm = pp_term tm in
+        (accum ^^ ptm, wtm)
+    | Wrap tm :: items ->
+        let ptm, wtm = pp_term tm in
+        go (accum ^^ ptm ^^ pp_ws `Break wtm ^^ hardline) items
+  in
+  go empty items
+
+let pp_layout_record_fields fields =
+  let open PPrint in
+  let rec go accum = function
+    | [] -> (accum, [])
+    | [ (fld, Wrap ty) ] ->
+        let pty, wty = pp_term ty in
+        (accum ^^ utf8string fld ^^ blank 1 ^^ Token.pp Colon ^^ blank 1 ^^ pty, wty)
+    | (fld, Wrap ty) :: fields ->
+        let pty, wty = pp_term ty in
+        go
+          ( accum
+          ^^ utf8string fld
+          ^^ blank 1
+          ^^ Token.pp Colon
+          ^^ blank 1
+          ^^ pty
+          ^^ pp_ws `Break wty
+          ^^ hardline )
+          fields
+  in
+  go empty fields
+
 let rec pp_data_decl_defs :
     Token.t ->
     Whitespace.t list option ->
@@ -3149,13 +3636,14 @@ let rec pp_data_decl_defs :
           let accum_prews = accum ^^ pp_ws `None prews in
           let pparams, wparams = pp_parameters wshead parameters in
           let ty, rest = split_ending_whitespace ty in
-          let pconstrs, wconstrs = pp_term_list constrs in
+          let pconstrs, wconstrs =
+            if List.is_empty constrs then pp_term_list constrs else pp_layout_term_list constrs
+          in
           let body =
-            Token.pp Where
-            ^^ blank 1
-            ^^ Token.pp LBrace
-            ^^ (if List.is_empty constrs then empty else blank 1 ^^ pconstrs ^^ pp_ws `None wconstrs ^^ blank 1)
-            ^^ Token.pp RBrace
+            if List.is_empty constrs then
+              Token.pp Where ^^ blank 1 ^^ Token.pp LBrace ^^ Token.pp RBrace
+            else
+              Token.pp Where ^^ nest 2 (hardline ^^ pconstrs ^^ pp_ws `None wconstrs)
           in
           pp_data_decl_defs And (Some []) defs
             ( accum_prews
@@ -3164,11 +3652,12 @@ let rec pp_data_decl_defs :
                  ^^ pp_ws `Nobreak wsdef
                  ^^ utf8string (String.concat "." name)
                  ^^ group pparams
-                 ^^ pp_ws `Break wparams
+                 ^^ pp_ws `Nobreak wparams
                  ^^ Token.pp Colon
                  ^^ pp_ws `Nobreak wscolon
                  ^^ pp_complete_term (Wrap ty) `None
-                 ^^ pp_ws `Break rest
+                 ^^ pp_ws `Nobreak rest
+                 ^^ blank 1
                  ^^ body) )
       | _ -> fatal (Anomaly "ill-formed data declaration for printing"))
 
@@ -3193,19 +3682,18 @@ let rec pp_record_decl_defs :
           let accum_prews = accum ^^ pp_ws `None prews in
           let pparams, wparams = pp_parameters wshead parameters in
           let ty, rest = split_ending_whitespace ty in
-          let pfields, wfields = pp_record_fields fields in
+          let pfields, wfields =
+            if List.is_empty fields then pp_record_fields fields else pp_layout_record_fields fields
+          in
           let body =
-            Token.pp Where
-            ^^ blank 1
-            ^^ Token.pp LBrace
-            ^^ (if List.is_empty fields then empty
-               else blank 1
-                    ^^ Token.pp Field_kw
-                    ^^ blank 1
-                    ^^ pfields
-                    ^^ pp_ws `None wfields
-                    ^^ blank 1)
-            ^^ Token.pp RBrace
+            if List.is_empty fields then
+              Token.pp Where ^^ blank 1 ^^ Token.pp LBrace ^^ Token.pp RBrace
+            else
+              Token.pp Where
+              ^^ nest 2
+                   (hardline
+                   ^^ Token.pp Field_kw
+                   ^^ nest 2 (hardline ^^ pfields ^^ pp_ws `None wfields))
           in
           pp_record_decl_defs And (Some []) defs
             ( accum_prews
@@ -3214,11 +3702,12 @@ let rec pp_record_decl_defs :
                  ^^ pp_ws `Nobreak wsdef
                  ^^ utf8string (String.concat "." name)
                  ^^ group pparams
-                 ^^ pp_ws `Break wparams
+                 ^^ pp_ws `Nobreak wparams
                  ^^ Token.pp Colon
                  ^^ pp_ws `Nobreak wscolon
                  ^^ pp_complete_term (Wrap ty) `None
-                 ^^ pp_ws `Break rest
+                 ^^ pp_ws `Nobreak rest
+                 ^^ blank 1
                  ^^ body) )
       | _ -> fatal (Anomaly "ill-formed record declaration for printing"))
 
@@ -3285,7 +3774,93 @@ let pp_attribute : type a.
   ^^ Token.pp RParen
   ^^ pp_ws `Nobreak wsrparen
 
-let rec pp_where_block_doc ({ wswhere; wslbrace; first; rest; wsrbrace } : where_block) =
+let rec pp_type_sig_doc ({ name; loc = _; wsname; wscolon; ty = Wrap ty } : type_sig) =
+  let open PPrint in
+  let ty, rest = split_ending_whitespace ty in
+  ( group
+      (utf8string (string_of_public_name name)
+      ^^ pp_ws `Nobreak wsname
+      ^^ Token.pp Colon
+      ^^ pp_ws `Nobreak wscolon
+      ^^ pp_complete_term (Wrap ty) `None),
+    rest )
+
+and pp_clause_term_doc tm =
+  let (Wrap tm) = tm in
+  let tm, rest = split_ending_whitespace tm in
+  (pp_complete_term (Wrap tm) `None, rest)
+
+and pp_bar_term_list terms =
+  let open PPrint in
+  match terms with
+  | [] -> (empty, [])
+  | first :: rest ->
+      let pfirst, wfirst = pp_clause_term_doc first in
+      let doc, wlast =
+        List.fold_left
+          (fun (accum, _prews) tm ->
+            let ptm, wtm = pp_clause_term_doc tm in
+            (accum ^^ blank 1 ^^ Token.pp (Op "|") ^^ blank 1 ^^ ptm, wtm))
+          (pfirst, wfirst) rest
+      in
+      (doc, wlast)
+
+and pp_clause_rhs_doc head = function
+  | Body { wseq; tm = Wrap tm; where_block } ->
+      let open PPrint in
+      let tm, rest = split_ending_whitespace tm in
+      let pwhere, wwhere =
+        match where_block with
+        | None -> (empty, rest)
+        | Some where_block ->
+            let pwhere, wwhere = pp_where_block_doc where_block in
+            (pp_ws `Nobreak rest ^^ blank 1 ^^ pwhere, wwhere)
+      in
+      if is_case tm then
+        let itm, ptm, wtm = pp_case `Nontrivial tm in
+        ( group
+            (head
+            ^^ blank 1
+            ^^ Token.pp (Op "=")
+            ^^ nest 2 (pp_ws `Break wseq ^^ group (hang 2 itm))
+            ^^ ptm
+            ^^ pwhere),
+          wwhere @ wtm )
+      else
+        ( group
+            (head
+            ^^ blank 1
+            ^^ Token.pp (Op "=")
+            ^^ nest 2 (pp_ws `Break wseq ^^ group (hang 2 (pp_complete_term (Wrap tm) `None)))
+            ^^ pwhere),
+          wwhere )
+  | Rewrite_block { proofs; tail } ->
+      let open PPrint in
+      let pproofs, _ = pp_bar_term_list proofs in
+      pp_clause_rhs_doc (group (head ^^ blank 1 ^^ Token.pp Rewrite ^^ blank 1 ^^ pproofs)) tail
+  | With_block { items; branches } ->
+      let open PPrint in
+      let pitems, _ = pp_bar_term_list items in
+      let pbranches, wbranches =
+        match branches with
+        | [] -> (empty, [])
+        | first :: rest ->
+            let pfirst, wfirst = pp_clause_branch_doc first in
+            List.fold_left
+              (fun (accum, _prews) branch ->
+                let pbranch, wbranch = pp_clause_branch_doc branch in
+                (accum ^^ hardline ^^ pbranch, wbranch))
+              (pfirst, wfirst) rest
+      in
+      (group (head ^^ blank 1 ^^ Token.pp With ^^ blank 1 ^^ pitems)
+       ^^ nest 2 (hardline ^^ pbranches), wbranches)
+
+and pp_clause_branch_doc ({ patterns; rhs } : clause_branch) =
+  let open PPrint in
+  let ppatterns, _ = pp_bar_term_list patterns in
+  pp_clause_rhs_doc (Token.pp Ellipsis ^^ blank 1 ^^ Token.pp (Op "|") ^^ blank 1 ^^ ppatterns) rhs
+
+and pp_where_block_doc ({ wswhere; wslbrace; first; rest; wsrbrace } : where_block) =
   let open PPrint in
   let rec pp_local_cmd = function
     | Local_type_sig sig_cmd -> pp_type_sig_doc sig_cmd
@@ -3301,97 +3876,19 @@ let rec pp_where_block_doc ({ wswhere; wslbrace; first; rest; wsrbrace } : where
           ^^ pp_ws `Break wssemi
           ^^ pcmd )
           (Some wcmd) rest
-  and pp_type_sig_doc ({ name; loc = _; wsname; wscolon; ty = Wrap ty } : type_sig) =
-    let ty, rest = split_ending_whitespace ty in
-    ( group
-        (utf8string (string_of_public_name name)
-        ^^ pp_ws `Nobreak wsname
-        ^^ Token.pp Colon
-        ^^ pp_ws `Nobreak wscolon
-        ^^ pp_complete_term (Wrap ty) `None),
-      rest )
-  and pp_clause_doc ({ lhs = Wrap lhs; wseq; tm = Wrap tm; where_block } : clause) =
-    let lhs, _wslhs = split_ending_whitespace lhs in
-    let tm, rest = split_ending_whitespace tm in
-    let pwhere, wwhere =
-      match where_block with
-      | None -> (empty, rest)
-      | Some where_block ->
-          let pwhere, wwhere = pp_where_block_doc where_block in
-          (pp_ws `Break rest ^^ pwhere, wwhere)
-    in
-    if is_case tm then
-      let itm, ptm, wtm = pp_case `Nontrivial tm in
-      ( group
-          (pp_complete_term (Wrap lhs) `None
-          ^^ pp_ws `Break []
-          ^^ Token.pp (Op "=")
-          ^^ nest 2 (pp_ws `Break wseq ^^ group (hang 2 itm))
-          ^^ ptm
-          ^^ pwhere),
-        wwhere @ wtm )
-    else
-      ( group
-          (pp_complete_term (Wrap lhs) `None
-          ^^ pp_ws `Break []
-          ^^ Token.pp (Op "=")
-          ^^ nest 2 (pp_ws `Break wseq ^^ group (hang 2 (pp_complete_term (Wrap tm) `None)))
-          ^^ pwhere),
-        wwhere )
   in
   let pfirst, wfirst = pp_local_cmd first in
   let prest, wlast = pp_local_cmds empty (Some wfirst) rest in
-  ( group
-      (Token.pp Where
-      ^^ pp_ws `Nobreak wswhere
-      ^^ Token.pp LBrace
-      ^^ pp_ws `Break wslbrace
-      ^^ pfirst
-      ^^ prest
-      ^^ pp_ws `Break wlast
-      ^^ Token.pp RBrace),
-    wsrbrace )
+  ignore wslbrace;
+  ignore wsrbrace;
+  ( Token.pp Where
+    ^^ pp_ws `Nobreak wswhere
+    ^^ nest 2 (hardline ^^ pfirst ^^ prest ^^ pp_ws `Break wlast),
+    [] )
 
-and pp_type_sig_doc ({ name; loc = _; wsname; wscolon; ty = Wrap ty } : type_sig) =
-  let open PPrint in
-  let ty, rest = split_ending_whitespace ty in
-  ( group
-      (utf8string (string_of_public_name name)
-      ^^ pp_ws `Nobreak wsname
-      ^^ Token.pp Colon
-      ^^ pp_ws `Nobreak wscolon
-      ^^ pp_complete_term (Wrap ty) `None),
-    rest )
-
-and pp_clause_doc ({ lhs = Wrap lhs; wseq; tm = Wrap tm; where_block } : clause) =
-  let open PPrint in
-  let lhs, _wslhs = split_ending_whitespace lhs in
-  let tm, rest = split_ending_whitespace tm in
-  let pwhere, wwhere =
-    match where_block with
-    | None -> (empty, rest)
-    | Some where_block ->
-        let pwhere, wwhere = pp_where_block_doc where_block in
-        (pp_ws `Break rest ^^ pwhere, wwhere)
-  in
-  if is_case tm then
-    let itm, ptm, wtm = pp_case `Nontrivial tm in
-    ( group
-        (pp_complete_term (Wrap lhs) `None
-        ^^ pp_ws `Break []
-        ^^ Token.pp (Op "=")
-        ^^ nest 2 (pp_ws `Break wseq ^^ group (hang 2 itm))
-        ^^ ptm
-        ^^ pwhere),
-      wwhere @ wtm )
-  else
-    ( group
-        (pp_complete_term (Wrap lhs) `None
-        ^^ pp_ws `Break []
-        ^^ Token.pp (Op "=")
-        ^^ nest 2 (pp_ws `Break wseq ^^ group (hang 2 (pp_complete_term (Wrap tm) `None)))
-        ^^ pwhere),
-      wwhere )
+and pp_clause_doc ({ lhs; body } : clause) =
+  let phead, _ = pp_clause_term_doc lhs in
+  pp_clause_rhs_doc phead body
 
 (* We only print commands that can appear in source files or for which ProofGeneral may need reformatting info (e.g. solve). *)
 let pp_command : t -> PPrint.document * Whitespace.t list =
@@ -3399,26 +3896,126 @@ fun cmd ->
   let open PPrint in
   let rec go cmd =
     let indent = Scope.count_sections () * 2 in
+    let pp_axiom_entry_doc ({ nonparam; name; loc = _; wsname; parameters; wscolon; ty = Wrap ty } :
+          axiom_entry) =
+      let pparams, wparams = pp_parameters wsname parameters in
+      let ty, rest = split_ending_whitespace ty in
+      ( group
+          (hang 2
+             (PPrint.optional
+                (pp_attribute (fun () ws -> string "nonparametric" ^^ concat_map (pp_ws `None) ws))
+                nonparam
+             ^^ utf8string (String.concat "." name)
+             ^^ pparams
+             ^^ pp_ws `Nobreak wparams
+             ^^ Token.pp Colon
+             ^^ pp_ws `Nobreak wscolon
+             ^^ pp_complete_term (Wrap ty) `None)),
+        rest )
+    in
+    let pp_module_name_list_doc ({ wslparen; items; wsrparen } : module_name_list) =
+      let pitems, witems =
+        List.fold_left
+          (fun (accum, prews) (path, ws) ->
+            ( accum
+              ^^ optional (fun ws -> Token.pp (Op ";") ^^ pp_ws `Break ws) prews
+              ^^ utf8string (string_of_public_name path),
+              Some ws ))
+          (empty, None) items
+      in
+      ( Token.pp LParen
+        ^^ pp_ws `None wslparen
+        ^^ pitems
+        ^^ optional (pp_ws `None) witems
+        ^^ Token.pp RParen,
+        wsrparen )
+    in
+    let pp_module_modifiers_doc ({ filter; renaming } : module_modifiers) =
+      let pfilter, wsfilter =
+        match filter with
+        | None -> (empty, None)
+        | Some (`Using (wsusing, names)) ->
+            let pnames, wnames = pp_module_name_list_doc names in
+            (char ' ' ^^ Token.pp Using ^^ pp_ws `Nobreak wsusing ^^ pnames, Some wnames)
+        | Some (`Hiding (wshiding, names)) ->
+            let pnames, wnames = pp_module_name_list_doc names in
+            (char ' ' ^^ Token.pp Hiding ^^ pp_ws `Nobreak wshiding ^^ pnames, Some wnames)
+      in
+      let prenaming, wsrenaming =
+        match renaming with
+        | None -> (empty, wsfilter)
+        | Some (wsrenaming, wslparen, items, wsrparen) ->
+            let pitems, witems =
+              List.fold_left
+                (fun (accum, prews) { source; wssource; wsto; target; wstarget } ->
+                  ( accum
+                    ^^ optional (fun ws -> Token.pp (Op ";") ^^ pp_ws `Break ws) prews
+                    ^^ utf8string (string_of_public_name source)
+                    ^^ pp_ws `Nobreak wssource
+                    ^^ utf8string "to"
+                    ^^ pp_ws `Nobreak wsto
+                    ^^ utf8string (string_of_public_name target),
+                    Some wstarget ))
+                (empty, None) items
+            in
+            ( char ' '
+              ^^ Token.pp Renaming
+              ^^ pp_ws `Nobreak wsrenaming
+              ^^ Token.pp LParen
+              ^^ pp_ws `None wslparen
+              ^^ pitems
+              ^^ optional (pp_ws `None) witems
+              ^^ Token.pp RParen,
+              Some wsrparen )
+      in
+      (pfilter ^^ prenaming, Option.value ~default:[] wsrenaming)
+    in
+    let pp_nested_command cmd =
+      let _, pcmd, wcmd = go cmd in
+      (pcmd, wcmd)
+    in
+    let pp_module_body_doc ({ wslbrace; first; rest; wsrbrace } : module_body) =
+      let pfirst, wfirst = pp_nested_command first in
+      let rec pp_rest accum prews = function
+        | [] -> (accum, Option.value ~default:[] prews)
+        | (_wssemi, cmd) :: rest ->
+            let pcmd, wcmd = pp_nested_command cmd in
+            pp_rest
+              (accum ^^ optional (pp_ws `Break) prews ^^ hardline ^^ pcmd)
+              (Some wcmd) rest
+      in
+      let prest, wlast = pp_rest empty (Some wfirst) rest in
+      ignore wslbrace;
+      ignore wsrbrace;
+      (nest 2 (hardline ^^ pfirst ^^ prest ^^ pp_ws `Break wlast), [])
+    in
     match cmd with
     | Axiom { wsaxiom; nonparam; name; loc = _; wsname; parameters; wscolon; ty = Wrap ty } ->
-        let pparams, wparams = pp_parameters wsname parameters in
-        let ty, rest = split_ending_whitespace ty in
+        let pentry, rest =
+          pp_axiom_entry_doc { nonparam; name; loc = None; wsname; parameters; wscolon; ty = Wrap ty }
+        in
         ( indent,
-          group
-            (hang 2
-               (Token.pp Axiom
-               ^^ pp_ws `Nobreak wsaxiom
-               ^^ PPrint.optional
-                    (pp_attribute (fun () ws ->
-                         string "nonparametric" ^^ concat_map (pp_ws `None) ws))
-                    nonparam
-               ^^ utf8string (String.concat "." name)
-               ^^ pparams
-               ^^ pp_ws `Break wparams
-               ^^ Token.pp Colon
-               ^^ pp_ws `Nobreak wscolon
-               ^^ pp_complete_term (Wrap ty) `None)),
+          group (hang 2 (Token.pp Axiom ^^ pp_ws `Nobreak wsaxiom ^^ pentry)),
           rest )
+    | Postulate_block { wsaxiom; wslbrace; first; rest; wsrbrace } ->
+        let pfirst, wfirst = pp_axiom_entry_doc first in
+        let normalize_ws = Whitespace.normalize_no_blanks in
+        let rec pp_rest accum prews = function
+          | [] -> (accum, normalize_ws (Option.value ~default:[] prews))
+          | (_wssemi, entry) :: rest ->
+            let pentry, wentry = pp_axiom_entry_doc entry in
+            pp_rest
+                (accum ^^ optional (pp_ws `None) (Option.map normalize_ws prews) ^^ hardline ^^ pentry)
+                (Some wentry) rest
+        in
+        let prest, wlast = pp_rest empty (Some wfirst) rest in
+        ignore wslbrace;
+        ignore wsrbrace;
+        ( indent,
+          Token.pp Axiom
+          ^^ pp_ws `Nobreak wsaxiom
+          ^^ nest 2 (hardline ^^ pfirst ^^ prest ^^ pp_ws `Break wlast),
+          [] )
     | TypeSig sig_cmd ->
         let doc, rest = pp_type_sig_doc sig_cmd in
         (indent, doc, rest)
@@ -3539,6 +4136,58 @@ fun cmd ->
             ^^ utf8string (string_of_public_name name)
             ^^ pp_ws `None wsname),
           rest )
+    | Module_decl { wsmodule; name; loc = _; wsname; parameters; wswhere; body } ->
+        let pparams, wparams = pp_parameters wsname parameters in
+        let pbody, wbody = pp_module_body_doc body in
+        ( indent,
+          group
+            (Token.pp Module
+            ^^ pp_ws `Nobreak wsmodule
+            ^^ utf8string (string_of_public_name name)
+            ^^ pparams
+            ^^ pp_ws `Nobreak wparams
+            ^^ Token.pp Where
+            ^^ pp_ws `Nobreak wswhere
+            ^^ pbody),
+          wbody )
+    | Module_app { wsmodule; name; loc = _; wsname; parameters; wseq; source; wssource = _; args; modifiers }
+      ->
+        let pparams, wparams = pp_parameters wsname parameters in
+        let pargs =
+          List.fold_left
+            (fun accum (wsarg, arg) ->
+              accum ^^ pp_ws `Break wsarg ^^ pp_complete_term arg `None)
+            empty args
+        in
+        let pmods, wmods = pp_module_modifiers_doc modifiers in
+        ( indent,
+          group
+            (Token.pp Module
+            ^^ pp_ws `Nobreak wsmodule
+            ^^ utf8string (string_of_public_name name)
+            ^^ pparams
+            ^^ pp_ws `Nobreak wparams
+            ^^ Token.pp (Op "=")
+            ^^ pp_ws `Nobreak wseq
+            ^^ utf8string (string_of_public_name source)
+            ^^ pargs
+            ^^ pmods),
+          wmods )
+    | Open_decl { wsopen; wsimport; path; loc = _; wspath; public_; modifiers } ->
+        let pmods, wmods = pp_module_modifiers_doc modifiers in
+        ( indent,
+          group
+            (Token.pp Open
+            ^^ pp_ws `Nobreak wsopen
+            ^^ optional (fun ws -> Token.pp Import ^^ pp_ws `Nobreak ws) wsimport
+            ^^ utf8string (string_of_public_name path)
+            ^^ pp_ws `None wspath
+            ^^ optional (fun ws -> char ' ' ^^ Token.pp Public ^^ pp_ws `Nobreak ws) public_
+            ^^ pmods),
+          wmods )
+    | Private { wsprivate; cmd } ->
+        let _, pcmd, wcmd = go cmd in
+        (indent, Token.pp Private ^^ pp_ws `Nobreak wsprivate ^^ pcmd, wcmd)
     | Import { wsimport; export; origin; wsorigin; op } ->
         let op, rest =
           match op with

@@ -64,9 +64,6 @@
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/bookhott.ny
   
-   ￫ info[I0007]
-   ￮ section eq opened
-  
    ￫ info[I0000]
    ￮ constant eq defined
   
@@ -109,9 +106,6 @@
    ￫ info[I0000]
    ￮ constant unwhiskerR defined
   
-   ￫ info[I0008]
-   ￮ section eq closed
-  
    ￫ info[I0000]
    ￮ constant eq defined
   
@@ -126,9 +120,6 @@
   
    ￫ info[I0000]
    ￮ constant ap3d defined
-  
-   ￫ info[I0007]
-   ￮ section sq opened
   
    ￫ info[I0000]
    ￮ constant sq defined
@@ -162,9 +153,6 @@
   
    ￫ info[I0000]
    ￮ constant cancel_12_eq_21 defined
-  
-   ￫ info[I0008]
-   ￮ section sq closed
   
    ￫ info[I0000]
    ￮ constant sq defined
@@ -285,11 +273,12 @@
   
    ￫ hint[H0403]
    ￭ $TESTCASE_ROOT/fibrant_types.ny
-    9 |       (match u0, u1 [
-   10 |        | left a0, left a1 ↦ 𝕗A.2 id a0 a1
-   11 |        | left _, right _ ↦ 𝕗∅
-   12 |        | right _, left _ ↦ 𝕗∅
-   13 |        | right b0, right b1 ↦ 𝕗B.2 id b0 b1]) }
+   19 |       (case u0, u1
+   20 |        of λ {
+   21 |        left a0, left a1 → 𝕗A.2 id a0 a1;
+   22 |        left _, right _ → 𝕗∅;
+   23 |        right _, left _ → 𝕗∅;
+   24 |        right b0, right b1 → 𝕗B.2 id b0 b1}) } {- The natural numbers -}
       ^ match encountered outside case tree, wrapping in implicit let-binding
   
    ￫ info[I0000]
@@ -303,35 +292,38 @@
   
    ￫ hint[H0403]
    ￭ $TESTCASE_ROOT/fibrant_types.ny
-   3 |        match n0, n1 [
-   4 |        | zero, zero ↦ zero
-   5 |        | zero, suc n1 ↦ match m2 [ ]
-   6 |        | suc n0, zero ↦ match m2 [ ]
-   7 |        | suc n0, suc n1 ↦ suc (id_ℕ_iso n0 n1 to m2)])
-     ^ match encountered outside case tree, wrapping in implicit let-binding
-  
-   ￫ hint[H0403]
-   ￭ $TESTCASE_ROOT/fibrant_types.ny
-   8 |       (λ { zero ⤇ (); suc m ⤇ id_ℕ_iso m⟨0⟩ m⟨1⟩ fro m⟨2⟩ })
-     ^ match encountered outside case tree, wrapping in implicit let-binding
-  
-   ￫ hint[H0403]
-   ￭ $TESTCASE_ROOT/fibrant_types.ny
-   10 |        match n0, n1 [
-   11 |        | zero, zero ↦ eq.rfl
-   12 |        | zero, suc n1 ↦ match m2 [ ]
-   13 |        | suc n0, zero ↦ match m2 [ ]
-   14 |        | suc n0, suc n1 ↦ id_ℕ_iso n0 n1 fro_to m2])
+    5 |      case n0, n1
+    6 |      of λ {
+    7 |      zero, zero → zero;
+    8 |      zero, suc n1 → case m2 of λ { };
+    9 |      suc n0, zero → case m2 of λ { };
+   10 |      suc n0, suc n1 → suc (id_ℕ_iso n0 n1 to m2)})
       ^ match encountered outside case tree, wrapping in implicit let-binding
   
    ￫ hint[H0403]
    ￭ $TESTCASE_ROOT/fibrant_types.ny
-   15 |       (λ {
-   16 |        zero ⤇ eq.rfl;
-   17 |        suc m ⤇
-   18 |          eq.ap (Br ℕ m⟨0⟩ m⟨1⟩) (Br ℕ (suc m⟨0⟩) (suc m⟨1⟩)) (x ↦ suc x)
-   19 |              (id_ℕ_iso m⟨0⟩ m⟨1⟩ to (id_ℕ_iso m⟨0⟩ m⟨1⟩ fro m⟨2⟩))
-   20 |            m⟨2⟩ (id_ℕ_iso m⟨0⟩ m⟨1⟩ to_fro m⟨2⟩) })
+   11 |     (λ { zero ⤇ (); suc m ⤇ id_ℕ_iso m⟨0⟩ m⟨1⟩ fro m⟨2⟩})
+      ^ match encountered outside case tree, wrapping in implicit let-binding
+  
+   ￫ hint[H0403]
+   ￭ $TESTCASE_ROOT/fibrant_types.ny
+   13 |      case n0, n1
+   14 |      of λ {
+   15 |      zero, zero → eq.rfl;
+   16 |      zero, suc n1 → case m2 of λ { };
+   17 |      suc n0, zero → case m2 of λ { };
+   18 |      suc n0, suc n1 → id_ℕ_iso n0 n1 fro_to m2})
+      ^ match encountered outside case tree, wrapping in implicit let-binding
+  
+   ￫ hint[H0403]
+   ￭ $TESTCASE_ROOT/fibrant_types.ny
+   19 |     (λ {
+   20 |      zero ⤇ eq.rfl;
+   21 |      suc m ⤇
+   22 | 
+   23 |        eq.ap (Br ℕ m⟨0⟩ m⟨1⟩) (Br ℕ (suc m⟨0⟩) (suc m⟨1⟩)) (x ↦ suc x)
+   24 |          (id_ℕ_iso m⟨0⟩ m⟨1⟩ to (id_ℕ_iso m⟨0⟩ m⟨1⟩ fro m⟨2⟩)) m⟨2⟩
+   25 |          (id_ℕ_iso m⟨0⟩ m⟨1⟩ to_fro m⟨2⟩)})
       ^ match encountered outside case tree, wrapping in implicit let-binding
   
    ￫ info[I0000]
@@ -348,9 +340,6 @@
   
    ￫ info[I0000]
    ￮ constant funext_refl defined
-  
-   ￫ info[I0007]
-   ￮ section Indexed_𝕎 opened
   
    ￫ info[I0000]
    ￮ constant 𝕎spec defined
@@ -375,9 +364,6 @@
   
    ￫ info[I0000]
    ￮ constant id_𝕎_iso defined
-  
-   ￫ info[I0008]
-   ￮ section Indexed_𝕎 closed
   
    ￫ info[I0000]
    ￮ constant 𝕎 defined
@@ -405,9 +391,6 @@
   
    ￫ info[I0000]
    ￮ constant 𝕗𝕎 defined
-  
-   ￫ info[I0007]
-   ￮ section Parametrized_W opened
   
    ￫ info[I0000]
    ￮ constant 𝕎_spec defined
@@ -441,9 +424,6 @@
   
    ￫ info[I0000]
    ￮ constant 𝕗𝕎 defined
-  
-   ￫ info[I0008]
-   ￮ section Parametrized_W closed
   
    ￫ info[I0000]
    ￮ constant 𝕄_spec defined
@@ -612,9 +592,6 @@
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/hott_bookhott.ny (compiled)
   
-   ￫ info[I0007]
-   ￮ section single opened
-  
    ￫ info[I0001]
    ￮ postulate A assumed
   
@@ -629,13 +606,19 @@
   
    ￫ hint[H0403]
    ￭ $TESTCASE_ROOT/fibrant_sqrt.ny
-   3 |          record { root⟨p⟩ = y2⟨2⟩ root; root⟨1⟩ = y2 root1; else = y2 else })
-     ^ comatch encountered outside case tree, wrapping in implicit let-binding
+   38 |        record {
+   39 |        root⟨p⟩ = y2⟨2⟩ root;
+   40 |        root⟨1⟩ = y2 root1;
+   41 |        else = y2 else })
+      ^ comatch encountered outside case tree, wrapping in implicit let-binding
   
    ￫ hint[H0403]
    ￭ $TESTCASE_ROOT/fibrant_sqrt.ny
-   5 |          record { root⟨p⟩ = x2⟨2⟩ root⟨2⟩; root1 = x2 root; else = x2 else })
-     ^ comatch encountered outside case tree, wrapping in implicit let-binding
+   43 |        record {
+   44 |        root⟨p⟩ = x2⟨2⟩ root⟨2⟩;
+   45 |        root1 = x2 root;
+   46 |        else = x2 else })
+      ^ comatch encountered outside case tree, wrapping in implicit let-binding
   
    ￫ info[I0000]
    ￮ constant id√_iso defined, containing 2 holes
@@ -681,12 +664,6 @@
      ----------------------------------------------------------------------
      isFibrant (√IdA× B.0 B.1 B.2 x0 x1)
   
-   ￫ info[I0008]
-   ￮ section single closed
-  
-   ￫ info[I0007]
-   ￮ section parametrized opened
-  
    ￫ info[I0001]
    ￮ postulate Γ assumed
   
@@ -715,9 +692,6 @@
      a₁ : √A x.1
      ----------------------------------------------------------------------
      isFibrant (√A⁽ᵖ⁾ x.2 a₀ a₁)
-  
-   ￫ info[I0008]
-   ￮ section parametrized closed
   
    ￫ error[E3002]
    ￮ file fibrant_sqrt.ny contains open holes

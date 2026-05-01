@@ -1,4 +1,4 @@
-import "minus"
+open import minus
 
 notation(0) x "-" y ≔ ℤ.sub x y
 

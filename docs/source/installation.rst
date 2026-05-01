@@ -292,7 +292,7 @@ Installing ctags
 
 `Universal Ctags <https://ctags.io/>`_ is a command-line program that reads all the source files in a project and generates a "tags file" containing the location of every definition in those files.  The tags file can then be read by Emacs to enable commands for jumping to the location where a given constant was defined.
 
-Agdarya comes with a "language definition" file for Universal Ctags, enabling it to generate tags files for Agdarya source code.  This is not perfect (e.g. it doesn't know about :ref:`Import modifiers`), so it won't always be able to find definitions correctly.  But it can still be very useful, until we implement an analogous feature in a more sophisticated way.
+Agdarya comes with a "language definition" file for Universal Ctags, enabling it to generate tags files for Agdarya source code.  This is not perfect (e.g. it doesn't know about all ``open`` / ``open import`` modifiers), so it won't always be able to find definitions correctly.  But it can still be very useful, until we implement an analogous feature in a more sophisticated way.
 
 The automatic installation script ``install-pg.sh`` will also attempt to install the ctags language definition file in the correct place.  If it fails, or if you are doing a manual installation, you can do this yourself by copying (or symlinking) the file ``agdarya.ctags`` (included in the binary distribution, or in the directory ``ctags`` of the source tree) into the directory ``$HOME/.ctags.d`` (which you can create if it doesn't exist).
 
@@ -304,7 +304,7 @@ You will also have to install Universal Ctags.  (There are other programs that g
 
 On MacOS, you may be able to use `homebrew <https://formulae.brew.sh/formula/universal-ctags>`_ (e.g. ``brew install universal-ctags``) or `build manually <https://docs.ctags.io/en/latest/osx.html>`_.
 
-Note that while Universal Ctags provides an executable called ``ctags`` that generates tags files, it is not the only package that does.  In particular, some distributions of Emacs also install an executable called ``ctags``.  However, the ``ctags`` executables provided by other packages do not understand the Agdarya language definition file, and therefore in particular will not correctly parse comments and ``section`` commands in Agdarya files.  You can check that your ``ctags`` is Universal Ctags by running
+Note that while Universal Ctags provides an executable called ``ctags`` that generates tags files, it is not the only package that does.  In particular, some distributions of Emacs also install an executable called ``ctags``.  However, the ``ctags`` executables provided by other packages do not understand the Agdarya language definition file, and therefore in particular will not correctly parse comments and module commands in Agdarya files.  You can check that your ``ctags`` is Universal Ctags by running
 
 .. code-block:: bash
 

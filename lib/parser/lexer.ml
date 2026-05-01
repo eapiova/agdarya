@@ -19,6 +19,12 @@ module LexerState = struct
   type t = {
     linecomment : bool;
     pragma : bool;
+    pending_ref : Located_token.t list ref;
+    eof_layout_done_ref : bool ref;
+    layout_stack_ref : int list ref;
+    pending_layout_ref : bool ref;
+    pending_newline_ref : bool ref;
+    explicit_depth : int;
   }
 end
 
@@ -90,6 +96,57 @@ let whitespace : Whitespace.t list t =
       ((if state.pragma then newlines else line_comment </> block_comment </> newlines))
     |> no_expectations in
   return (Bwd.to_list ws)
+
+let ws_breaks_line (ws : Whitespace.t list) =
+  List.exists
+    (function
+      | `Line _ -> true
+      | `Newlines n -> n > 0
+      | `Block str -> String.exists (fun c -> c = '\n') str)
+    ws
+
+let ws_triggers_layout (ws : Whitespace.t list) =
+  List.exists
+    (function
+      | `Line _ -> true
+      | `Newlines n -> n > 0
+      | `Block _ -> false)
+    ws
+
+let layout_keyword = function
+  | Where | Of | Do | Let | Module | Axiom | Field_kw | With | Rewrite -> true
+  | _ -> false
+
+let explicit_delim_delta = function
+  | LParen | LBracket | LBrace -> 1
+  | RParen | RBracket | RBrace -> -1
+  | _ -> 0
+
+let layout_token loc tok : Located_token.t = (loc, (tok, []))
+
+let close_layouts pos stack =
+  List.map (fun _ -> ((pos, pos), (RBrace, []))) stack
+
+let layout_prefix (state : LexerState.t) (loc : Position.range) =
+  let pos = fst loc in
+  let indent = Position.column pos in
+  let layout_stack = !(state.layout_stack_ref) in
+  if state.explicit_depth > 0 then
+    ([], layout_stack)
+  else if !(state.pending_newline_ref) then
+    let rec pop acc = function
+      | top :: rest when indent < top -> pop (layout_token loc RBrace :: acc) rest
+      | stack -> (List.rev acc, stack)
+    in
+    let closes, stack = pop [] layout_stack in
+    let prefix =
+      match stack with
+      | top :: _ when indent = top -> closes @ [ layout_token loc (Op ";") ]
+      | _ -> closes
+    in
+    (prefix, stack)
+  else
+    ([], layout_stack)
 
 (* A quoted string starts and ends with double-quotes, and allows backslash-quoted double-quotes and backslashes inside. *)
 let quoted_string : Token.t t =
@@ -427,6 +484,8 @@ let get_reserved_word = function
   | "data" -> Some Data
   | "record" -> Some Record
   | "where" -> Some Where
+  | "with" -> Some With
+  | "rewrite" -> Some Rewrite
   | "field" -> Some Field_kw
   | "constructor" -> Some Constructor_kw
   | "codata" -> Some Codata
@@ -541,23 +600,137 @@ let other : Token.t t =
 
 let pragma_open : Token.t t =
   let* _ = backtrack (string "{-#") "\"{-#\"" in
-  let* () = set { linecomment = false; pragma = true } in
+  let* state = get in
+  let* () = set { state with linecomment = false; pragma = true } in
   return PragmaOpen
 
 let pragma_close : Token.t t =
   let* _ = backtrack (string "#-}") "\"#-}\"" in
-  let* () = set { linecomment = false; pragma = false } in
+  let* state = get in
+  let* () = set { state with linecomment = false; pragma = false } in
   return PragmaClose
 
 (* Finally, a token is either a quoted string, a single-character operator, an operator of special ASCII symbols, or something else.  Unlike the built-in 'lexer' function, we include whitespace *after* the token, so that we can save comments occurring after any code. *)
+let raw_actual_token : Located_token.t t =
+  let* loc, tok =
+    located
+      (hole </> quoted_string </> pragma_open </> pragma_close </> onechar_op </> superscript
+     </> other </> ascii_op)
+  in
+  let* ws = whitespace in
+  let* next_pos = position in
+  let* state = get in
+  let prefix, layout_stack = layout_prefix state loc in
+  let explicit_depth = max 0 (state.explicit_depth + explicit_delim_delta tok) in
+  let wants_layout =
+    explicit_depth = 0 && layout_keyword tok && ws_triggers_layout ws
+  in
+  let* explicit_lbrace =
+    if wants_layout then
+      ((let* _ = followed_by (char '{') "\"{\"" in
+        return true)
+      </> return false)
+      |> no_expectations
+    else
+      return false
+  in
+  let opened_layout_indent =
+    if wants_layout && not explicit_lbrace then Some (Position.column next_pos) else None
+  in
+  let pending_newline = if wants_layout then false else ws_breaks_line ws in
+  let layout_stack =
+    match opened_layout_indent with
+    | Some indent -> indent :: layout_stack
+    | None -> layout_stack
+  in
+  let actual = (loc, (tok, ws)) in
+  let queued_after_actual =
+    match opened_layout_indent with
+    | Some _ -> [ (loc, (LBrace, [])) ]
+    | None -> []
+  in
+  let () =
+    match prefix with
+    | [] -> state.pending_ref := queued_after_actual
+    | _ :: rest -> state.pending_ref := rest @ (actual :: queued_after_actual)
+  in
+  let () = state.layout_stack_ref := layout_stack in
+  let () = state.pending_layout_ref := false in
+  let () = state.pending_newline_ref := pending_newline in
+  let* () = set { state with explicit_depth } in
+  match prefix with
+  | [] -> return actual
+  | first :: _ -> return first
+
+let pending_token : Located_token.t t =
+  let* state = get in
+  match !(state.pending_ref) with
+  | tok :: pending ->
+      let () = state.pending_ref := pending in
+      return tok
+  | [] -> fail ()
+
+let pending_layout_token : Located_token.t t =
+  let* state = get in
+  if state.explicit_depth <> 0 || not !(state.pending_layout_ref) then
+    fail ()
+  else
+    let* pos = position in
+    let* explicit_lbrace =
+      ((let* _ = followed_by (char '{') "\"{\"" in
+        return true)
+      </> return false)
+      |> no_expectations
+    in
+    if explicit_lbrace then (
+      let () = state.pending_layout_ref := false in
+      let () = state.pending_newline_ref := false in
+      fail ())
+    else
+      let indent = Position.column pos in
+      let loc = (pos, Position.advance 0 1 pos) in
+      let () = state.pending_layout_ref := false in
+      let () = state.pending_newline_ref := false in
+      let () = state.layout_stack_ref := indent :: !(state.layout_stack_ref) in
+      return (loc, (LBrace, []))
+
+let eof_layout_token : Located_token.t t =
+  let* state = get in
+  if
+    !(state.eof_layout_done_ref)
+    || state.explicit_depth <> 0
+    || List.is_empty !(state.layout_stack_ref)
+  then fail ()
+  else
+    let* pos = position in
+    let toks = close_layouts pos !(state.layout_stack_ref) in
+    match toks with
+    | [] -> fail ()
+    | tok :: pending ->
+        let () = state.pending_ref := pending in
+        let () = state.layout_stack_ref := [] in
+        let () = state.pending_layout_ref := false in
+        let () = state.pending_newline_ref := false in
+        return tok
+
+let plain_eof_token : Located_token.t t =
+  let* state = get in
+  if !(state.pending_ref) <> [] then fail ()
+  else if
+    not !(state.eof_layout_done_ref)
+    && state.explicit_depth = 0
+    && not (List.is_empty !(state.layout_stack_ref))
+  then fail ()
+  else
+    let* tok = located (expect_end (Eof, [])) in
+    let () = state.eof_layout_done_ref := true in
+    return tok
+
 let token : Located_token.t t =
-  (let* loc, tok =
-     located
-       (hole </> quoted_string </> pragma_open </> pragma_close </> onechar_op </> superscript
-      </> other </> ascii_op) in
-   let* ws = whitespace in
-   return (loc, (tok, ws)))
-  </> located (expect_end (Eof, []))
+  pending_token
+  </> raw_actual_token
+  </> eof_layout_token
+  </> plain_eof_token
 
 (* This means we need a separate combinator to parse any initial whitespace.   *)
 let bof : Located_token.t t =
@@ -568,9 +741,20 @@ module Parser = struct
   include Basic.Parser
 
   (* This is how we make the lexer to plug into the parser. *)
-  let initial_state = { LexerState.linecomment = false; pragma = false }
+  let initial_state () =
+    {
+      LexerState.linecomment = false;
+      pragma = false;
+      pending_ref = ref [];
+      eof_layout_done_ref = ref false;
+      layout_stack_ref = ref [];
+      pending_layout_ref = ref false;
+      pending_newline_ref = ref false;
+      explicit_depth = 0;
+    }
 
-  let start : t = make_partial Position.start initial_state bof
+  let fresh () : t = make_partial Position.start (initial_state ()) bof
+  let start : t = fresh ()
   let restart (lex : t) : t = make_partial (position lex) (state lex) token |> transfer_lookahead lex
 end
 
@@ -602,7 +786,7 @@ let single str =
   in
   Range.run ~env @@ fun () ->
   let open Lex_and_parse_single in
-  let p = run_on_string str (make Parser.start Single_token.Parser.start) in
+  let p = run_on_string str (make (Parser.fresh ()) Single_token.Parser.start) in
   if has_succeeded p then
     let tok, ws = final p in
     if ws = [] then Some tok else None

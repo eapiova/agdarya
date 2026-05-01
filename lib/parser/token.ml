@@ -78,6 +78,8 @@ type t =
   | To
   | Using
   | Where
+  | With
+  | Rewrite
   | Constructor_kw
   | Undo
   | Op of string (* Sequence of common ASCII symbols, other than : := ::= += -> |-> |=> etc. *)
@@ -218,6 +220,8 @@ let to_string = function
   | Def -> "def"
   | And -> "and"
   | Echo -> "echo"
+  | With -> "with"
+  | Rewrite -> "rewrite"
   | Synth -> "synth"
   | Quit -> "quit"
   | Match -> "match"

@@ -1,9 +1,9 @@
 {- -*- agdarya-prog-args: ("-proofgeneral" "-parametric" "-direction" "p,rel,Br") -*- -}
 
-import "isfibrant"
-import "fibrant_types"
-import "bookhott"
-import "hott_bookhott"
+open import isfibrant
+open import fibrant_types
+open import bookhott
+open import hott_bookhott
 
 {- Contractibility -}
 isContr : (A : Fib) → Set

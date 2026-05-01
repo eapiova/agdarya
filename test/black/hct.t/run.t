@@ -543,7 +543,7 @@
   [1]
 
   $ cat >flderr.ny <<EOF
-  > record A : Set where { field x : Set }
+  > record A : Set where { field { x : Set } }
   > postulate a:A
   > postulate b:A
   > postulate c:Id A a b

@@ -5,7 +5,7 @@ Import files
   > EOF
 
   $ cat >two.ny <<EOF
-  > import "one"
+  > open import one
   > postulate a0 : A
   > EOF
 
@@ -53,10 +53,10 @@ Command-line strings see namespaces from explicitly loaded files only
    ￮ postulate a1 assumed
   
 
-Unless we explicitly export them:
+Unless we explicitly re-export them:
 
   $ cat >etwo.ny <<EOF
-  > export "one"
+  > open import one public
   > postulate a0 : A
   > EOF
 
@@ -81,13 +81,13 @@ Unless we explicitly export them:
 Requiring a file multiple times
 
   $ cat >three.ny <<EOF
-  > import "one"
+  > open import one
   > postulate a1 : A
   > EOF
 
   $ cat >twothree.ny <<EOF
-  > import "two"
-  > import "three"
+  > open import two
+  > open import three
   > postulate a2 : Id A a0 a1
   > EOF
 
@@ -127,9 +127,9 @@ Requiring a file multiple times
   [1]
 
   $ cat >four.ny <<EOF
-  > import "one"
-  > import "two"
-  > import "three"
+  > open import one
+  > open import two
+  > open import three
   > postulate a2 : Id A a0 a1
   > EOF
 
@@ -168,11 +168,11 @@ Requiring a file multiple times
 Circular dependency
 
   $ cat >foo.ny <<EOF
-  > import "bar"
+  > open import bar
   > EOF
 
   $ cat >bar.ny <<EOF
-  > import "foo"
+  > open import foo
   > EOF
 
   $ agdarya -source-only foo.ny
@@ -193,11 +193,11 @@ Import is relative to the file's directory
   > EOF
 
   $ cat >subdir/two.ny <<EOF
-  > import "one"
+  > open import one
   > postulate a : A
   > EOF
 
-  $ agdarya -source-only -v -e 'import "subdir/two"'
+  $ agdarya -source-only -v -e 'open import subdir.two'
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/subdir/two.ny
   
@@ -219,7 +219,7 @@ Import is relative to the file's directory
 
 A file isn't loaded twice even if referred to in different ways
 
-  $ agdarya -source-only -v subdir/one.ny -e 'import "subdir/two"'
+  $ agdarya -source-only -v subdir/one.ny -e 'open import subdir.two'
    ￫ info[I0001]
    ￮ postulate A assumed
   
@@ -242,13 +242,13 @@ Notations are used from explicitly imported files, but not transitively.
   > EOF
 
   $ cat >n2.ny <<EOF
-  > import "n1"
+  > open import n1
   > notation(0) x "&" y := f x y
   > EOF
 
   $ cat >n3.ny <<EOF
-  > import "n1"
-  > import "n2"
+  > open import n1
+  > open import n2
   > notation(0) x "%" y := f x y
   > EOF
 
@@ -272,8 +272,8 @@ Notations are used from explicitly imported files, but not transitively.
   [1]
 
   $ cat >n4.ny <<EOF
-  > import "n1"
-  > import "n3"
+  > open import n1
+  > open import n3
   > echo a % a
   > EOF
 
@@ -294,7 +294,7 @@ Quitting in imports quits only that file
   > EOF
 
   $ cat >qtwo.ny <<EOF
-  > import "qone"
+  > open import qone
   > postulate a0 : A
   > EOF
 
@@ -322,7 +322,7 @@ Definitions are linked
   > EOF
 
   $ cat >ltwo.ny <<EOF
-  > import "lone"
+  > open import lone
   > foo : (n : Nat) → Set
   > foo n = match n [ zero ↦ Nat | suc n ↦ Nat ]
   > EOF
@@ -343,9 +343,9 @@ Definitions are linked
 Undoing and redoing an import
 
   $ cat >undoimport.ny <<EOF
-  > import "one"
+  > open import one
   > undo 1
-  > import "one"
+  > open import one
   > postulate a:A
   > EOF
 
@@ -366,7 +366,7 @@ Importing after creating a hole
   $ cat >importhole.ny <<EOF
   > Z : Set
   > Z = ?
-  > import "one"
+  > open import one
   > W : Set
   > W = Z
   > EOF

@@ -35,7 +35,7 @@ Testing parsing of commands, on the command line:
   1
     : odd
   
-  $ agdarya -e 'record Pair (A B : Set) : Set where { field fst : A; snd : B }' -e 'postulate A : Set' -e 'postulate B : Set' -e 'postulate p : Pair A B' -e 'echo (p fst : A)'
+  $ agdarya -e 'record Pair (A B : Set) : Set where { field { fst : A; snd : B } }' -e 'postulate A : Set' -e 'postulate B : Set' -e 'postulate p : Pair A B' -e 'echo (p fst : A)'
   p fst
     : A
   

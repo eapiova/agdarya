@@ -10,7 +10,13 @@ open Reporter
 open Notation
 open Monad.Ops (Monad.Maybe)
 open Range
+module TermParse = Parse
 module StringSet = Set.Make (String)
+module StringsMap = Map.Make (struct
+  type t = string list
+
+  let compare = compare
+end)
 
 module StringsSet = Set.Make (struct
   type t = string * string list
@@ -384,18 +390,61 @@ and local_fields_of_comatch_obs = function
 type (_, _, _) identity +=
   | Let : (closed, No.minus_omega, No.nonstrict opn) identity
   | Legacy_let : (closed, No.minus_omega, No.nonstrict opn) identity
+  | Letblock : (closed, No.minus_omega, No.nonstrict opn) identity
   | Letrec : (closed, No.minus_omega, No.nonstrict opn) identity
   | Legacy_letrec : (closed, No.minus_omega, No.nonstrict opn) identity
+  | Internal_with : (closed, No.plus_omega, closed) identity
 
 let letin : (closed, No.minus_omega, No.nonstrict opn) notation = (Let, Prefixr No.minus_omega)
 let legacyletin : (closed, No.minus_omega, No.nonstrict opn) notation = (Legacy_let, Prefixr No.minus_omega)
+let letblock : (closed, No.minus_omega, No.nonstrict opn) notation = (Letblock, Prefixr No.minus_omega)
+let internal_with : (closed, No.plus_omega, closed) notation = (Internal_with, Outfix)
 
 let is_let_eq = function Token.Coloneq | Token.Op "=" -> true | _ -> false
+
+type process_letblock_fn = {
+  f :
+    'n. (string option, 'n) Bwv.t -> observation list -> Asai.Range.t option -> 'n check located;
+}
+
+let process_letblock_ref =
+  ref { f = (fun _ _ loc -> invalid ?loc "let-block") }
+
+let rec letblock_where_tail_early end_tree =
+  Inner
+    {
+      ops = oflist [ (Op ";", Lazy (lazy (letblock_local_cmds_early end_tree))); (RBrace, end_tree) ];
+      field = None;
+      term = None;
+    }
+
+and letblock_clause_tail_early end_tree =
+  terms
+    [
+      (Where, op LBrace (Lazy (lazy (letblock_local_cmds_early (letblock_where_tail_early end_tree)))));
+      (Op ";", Lazy (lazy (letblock_local_cmds_early end_tree)));
+      (RBrace, end_tree);
+    ]
+
+and letblock_local_cmds_early end_tree =
+  Inner
+    {
+      ops = singleton RBrace end_tree;
+      field = None;
+      term =
+        Some
+          (oflist
+             [
+               (Colon, terms [ (Op ";", Lazy (lazy (letblock_local_cmds_early end_tree))); (RBrace, end_tree) ]);
+               (Op "=", letblock_clause_tail_early end_tree);
+             ]);
+    }
 
 let process_let : type n.
     (string option, n) Bwv.t -> observation list -> Asai.Range.t option -> n check located =
  fun ctx obs loc ->
   match obs with
+  | Token (Let, _) :: Token (LBrace, _) :: _ -> (!process_letblock_ref).f ctx obs loc
   | [
    Token (Let, _);
    Term x;
@@ -426,14 +475,24 @@ let process_let : type n.
       { value = Synth (Let (x, term, body)); loc }
   | _ -> invalid "let"
 
-let letin_tree tok notn =
+let letin_tree ?(with_block = false) tok notn =
   Closed_entry
     (eop Let
-       (terms
-          [
-            (tok, term In (Done_closed notn));
-            (Colon, term tok (term In (Done_closed notn)));
-          ]))
+       (Inner
+          {
+            ops =
+              if with_block then
+                oflist [ (LBrace, letblock_local_cmds_early (op In (Done_closed notn))) ]
+              else TokMap.empty;
+            field = None;
+            term =
+              Some
+                (oflist
+                   [
+                     (tok, term In (Done_closed notn));
+                     (Colon, term tok (term In (Done_closed notn)));
+                   ]);
+          }))
 
 (* ********************
    Let rec
@@ -496,6 +555,1142 @@ let rec letrec_terms tok notn =
     (term tok (terms [ (And, Lazy (lazy (letrec_terms tok notn))); (In, Done_closed notn) ]))
 
 let letrec_tree tok notn = Closed_entry (eop Let (op Rec (letrec_terms tok notn)))
+
+type (_, _, _) identity +=
+  | Implicit_match : (closed, No.plus_omega, closed) identity
+  | Explicit_match : (closed, No.plus_omega, closed) identity
+  | Implicit_case : (closed, No.plus_omega, closed) identity
+  | Explicit_case : (closed, No.plus_omega, closed) identity
+  | Matchlam : (closed, No.plus_omega, closed) identity
+  | Legacy_brackets : (closed, No.plus_omega, closed) identity
+  | Comatch : (closed, No.plus_omega, closed) identity
+
+let implicit_mtch : (closed, No.plus_omega, closed) notation = (Implicit_match, Outfix)
+let explicit_mtch : (closed, No.plus_omega, closed) notation = (Explicit_match, Outfix)
+let implicit_case : (closed, No.plus_omega, closed) notation = (Implicit_case, Outfix)
+let explicit_case : (closed, No.plus_omega, closed) notation = (Explicit_case, Outfix)
+let mtchlam : (closed, No.plus_omega, closed) notation = (Matchlam, Outfix)
+let legacy_brackets : (closed, No.plus_omega, closed) notation = (Legacy_brackets, Outfix)
+let comatch : (closed, No.plus_omega, closed) notation = (Comatch, Outfix)
+
+type local_type_sig = { name : wrapped_parse; ty : wrapped_parse }
+type local_clause_rhs =
+  | Local_body of { tm : wrapped_parse; where_block : local_cmd list option }
+  | Local_with_block of { items : wrapped_parse list; branches : local_clause_branch list }
+  | Local_rewrite_block of { proofs : wrapped_parse list; tail : local_clause_rhs }
+
+and local_clause_branch = {
+  patterns : wrapped_parse list;
+  rhs : local_clause_rhs;
+}
+
+and local_clause = { lhs : wrapped_parse; body : local_clause_rhs }
+and local_cmd = Local_type_sig of local_type_sig | Local_clause of local_clause
+
+type legacy_let_binding = { lhs : wrapped_parse; ty : wrapped_parse option; tm : wrapped_parse }
+
+let rec parse_local_cmds_until_rbrace obs =
+  match obs with
+  | Token (RBrace, _) :: _ -> ([], obs)
+  | _ ->
+      let cmd, rest = parse_local_cmd obs in
+      match rest with
+      | Token (Op ";", _) :: rest ->
+          let cmds, rest = parse_local_cmds_until_rbrace rest in
+          (cmd :: cmds, rest)
+      | _ -> ([ cmd ], rest)
+
+and parse_local_cmd obs =
+  match obs with
+  | Term lhs :: Token (Colon, _) :: Term ty :: rest ->
+      (Local_type_sig { name = Wrap lhs; ty = Wrap ty }, rest)
+  | Term lhs :: (Token ((Op "=" | With | Rewrite), _) :: _ as rest) ->
+      let rhs, rest = parse_local_clause_rhs rest in
+      (Local_clause { lhs = Wrap lhs; body = rhs }, rest)
+  | _ -> invalid "let-block local command"
+
+and parse_local_clause_body = function
+  | Token (Op "=", _) :: Term tm :: rest ->
+      let where_block, rest = parse_local_optional_where rest in
+      (Local_body { tm = Wrap tm; where_block }, rest)
+  | _ -> invalid "let-block local clause body"
+
+and parse_local_clause_items _stops = function
+  | Term tm :: rest ->
+      let rec go acc = function
+        | Token (Op "|", _) :: Term tm :: rest -> go (Wrap tm :: acc) rest
+        | rest -> (List.rev acc, rest)
+      in
+      go [ Wrap tm ] rest
+  | _ -> invalid "let-block local clause items"
+
+and parse_local_clause_branch _stops = function
+  | Token (Ellipsis, _) :: Token (Op "|", _) :: Term pat :: rest ->
+      let rec pats acc = function
+        | Token (Op "|", _) :: Term pat :: rest -> pats (Wrap pat :: acc) rest
+        | rest -> (List.rev acc, rest)
+      in
+      let patterns, rest = pats [ Wrap pat ] rest in
+      let rhs, rest = parse_local_clause_rhs rest in
+      ({ patterns; rhs }, rest)
+  | _ -> invalid "let-block local with branch"
+
+and parse_local_clause_rhs = function
+  | Token (Op "=", _) :: _ as obs -> parse_local_clause_body obs
+  | Token (With, _) :: rest ->
+      let items, rest = parse_local_clause_items [ Token.Ellipsis ] rest in
+      let first, rest = parse_local_clause_branch [ Token.Ellipsis ] rest in
+      let rec branches acc = function
+        | Token (Op ";", _) :: rest -> branches acc rest
+        | Token (Ellipsis, _) :: _ as rest ->
+            let branch, rest = parse_local_clause_branch [ Token.Ellipsis ] rest in
+            branches (branch :: acc) rest
+        | rest -> (List.rev acc, rest)
+      in
+      let rest_branches, rest = branches [ first ] rest in
+      (Local_with_block { items; branches = rest_branches }, rest)
+  | Token (Rewrite, _) :: rest ->
+      let proofs, rest = parse_local_clause_items [ Op "="; With; Rewrite ] rest in
+      let tail, rest = parse_local_clause_rhs rest in
+      (Local_rewrite_block { proofs; tail }, rest)
+  | _ -> invalid "let-block local clause"
+
+and parse_local_optional_where = function
+  | Token (Where, _) :: Token (LBrace, _) :: rest ->
+      let cmds, rest = parse_local_cmds_until_rbrace rest in
+      (match rest with
+      | Token (RBrace, _) :: rest -> (Some cmds, rest)
+      | _ -> invalid "let-block where")
+  | rest -> (None, rest)
+
+let parse_letblock_obs = function
+  | Token (Let, _) :: Token (LBrace, _) :: rest ->
+      let cmds, rest = parse_local_cmds_until_rbrace rest in
+      (match rest with
+      | Token (RBrace, _) :: Token (In, _) :: Term body :: [] -> (cmds, Wrap body)
+      | _ -> invalid "let-block")
+  | _ -> invalid "let-block"
+
+let rec parse_legacy_letrec_bindings acc = function
+  | Token (Let, _) :: Token (Rec, _) :: x :: rest -> parse_legacy_letrec_binding acc x rest
+  | Token (And, _) :: x :: rest -> parse_legacy_letrec_binding acc x rest
+  | _ -> invalid "legacy let-rec"
+
+and parse_legacy_letrec_binding acc xobs rest =
+  let x =
+    match xobs with
+    | Term x -> Wrap x
+    | _ -> invalid "legacy let-rec"
+  in
+  let ty, rest =
+    match rest with
+    | Token (Colon, _) :: Term ty :: rest -> (Some (Wrap ty), rest)
+    | _ -> (None, rest)
+  in
+  match rest with
+  | Token (tok, _) :: Term tm :: Token (In, _) :: Term body :: [] when is_let_eq tok ->
+      (List.rev ({ lhs = x; ty; tm = Wrap tm } :: acc), Wrap body)
+  | Token (tok, _) :: Term tm :: rest when is_let_eq tok ->
+      parse_legacy_letrec_bindings ({ lhs = x; ty; tm = Wrap tm } :: acc) rest
+  | _ -> invalid "legacy let-rec"
+
+let parse_legacy_letrec_obs obs = parse_legacy_letrec_bindings [] obs
+
+let rec letblock_clause_tail end_tree =
+  terms
+    [
+      (Where, op LBrace (Lazy (lazy (letblock_local_cmds (letblock_after_where end_tree)))));
+      (Op ";", Lazy (lazy (letblock_local_cmds end_tree)));
+      (RBrace, end_tree);
+    ]
+
+and letblock_after_where end_tree =
+  Inner
+    {
+      ops = eops [ (Op ";", Lazy (lazy (letblock_local_cmds end_tree))); (RBrace, end_tree) ];
+      field = None;
+      term = None;
+    }
+
+and letblock_item_tail end_tree =
+  Inner
+    {
+      ops = singleton RBrace end_tree;
+      field = None;
+      term =
+        Some
+          (oflist
+             [
+               (Colon, terms [ (Op ";", Lazy (lazy (letblock_local_cmds end_tree))); (RBrace, end_tree) ]);
+               (Op "=", letblock_clause_tail end_tree);
+             ]);
+    }
+
+and letblock_local_cmds end_tree =
+  Inner
+    {
+      ops = singleton RBrace end_tree;
+      field = None;
+      term = Some (oflist [ (Colon, terms [ (Op ";", Lazy (lazy (letblock_local_cmds end_tree))); (RBrace, end_tree) ]); (Op "=", letblock_clause_tail end_tree) ]);
+    }
+
+let letblock_tree notn =
+  Closed_entry (eop Let (op LBrace (letblock_local_cmds (op In (Done_closed notn)))))
+
+let pp_local_clause_term_doc tm =
+  let (Wrap tm) = tm in
+  let tm, rest = split_ending_whitespace tm in
+  (pp_complete_term (Wrap tm) `None, rest)
+
+let pp_local_bar_term_list terms =
+  let open PPrint in
+  match terms with
+  | [] -> (empty, [])
+  | first :: rest ->
+      let pfirst, wfirst = pp_local_clause_term_doc first in
+      List.fold_left
+        (fun (accum, _prews) tm ->
+          let ptm, wtm = pp_local_clause_term_doc tm in
+          (accum ^^ blank 1 ^^ Token.pp (Op "|") ^^ blank 1 ^^ ptm, wtm))
+        (pfirst, wfirst) rest
+
+let rec pp_local_cmd_doc = function
+  | Local_type_sig { name = Wrap name; ty = Wrap ty } ->
+      let pname, _ = pp_term name in
+      let ty, rest = split_ending_whitespace ty in
+      (group (pname ^^ blank 1 ^^ Token.pp Colon ^^ blank 1 ^^ pp_complete_term (Wrap ty) `None), rest)
+  | Local_clause { lhs; body } ->
+      let phead, _ = pp_local_clause_term_doc lhs in
+      pp_local_clause_rhs_doc phead body
+
+and pp_local_clause_rhs_doc head = function
+  | Local_body { tm = Wrap tm; where_block } ->
+      let tm, rest = split_ending_whitespace tm in
+      let pwhere, wwhere =
+        match where_block with
+        | None -> (empty, rest)
+        | Some cmds ->
+            let pwhere, wwhere = pp_local_block_doc cmds in
+            (blank 1 ^^ pwhere, wwhere)
+      in
+      if is_case tm then
+        let itm, ptm, wtm = pp_case `Nontrivial tm in
+        ( group
+            (head ^^ blank 1 ^^ Token.pp (Op "=") ^^ nest 2 (break 1 ^^ group (hang 2 itm)) ^^ ptm ^^ pwhere),
+          wwhere @ wtm )
+      else
+        ( group
+            ( head
+            ^^ blank 1
+            ^^ Token.pp (Op "=")
+            ^^ nest 2 (break 1 ^^ group (hang 2 (pp_complete_term (Wrap tm) `None)))
+            ^^ pwhere ),
+          wwhere )
+  | Local_with_block { items; branches } ->
+      let open PPrint in
+      let pitems, _ = pp_local_bar_term_list items in
+      let pbranches, wbranches =
+        match branches with
+        | [] -> (empty, [])
+        | first :: rest ->
+            let pfirst, wfirst = pp_local_clause_branch_doc first in
+            List.fold_left
+              (fun (accum, _prews) branch ->
+                let pbranch, wbranch = pp_local_clause_branch_doc branch in
+                (accum ^^ hardline ^^ pbranch, wbranch))
+              (pfirst, wfirst) rest
+      in
+      (group (head ^^ blank 1 ^^ Token.pp With ^^ blank 1 ^^ pitems) ^^ nest 2 (hardline ^^ pbranches), wbranches)
+  | Local_rewrite_block { proofs; tail } ->
+      let open PPrint in
+      let pproofs, _ = pp_local_bar_term_list proofs in
+      pp_local_clause_rhs_doc (group (head ^^ blank 1 ^^ Token.pp Rewrite ^^ blank 1 ^^ pproofs)) tail
+
+and pp_local_clause_branch_doc ({ patterns; rhs } : local_clause_branch) =
+  let open PPrint in
+  let ppatterns, _ = pp_local_bar_term_list patterns in
+  pp_local_clause_rhs_doc (Token.pp Ellipsis ^^ blank 1 ^^ Token.pp (Op "|") ^^ blank 1 ^^ ppatterns) rhs
+
+and pp_local_cmds_doc cmds =
+  let normalize_ws = Whitespace.normalize_no_blanks in
+  let rec go accum = function
+    | [] -> (accum, [])
+    | [ cmd ] ->
+        let pcmd, wcmd = pp_local_cmd_doc cmd in
+        (accum ^^ pcmd, normalize_ws wcmd)
+    | cmd :: cmds ->
+        let pcmd, wcmd = pp_local_cmd_doc cmd in
+        go (accum ^^ pcmd ^^ pp_ws `None (normalize_ws wcmd) ^^ hardline) cmds
+  in
+  go empty cmds
+
+and pp_local_block_doc cmds =
+  match cmds with
+  | [] -> (Token.pp Where ^^ blank 1 ^^ Token.pp LBrace ^^ Token.pp RBrace, [])
+  | _ ->
+      let pfirst, wlast = pp_local_cmds_doc cmds in
+      (Token.pp Where ^^ nest 2 (hardline ^^ pfirst ^^ pp_ws `Break wlast), [])
+
+let pp_block_let_term cmds (Wrap body) =
+  let pbody, wbody = pp_term body in
+  match cmds with
+  | [] ->
+      ( Token.pp Let
+        ^^ blank 1
+        ^^ Token.pp LBrace
+        ^^ blank 1
+        ^^ Token.pp RBrace
+        ^^ blank 1
+        ^^ Token.pp In
+        ^^ blank 1
+        ^^ pbody,
+        wbody )
+  | _ ->
+      let pdefs, wdefs = pp_local_cmds_doc cmds in
+      ( Token.pp Let
+        ^^ hardline
+        ^^ string "    "
+        ^^ align (pdefs ^^ pp_ws `Break wdefs)
+        ^^ hardline
+        ^^ string "  "
+        ^^ Token.pp In
+        ^^ blank 1
+        ^^ pbody,
+        wbody )
+
+let pp_block_let_case cmds (Wrap body) =
+  let ibody, pbody, wbody = pp_case `Nontrivial body in
+  match cmds with
+  | [] ->
+      ( Token.pp Let,
+        blank 1
+        ^^ Token.pp LBrace
+        ^^ blank 1
+        ^^ Token.pp RBrace
+        ^^ blank 1
+        ^^ Token.pp In
+        ^^ blank 1
+        ^^ ibody
+        ^^ pbody,
+        wbody )
+  | _ ->
+      let pdefs, wdefs = pp_local_cmds_doc cmds in
+      ( Token.pp Let,
+        hardline
+        ^^ string "    "
+        ^^ align (pdefs ^^ pp_ws `Break wdefs)
+        ^^ hardline
+        ^^ string "  "
+        ^^ Token.pp In
+        ^^ blank 1
+        ^^ ibody
+        ^^ pbody,
+        wbody )
+
+let pp_letblock_term obs =
+  let cmds, body = parse_letblock_obs obs in
+  pp_block_let_term cmds body
+
+let pp_letblock_case _triv obs =
+  let cmds, body = parse_letblock_obs obs in
+  pp_block_let_case cmds body
+
+let pp_legacy_letrec_term obs =
+  let bindings, body = parse_legacy_letrec_obs obs in
+  let cmds =
+    List.concat_map
+      (fun { lhs; ty; tm } ->
+        match ty with
+        | Some ty ->
+            [ Local_type_sig { name = lhs; ty }; Local_clause { lhs; body = Local_body { tm; where_block = None } } ]
+        | None -> [ Local_clause { lhs; body = Local_body { tm; where_block = None } } ])
+      bindings
+  in
+  pp_block_let_term cmds body
+
+let pp_legacy_letrec_case _triv obs =
+  let bindings, body = parse_legacy_letrec_obs obs in
+  let cmds =
+    List.concat_map
+      (fun { lhs; ty; tm } ->
+        match ty with
+        | Some ty ->
+            [ Local_type_sig { name = lhs; ty }; Local_clause { lhs; body = Local_body { tm; where_block = None } } ]
+        | None -> [ Local_clause { lhs; body = Local_body { tm; where_block = None } } ])
+      bindings
+  in
+  pp_block_let_case cmds body
+
+type pp_abslet_term_fn = { pp_term_abslet : observation list -> document * Whitespace.t list }
+type pp_abslet_case_fn = {
+  pp_case_abslet :
+    [ `Trivial | `Nontrivial ] ->
+    observation list ->
+    document * document * Whitespace.t list;
+}
+
+let pp_abslet_term_ref = ref { pp_term_abslet = (fun _ -> invalid "abslet term printer") }
+let pp_abslet_case_ref = ref { pp_case_abslet = (fun _ _ -> invalid "abslet case printer") }
+
+let pp_let_term obs =
+  match obs with
+  | Token (Let, _) :: Token (LBrace, _) :: _ -> pp_letblock_term obs
+  | _ -> (!pp_abslet_term_ref).pp_term_abslet obs
+
+let pp_let_case triv obs =
+  match obs with
+  | Token (Let, _) :: Token (LBrace, _) :: _ -> pp_letblock_case triv obs
+  | _ -> (!pp_abslet_case_ref).pp_case_abslet triv obs
+
+type local_clause_head_kind =
+  | Local_ordinary_clause
+  | Local_copattern_clause of string * string list
+
+type local_decomposed_clause_head = {
+  name : string list;
+  loc : Asai.Range.t option;
+  args : wrapped_parse list;
+  kind : local_clause_head_kind;
+}
+
+type local_grouped_definition = {
+  signature : local_type_sig option;
+  clauses : (local_clause * local_decomposed_clause_head) list;
+}
+
+type local_def = {
+  name : string list;
+  loc : Asai.Range.t option;
+  ty : wrapped_parse option;
+  tm : wrapped_parse;
+}
+
+let compact_doc doc =
+  let buf = Buffer.create 64 in
+  PPrint.ToBuffer.compact buf doc;
+  Buffer.contents buf
+
+let string_of_term tm = compact_doc (pp_complete_term tm `None)
+
+let parse_generated_term content =
+  let p = TermParse.Term.parse (`String { title = Some "generated let-block"; content }) in
+  TermParse.Term.final p
+
+let build_outfix_tm notn parts =
+  let obs =
+    List.fold_left
+      (fun obs -> function
+        | `Tok tok -> Observations.snoc_tok obs (tok, ([], None))
+        | `Term (Wrap tm) -> Observations.snoc_term obs tm)
+      Observations.empty parts
+  in
+  Wrap (locate_opt None (outfix ~notn ~inner:(Observations.of_partial obs)))
+
+let rec strip_outer_parens (Wrap tm as wrapped) =
+  match tm.value with
+  | Notn ((Postprocess.Parens, _), n) -> (
+      match args n with
+      | [ Token (LParen, _); Term body; Token (RParen, _) ] -> strip_outer_parens (Wrap body)
+      | _ -> wrapped)
+  | _ -> wrapped
+
+let ident_tm x = Wrap (locate_opt None (Ident ([ x ], [])))
+let placeholder_tm () = Wrap (locate_opt None (Placeholder []))
+let process_wrapped ctx (Wrap body) = process ctx body
+
+type generated_term_stringifier = { f : wrapped_parse -> string }
+let string_of_generated_term_ref = ref { f = string_of_term }
+
+let obs_token tok = Token (tok, ([], None))
+let obs_term (Wrap tm) = Term tm
+
+let string_of_public_name name =
+  match name with
+  | [ ""; fld; suffix ] when Lexer.valid_field fld && not (Lexer.all_digits fld) ->
+      fld ^ "⟨" ^ suffix ^ "⟩"
+  | _ -> String.concat "." name
+
+let prenotation_info : User.prenotation -> User.key * User.binder_info option * string list = function
+  | User.User { key; binder; val_vars; _ } -> (key, binder, val_vars)
+
+let rec split_app_spine accum (wrapped : wrapped_parse) =
+  match strip_outer_parens wrapped with
+  | Wrap { value = App { fn; arg; _ }; _ } -> split_app_spine (Wrap arg :: accum) (Wrap fn)
+  | head -> (head, accum)
+
+let constructor_data_of_pattern (pattern : wrapped_parse) =
+  let head, _ = split_app_spine [] pattern in
+  match strip_outer_parens head with
+  | Wrap { value = Ident (name, _); _ } -> Option.map snd (Scope.lookup_constr name)
+  | Wrap { value = Constr (c, suffix, _); _ } -> Option.map snd (Scope.lookup_constr (c :: suffix))
+  | _ -> None
+
+let rec pi_implicitness_of_type : type a s. (a, s) Term.term -> [ `Implicit | `Explicit ] list =
+ fun ty ->
+  match ty with
+  | Pi (impl, _, _, cods) -> impl :: pi_implicitness_of_type (Term.CodCube.find_top cods)
+  | _ -> []
+
+let placeholder_type_of_data_constant const =
+  let ty, _ = Global.find const in
+  let head = string_of_public_name (Scope.name_of const) in
+  let args =
+    List.map
+      (function
+        | `Explicit -> "_"
+        | `Implicit -> "{ _ }")
+      (pi_implicitness_of_type ty)
+  in
+  parse_generated_term (String.concat " " (head :: args))
+
+let infer_case_arg_type (patterns : wrapped_parse list) =
+  match
+    List.fold_left
+      (fun acc pat ->
+        match constructor_data_of_pattern pat with
+        | None -> acc
+        | Some const -> Constant.Map.add const () acc)
+      Constant.Map.empty patterns
+    |> Constant.Map.bindings |> List.map fst
+  with
+  | [ const ] -> Some (placeholder_type_of_data_constant const)
+  | _ -> None
+
+let infer_term_type tm = Option.map placeholder_type_of_data_constant (constructor_data_of_pattern tm)
+
+let ascribe_generated_term tm ty =
+  parse_generated_term ("(" ^ string_of_term tm ^ " : " ^ string_of_term ty ^ ")")
+
+let typed_case_args args (clauses : (local_clause * local_decomposed_clause_head) list) =
+  List.mapi
+    (fun i arg ->
+      let pats =
+        List.filter_map
+          (fun (_, ({ args; _ } : local_decomposed_clause_head)) -> List.nth_opt args i)
+          clauses
+      in
+      match infer_case_arg_type pats with
+      | Some ty -> ascribe_generated_term (ident_tm arg) ty
+      | None -> ident_tm arg)
+    args
+
+let infer_clause_result_type (clauses : (local_clause * local_decomposed_clause_head) list) =
+  let clause_tm ({ body; _ } : local_clause) =
+    match body with
+    | Local_body { tm; where_block = None } -> tm
+    | _ -> fatal (Anomaly "local clause body not lowered before type inference")
+  in
+  match
+    List.fold_left
+      (fun acc ((clause, _) : local_clause * local_decomposed_clause_head) ->
+        match infer_term_type (clause_tm clause) with
+        | None -> acc
+        | Some ty -> string_of_term ty :: acc)
+      [] clauses
+    |> List.sort_uniq String.compare
+  with
+  | [ ty ] -> Some (parse_generated_term ty)
+  | _ -> None
+
+let infer_local_clause_group_type arity
+    (clauses : (local_clause * local_decomposed_clause_head) list) =
+  let arg_tys =
+    List.init arity (fun i ->
+        let pats =
+          List.filter_map
+            (fun (_, ({ args; _ } : local_decomposed_clause_head)) -> List.nth_opt args i)
+            clauses
+        in
+        infer_case_arg_type pats)
+  in
+  let result_ty = infer_clause_result_type clauses in
+  if List.for_all Option.is_none arg_tys && Option.is_none result_ty then None
+  else
+    let parts =
+      List.map
+        (fun ty -> string_of_term (Option.value ~default:(parse_generated_term "_") ty))
+        (arg_tys @ [ result_ty ])
+    in
+    Some (parse_generated_term (String.concat " → " parts))
+
+let fresh_clause_args arity terms =
+  let rec names_of_obs accum = function
+    | [] -> accum
+    | Token _ :: obs | Ss_token _ :: obs -> names_of_obs accum obs
+    | Term tm :: obs -> names_of_tm (names_of_obs accum obs) (Wrap tm)
+  and names_of_tm accum (Wrap tm) =
+    match tm.value with
+    | Ident ([ x ], _) -> StringSet.add x accum
+    | Ident (_, _) | Placeholder _ | Hole _ | Constr _ | Field _ | HigherField _ -> accum
+    | Superscript (Some tm, _, _) -> names_of_tm accum (Wrap tm)
+    | Superscript (None, _, _) -> accum
+    | App { fn; arg; _ } -> names_of_tm (names_of_tm accum (Wrap fn)) (Wrap arg)
+    | Notn (_, d) -> names_of_obs accum (args d)
+  in
+  let used = List.fold_left names_of_tm StringSet.empty terms in
+  let rec choose i acc =
+    if List.length acc = arity then List.rev acc
+    else
+      let name = "clause_arg" ^ string_of_int i in
+      if StringSet.mem name used || List.mem name acc then choose (i + 1) acc
+      else choose (i + 1) (name :: acc)
+  in
+  choose 1 []
+
+let token_part tok = `Tok tok
+let term_part tm = `Term tm
+
+let higher_field_tm fld pbij =
+  if List.is_empty pbij then ident_tm fld else Wrap (locate_opt None (HigherField (fld, pbij, [])))
+
+let build_case_term discrs branches =
+  let discr_obs =
+    match discrs with
+    | [] -> fatal (Anomaly "empty discriminees in generated case")
+    | discr :: discrs ->
+        [ term_part discr ] @ List.concat_map (fun tm -> [ token_part (Token.Op ","); term_part tm ]) discrs
+  in
+  let branch_obs (patterns, rhs) =
+    let rec pats acc = function
+      | [] -> acc
+      | [ pat ] -> acc @ [ term_part pat ]
+      | pat :: rest -> pats (acc @ [ term_part pat; token_part (Token.Op ",") ]) rest
+    in
+    pats [] patterns @ [ token_part Token.Arrow; term_part rhs ]
+  in
+  let branches_obs =
+    match branches with
+    | [] -> []
+    | first :: rest ->
+        branch_obs first @ List.concat_map (fun branch -> [ token_part (Token.Op ";") ] @ branch_obs branch) rest
+  in
+  build_outfix_tm implicit_case
+    ([ token_part Token.Case ]
+    @ discr_obs
+    @ [ token_part Token.Of; token_part Token.LBrace ]
+    @ branches_obs
+    @ [ token_part Token.RBrace ])
+
+let build_record_term fields =
+  let field_obs (fld, pbij, tm) =
+    [ term_part (higher_field_tm fld pbij); token_part (Token.Op "="); term_part tm ]
+  in
+  let fields_obs =
+    match fields with
+    | [] -> []
+    | first :: rest ->
+        field_obs first @ List.concat_map (fun field -> [ token_part (Token.Op ";") ] @ field_obs field) rest
+  in
+  build_outfix_tm comatch
+    ([ token_part Token.Record; token_part Token.LBrace ] @ fields_obs @ [ token_part Token.RBrace ])
+
+let string_of_local_name ?loc = function
+  | [ name ] -> name
+  | name ->
+      fatal ?loc
+        (Invalid_notation_pattern
+           ("local definitions in let-blocks must use unqualified names, not "
+          ^ String.concat "." name))
+
+let local_sig_name ({ name; _ } : local_type_sig) =
+  match strip_outer_parens name with
+  | Wrap { value = Ident (name, _); loc } -> (name, loc)
+  | Wrap { value = Constr (c, _, _); loc } ->
+      fatal ?loc (Invalid_notation_head (Constr.to_string (Constr.intern c)))
+  | Wrap { loc; _ } -> fatal ?loc Parse_error
+
+let decompose_local_copattern_head fld pbij loc outer_args =
+  match outer_args with
+  | [] -> fatal ?loc Parse_error
+  | target :: args -> (
+      match strip_outer_parens target with
+      | Wrap { value = Ident (name, _); loc = target_loc } ->
+          let loc = match target_loc with Some _ -> target_loc | None -> loc in
+          { name; loc; args; kind = Local_copattern_clause (fld, pbij) }
+      | Wrap { value = Constr (c, _, _); loc } ->
+          fatal ?loc (Invalid_notation_head (Constr.to_string (Constr.intern c)))
+      | Wrap { loc; _ } ->
+          fatal ?loc
+            (Invalid_notation_pattern
+               "copattern clauses must start with a field name followed by the defined constant name"))
+
+let decompose_local_clause_head ?(prefer_ordinary = fun _ -> false) (lhs : wrapped_parse) :
+    local_decomposed_clause_head =
+  let head, outer_args = split_app_spine [] lhs in
+  match head with
+  | Wrap { value = HigherField (fld, pbij, _); loc } ->
+      decompose_local_copattern_head fld (expand_compact_suffix pbij) loc outer_args
+  | Wrap { value = Ident ([ fld ], _); loc }
+    when Scope.lookup_field [ fld ] <> None
+         && not (List.is_empty outer_args)
+         && not (prefer_ordinary [ fld ]) ->
+      decompose_local_copattern_head fld [] loc outer_args
+  | Wrap { value = Ident (name, _); loc } ->
+      { name; loc; args = outer_args; kind = Local_ordinary_clause }
+  | Wrap { value = Constr (c, _, _); loc } ->
+      fatal ?loc (Invalid_notation_head (Constr.to_string (Constr.intern c)))
+  | Wrap { value = Notn (notn, d); loc } -> (
+      match Scope.lookup_notation (name notn) with
+      | Some (user, compiled) ->
+          let key, binder, val_vars = prenotation_info user in
+          if Option.is_some binder then
+            fatal ?loc (Invalid_notation_pattern "binder notations are not available in clause heads");
+          let term_args =
+            List.filter_map
+              (function
+                | Term tm -> Some (Wrap tm : wrapped_parse)
+                | _ -> None)
+              (args d)
+          in
+          let args_by_pattern =
+            try
+              List.fold_left2
+                (fun acc key tm -> StringsMap.add [ key ] tm acc)
+                StringsMap.empty compiled.pat_vars term_args
+            with Invalid_argument _ ->
+              fatal ?loc (Anomaly "invalid user notation shape in clause head")
+          in
+          let inner_args =
+            List.map
+              (fun key ->
+                match StringsMap.find_opt [ key ] args_by_pattern with
+                | Some arg -> arg
+                | None -> fatal ?loc (Anomaly "missing clause-head argument for notation"))
+              val_vars
+          in
+          (match key with
+          | `Constant c ->
+              { name = Scope.name_of c; loc; args = inner_args @ outer_args; kind = Local_ordinary_clause }
+          | `Constr (c, _) -> fatal ?loc (Invalid_notation_head (Constr.to_string c)))
+      | None -> fatal ?loc (Invalid_notation_head (name notn)))
+  | Wrap { loc; _ } -> fatal ?loc Parse_error
+
+type clause_binder = string option * [ `Explicit | `Implicit ]
+
+let simple_clause_binder arg =
+  match strip_outer_parens arg with
+  | Wrap { value = Ident ([ x ], _); _ } -> Some (Some x, `Explicit)
+  | Wrap { value = Placeholder _; _ } -> Some (None, `Explicit)
+  | Wrap { value = Notn ((Postprocess.Braces, _), n); _ } -> (
+      match args n with
+      | [ Token (LBrace, _); Term { value = Ident ([ x ], _); _ }; Token (RBrace, _) ] ->
+          Some (Some x, `Implicit)
+      | [ Token (LBrace, _); Term { value = Placeholder _; _ }; Token (RBrace, _) ] ->
+          Some (None, `Implicit)
+      | _ -> None)
+  | _ -> None
+
+let string_of_clause_binder (name, implicitness) =
+  let name = Option.value ~default:"_" name in
+  match implicitness with
+  | `Explicit -> name
+  | `Implicit -> "{ " ^ name ^ " }"
+
+let rec string_of_do_entries_fallback = function
+  | Term body :: Token (RBrace, _) :: [] -> string_of_generated_term (Wrap body)
+  | Term binder :: Token (Bind, _) :: Term tm :: Token (Op ";", _) :: obs ->
+      string_of_generated_term (Wrap binder)
+      ^ " ← "
+      ^ string_of_generated_term (Wrap tm)
+      ^ "; "
+      ^ string_of_do_entries_fallback obs
+  | _ -> invalid "do fallback"
+
+and string_of_do_fallback_obs = function
+  | Token (Do, _) :: Token (LBrace, _) :: obs -> "do { " ^ string_of_do_entries_fallback obs ^ " }"
+  | _ -> invalid "do fallback"
+
+and string_of_local_cmd_fallback = function
+  | Local_type_sig { name; ty } ->
+      string_of_generated_term name ^ " : " ^ string_of_generated_term ty
+  | Local_clause { lhs; body } ->
+      let rec rhs_to_string = function
+        | Local_body { tm; where_block = None } -> "= " ^ string_of_generated_term tm
+        | Local_body { tm; where_block = Some cmds } ->
+            "= "
+            ^ string_of_generated_term tm
+            ^ " where { "
+            ^ String.concat "; " (List.map string_of_local_cmd_fallback cmds)
+            ^ " }"
+        | Local_with_block { items; branches } ->
+            "with "
+            ^ String.concat " | " (List.map string_of_generated_term items)
+            ^ " "
+            ^ String.concat
+                " "
+                (List.map
+                   (fun { patterns; rhs } ->
+                     "... | " ^ String.concat " | " (List.map string_of_generated_term patterns) ^ " "
+                     ^ rhs_to_string rhs)
+                   branches)
+        | Local_rewrite_block { proofs; tail } ->
+            "rewrite " ^ String.concat " | " (List.map string_of_generated_term proofs) ^ " "
+            ^ rhs_to_string tail
+      in
+      string_of_generated_term lhs ^ " " ^ rhs_to_string body
+
+and string_of_letblock_fallback_obs obs =
+  let cmds, body = parse_letblock_obs obs in
+  "let { "
+  ^ String.concat "; " (List.map string_of_local_cmd_fallback cmds)
+  ^ " } in "
+  ^ string_of_generated_term body
+
+and canonicalize_case_branches_fallback obs =
+  let rec go first = function
+    | [ Token (RBracket, ws) ] -> [ Token (RBrace, ws) ]
+    | [ Token (RBrace, ws) ] -> [ Token (RBrace, ws) ]
+    | Token (Op "|", _) :: obs when first -> go false obs
+    | Token (Op "|", ws) :: obs -> Token (Op ";", ws) :: go false obs
+    | Token (Mapsto, ws) :: obs -> Token (Arrow, ws) :: go false obs
+    | obs :: rest -> obs :: go false rest
+    | [] -> []
+  in
+  go true obs
+
+and string_of_case_patterns_fallback acc = function
+  | Term pat :: Token (Op ",", _) :: rest ->
+      string_of_case_patterns_fallback (string_of_generated_term (Wrap pat) :: acc) rest
+  | Term pat :: rest -> (List.rev (string_of_generated_term (Wrap pat) :: acc), rest)
+  | _ -> invalid "case fallback patterns"
+
+and string_of_case_branches_fallback = function
+  | [ Token (RBrace, _) ] -> []
+  | obs ->
+      let pats, obs = string_of_case_patterns_fallback [] obs in
+      match obs with
+      | Token ((Arrow | DblMapsto), _) :: Term body :: Token (Op ";", _) :: rest ->
+          (String.concat ", " pats ^ " → " ^ string_of_generated_term (Wrap body))
+          :: string_of_case_branches_fallback rest
+      | Token ((Arrow | DblMapsto), _) :: Term body :: [ Token (RBrace, _) ] ->
+          [ String.concat ", " pats ^ " → " ^ string_of_generated_term (Wrap body) ]
+      | _ -> invalid "case fallback branches"
+
+and string_of_case_discriminees acc = function
+  | Term tm :: Token (Op ",", _) :: obs ->
+      string_of_case_discriminees (string_of_generated_term (Wrap tm) :: acc) obs
+  | Term tm :: (Token (Return, _) :: _ as obs) ->
+      (List.rev (string_of_generated_term (Wrap tm) :: acc), obs)
+  | Term tm :: (Token (Of, _) :: _ as obs) ->
+      (List.rev (string_of_generated_term (Wrap tm) :: acc), obs)
+  | Term tm :: (Token (LBracket, _) :: _ as obs) ->
+      (List.rev (string_of_generated_term (Wrap tm) :: acc), obs)
+  | _ -> invalid "case fallback discriminees"
+
+and string_of_case_fallback_obs = function
+  | Token ((Match | Case), _) :: obs ->
+      let discrs, obs = string_of_case_discriminees [] obs in
+      let head = "case " ^ String.concat ", " discrs in
+      (match obs with
+      | Token (Return, _) :: Term motive :: Token (LBracket, _) :: obs ->
+          let branches = string_of_case_branches_fallback (canonicalize_case_branches_fallback obs) in
+          head
+          ^ " return "
+          ^ string_of_generated_term (Wrap motive)
+          ^ " of { "
+          ^ String.concat "; " branches
+          ^ " }"
+      | Token (Return, _) :: Term motive :: Token (Of, _) :: Token (LBrace, _) :: obs ->
+          let branches = string_of_case_branches_fallback (canonicalize_case_branches_fallback obs) in
+          head
+          ^ " return "
+          ^ string_of_generated_term (Wrap motive)
+          ^ " of { "
+          ^ String.concat "; " branches
+          ^ " }"
+      | Token (Return, _) :: Term motive :: Token (Of, _) :: Token (Lambda, _) :: Token (LBrace, _) :: obs ->
+          let branches = string_of_case_branches_fallback (canonicalize_case_branches_fallback obs) in
+          head
+          ^ " return "
+          ^ string_of_generated_term (Wrap motive)
+          ^ " of { "
+          ^ String.concat "; " branches
+          ^ " }"
+      | Token (LBracket, _) :: obs
+      | Token (Of, _) :: Token (LBrace, _) :: obs
+      | Token (Of, _) :: Token (Lambda, _) :: Token (LBrace, _) :: obs ->
+          let branches = string_of_case_branches_fallback (canonicalize_case_branches_fallback obs) in
+          head ^ " of { " ^ String.concat "; " branches ^ " }"
+      | _ -> invalid "case fallback")
+  | _ -> invalid "case fallback"
+
+and string_of_generated_term tm = (!string_of_generated_term_ref).f tm
+
+let wrap_abs binders tm =
+  parse_generated_term
+    ("λ " ^ String.concat " " (List.map string_of_clause_binder binders) ^ " → "
+   ^ string_of_generated_term tm)
+
+let lower_case_only_body args (clauses : (local_clause * local_decomposed_clause_head) list) =
+  let clause_tm ({ body; _ } : local_clause) =
+    match body with
+    | Local_body { tm; where_block = None } -> tm
+    | _ -> fatal (Anomaly "local clause body not lowered before case lowering")
+  in
+  match clauses with
+  | [ (clause, ({ args = []; _ } : local_decomposed_clause_head)) ] when List.is_empty args -> clause_tm clause
+  | _ ->
+      let discrs = typed_case_args args clauses in
+      let branches =
+        List.map
+          (fun ((clause : local_clause), ({ args; _ } : local_decomposed_clause_head)) ->
+            (args, clause_tm clause))
+          clauses
+      in
+      build_case_term discrs branches
+
+let lower_clause_body args (clauses : (local_clause * local_decomposed_clause_head) list) =
+  match clauses with
+  | [ ({ body = Local_body { tm; where_block = None }; _ }, ({ args = []; _ } : local_decomposed_clause_head)) ]
+    when List.is_empty args ->
+      tm
+  | [ ({ body = Local_body { tm; where_block = None }; _ }, ({ args = pats; _ } : local_decomposed_clause_head)) ] -> (
+      match List.map simple_clause_binder pats with
+      | binders when List.for_all Option.is_some binders ->
+          let binders = List.map Option.get binders in
+          wrap_abs binders tm
+      | _ -> wrap_abs (List.map (fun x -> (Some x, `Explicit)) args) (lower_case_only_body args clauses))
+  | _ -> wrap_abs (List.map (fun x -> (Some x, `Explicit)) args) (lower_case_only_body args clauses)
+
+let lower_copattern_body args (clauses : (local_clause * local_decomposed_clause_head) list) =
+  let fields, clause_args =
+    List.fold_left
+      (fun (fields, clause_args)
+           (((clause : local_clause), ({ args = pats; kind; _ } : local_decomposed_clause_head)) :
+             local_clause * local_decomposed_clause_head) ->
+        match (clause.body, kind) with
+        | Local_body { tm = _; where_block = None }, Local_ordinary_clause ->
+            fatal (Anomaly "ordinary clause in copattern lowering")
+        | Local_body { tm; where_block = None }, Local_copattern_clause (fld, pbij) ->
+            let clause_args =
+              match clause_args with
+              | None -> Some pats
+              | Some prev ->
+                  if List.map string_of_term prev <> List.map string_of_term pats then
+                    fatal
+                      (Invalid_notation_pattern
+                         "all copattern clauses for one definition must use the same patterns");
+                  Some prev
+            in
+            if List.exists (fun (fld', pbij', _) -> fld = fld' && pbij = pbij') fields then
+              fatal (Duplicate_method_in_comatch (fld, pbij));
+            (fields @ [ (fld, pbij, tm) ], clause_args)
+        | _ -> fatal (Anomaly "copattern clause body not lowered before lowering"))
+      ([], None) clauses
+  in
+  let clause_args = Option.value ~default:[] clause_args in
+  let record_tm = build_record_term fields in
+  match clause_args with
+  | [] -> record_tm
+  | pats -> (
+      match List.map simple_clause_binder pats with
+      | binders when List.for_all Option.is_some binders ->
+          let binders = List.map Option.get binders in
+          wrap_abs binders record_tm
+      | _ ->
+          let discrs = typed_case_args args clauses in
+          wrap_abs (List.map (fun x -> (Some x, `Explicit)) args) (build_case_term discrs [ (pats, record_tm) ]))
+
+let build_local_letblock_term defs body =
+  let cmd_string_of_def ({ name; loc; ty; tm } : local_def) =
+    let name = string_of_local_name ?loc name in
+    match ty with
+    | Some ty ->
+        name ^ " : " ^ string_of_generated_term ty ^ "; " ^ name ^ " = " ^ string_of_generated_term tm
+    | None -> name ^ " = " ^ string_of_generated_term tm
+  in
+  let defs =
+    String.concat "; " (List.map cmd_string_of_def defs)
+  in
+  parse_generated_term
+    ("let { " ^ defs ^ " } in " ^ string_of_generated_term body)
+
+let build_local_letrec_obs defs body =
+  let binding_obs first ({ name; loc; ty; tm } : local_def) =
+    let start =
+      if first then [ obs_token Let; obs_token Rec ] else [ obs_token And ]
+    in
+    start
+    @ [ obs_term (ident_tm (string_of_local_name ?loc name)) ]
+    @ [ obs_token Colon; obs_term (Option.value ~default:(placeholder_tm ()) ty) ]
+    @ [ obs_token (Op "="); obs_term tm ]
+  in
+  List.concat
+    (List.mapi (fun i def -> binding_obs (i = 0) def) defs)
+  @ [ obs_token In; obs_term body ]
+
+let rec build_local_clause_rhs_tm = function
+  | Local_body { tm; where_block = None } -> tm
+  | Local_body { tm; where_block = Some cmds } ->
+      let defs = local_defs_of_pending_commands ~infer_missing_tys:true cmds in
+      build_local_letblock_term defs tm
+  | Local_with_block { items; branches } ->
+      let items_obs =
+        match items with
+        | [] -> fatal (Invalid_notation_pattern "with requires at least one item")
+        | first :: rest ->
+            [ term_part first ] @ List.concat_map (fun tm -> [ token_part (Token.Op "|"); term_part tm ]) rest
+      in
+      let branch_obs ({ patterns; rhs } : local_clause_branch) =
+        [ token_part Token.Ellipsis ]
+        @ List.concat_map (fun pat -> [ token_part (Token.Op "|"); term_part pat ]) patterns
+        @ [ term_part (build_local_clause_rhs_tm rhs) ]
+      in
+      let branches_obs =
+        match branches with
+        | [] -> fatal (Invalid_notation_pattern "with requires at least one branch")
+        | first :: rest ->
+            branch_obs first @ List.concat_map (fun branch -> [ token_part (Token.Op ";") ] @ branch_obs branch) rest
+      in
+      build_outfix_tm internal_with
+        ([ token_part Token.With; token_part Token.LBrace ]
+        @ items_obs
+        @ [ token_part (Token.Op ";") ]
+        @ branches_obs
+        @ [ token_part Token.RBrace ])
+  | Local_rewrite_block { proofs; tail } ->
+      let proofs_obs =
+        match proofs with
+        | [] -> fatal (Invalid_notation_pattern "rewrite requires at least one proof")
+        | first :: rest ->
+            [ term_part first ] @ List.concat_map (fun tm -> [ token_part (Token.Op "|"); term_part tm ]) rest
+      in
+      build_outfix_tm internal_with
+        ([ token_part Token.Rewrite; token_part Token.LBrace ]
+        @ proofs_obs
+        @ [ token_part (Token.Op ";"); term_part (build_local_clause_rhs_tm tail); token_part Token.RBrace ])
+
+and lower_local_clause_rhs ({ body; _ } : local_clause) = build_local_clause_rhs_tm body
+
+and terms_of_local_clause_rhs = function
+  | Local_body { tm; where_block = None } -> [ tm ]
+  | Local_body { tm; where_block = Some cmds } ->
+      tm
+      :: List.concat_map
+           (function
+             | Local_type_sig { ty; _ } -> [ ty ]
+             | Local_clause { lhs; body } -> lhs :: terms_of_local_clause_rhs body)
+           cmds
+  | Local_with_block { items; branches } ->
+      items @ List.concat_map (fun { patterns; rhs } -> patterns @ terms_of_local_clause_rhs rhs) branches
+  | Local_rewrite_block { proofs; tail } -> proofs @ terms_of_local_clause_rhs tail
+
+and local_defs_of_pending_commands ?(infer_missing_tys = false) cmds =
+  let signature_names =
+    List.fold_left
+      (fun names -> function
+        | Local_type_sig sig_cmd ->
+            let name, _ = local_sig_name sig_cmd in
+            StringsMap.add name () names
+        | Local_clause _ -> names)
+      StringsMap.empty cmds
+  in
+  let prefer_ordinary grouped name =
+    StringsMap.mem name signature_names || StringsMap.mem name grouped
+  in
+  let add_first_seen name order =
+    if List.exists (( = ) name) order then order else order @ [ name ]
+  in
+  let grouped, order =
+    List.fold_left
+      (fun (grouped, order) cmd ->
+        match cmd with
+        | Local_type_sig sig_cmd ->
+            let name, _ = local_sig_name sig_cmd in
+            let entry =
+              match StringsMap.find_opt name grouped with
+              | Some entry ->
+                  if Option.is_some entry.signature then
+                    fatal (Invalid_notation_pattern "duplicate type signature in definition group");
+                  { entry with signature = Some sig_cmd }
+              | None -> { signature = Some sig_cmd; clauses = [] }
+            in
+            (StringsMap.add name entry grouped, add_first_seen name order)
+        | Local_clause clause ->
+            let head = decompose_local_clause_head ~prefer_ordinary:(prefer_ordinary grouped) clause.lhs in
+            let entry =
+              match StringsMap.find_opt head.name grouped with
+              | Some entry -> { entry with clauses = entry.clauses @ [ (clause, head) ] }
+              | None -> { signature = None; clauses = [ (clause, head) ] }
+            in
+            (StringsMap.add head.name entry grouped, add_first_seen head.name order))
+      (StringsMap.empty, []) cmds
+  in
+  List.map
+    (fun name ->
+      let { signature; clauses } = StringsMap.find name grouped in
+      match clauses with
+      | [] -> fatal (Invalid_notation_pattern "type signature must be followed by at least one clause")
+      | (_, first_head) :: rest ->
+          let arity = List.length first_head.args in
+          List.iter
+            (fun (_, ({ args; loc; kind; _ } : local_decomposed_clause_head)) ->
+              if List.length args <> arity then
+                fatal ?loc (Invalid_notation_pattern "all clauses for one definition must have the same arity");
+              match (first_head.kind, kind) with
+              | Local_ordinary_clause, Local_ordinary_clause -> ()
+              | Local_copattern_clause _, Local_copattern_clause _ -> ()
+              | _ ->
+                  fatal ?loc
+                    (Invalid_notation_pattern
+                       "ordinary clauses and copattern clauses cannot be mixed in one definition"))
+            rest;
+          (match first_head.kind with
+          | Local_ordinary_clause ->
+              if arity = 0 && List.length clauses > 1 then
+                fatal ?loc:first_head.loc
+                  (Invalid_notation_pattern "a nullary definition may not have more than one clause")
+          | Local_copattern_clause _ -> ());
+          let loc =
+            match signature with
+            | Some sig_cmd -> snd (local_sig_name sig_cmd)
+            | None -> first_head.loc
+          in
+          let clauses =
+            List.map
+              (fun ((clause : local_clause), head) ->
+                ({ clause with body = Local_body { tm = lower_local_clause_rhs clause; where_block = None } }, head))
+              clauses
+          in
+          let inferred_ty =
+            match (infer_missing_tys, signature, first_head.kind) with
+            | true, None, Local_ordinary_clause -> infer_local_clause_group_type arity clauses
+            | _ -> None
+          in
+          let used_terms =
+            List.concat_map
+              (fun ((({ body; _ } : local_clause), ({ args; _ } : local_decomposed_clause_head)) :
+                    local_clause * local_decomposed_clause_head) ->
+                terms_of_local_clause_rhs body @ args)
+              clauses
+          in
+          let clause_args = fresh_clause_args arity used_terms in
+          let ty =
+            let sig_ty = Option.map (fun ({ ty; _ } : local_type_sig) -> ty) signature in
+            match sig_ty with Some _ -> sig_ty | None -> inferred_ty
+          in
+          {
+            name;
+            loc;
+            ty;
+            tm =
+              (match first_head.kind with
+              | Local_ordinary_clause -> lower_clause_body clause_args clauses
+              | Local_copattern_clause _ -> lower_copattern_body clause_args clauses);
+          })
+    order
+
+let process_letblock : type n.
+    (string option, n) Bwv.t -> observation list -> Asai.Range.t option -> n check located =
+ fun ctx obs loc ->
+  let cmds, body = parse_letblock_obs obs in
+  match cmds with
+  | [] -> process_wrapped ctx body
+  | _ ->
+      let defs = local_defs_of_pending_commands ~infer_missing_tys:true cmds in
+      process_letrec ctx (build_local_letrec_obs defs body) loc
+
+let () = process_letblock_ref := { f = process_letblock }
 
 (* ****************************************
    Printing abstractions and let-bindings
@@ -715,6 +1910,10 @@ let pp_abslet_case triv obs =
                 optional (pp_ws `Break) absws ^^ newbody,
                 wsbody )))
 
+let () =
+  pp_abslet_term_ref := { pp_term_abslet = pp_abslet_term };
+  pp_abslet_case_ref := { pp_case_abslet = pp_abslet_case }
+
 (* An abstraction should be printed as a case tree if its body is. *)
 let abs_is_case = function
   | [ Token (Lambda, _); _; Token (Arrow, _); Term body ] -> is_case body
@@ -755,11 +1954,11 @@ let () =
   make letin
     {
       name = "let";
-      tree = letin_tree (Op "=") letin;
+      tree = letin_tree ~with_block:true (Op "=") letin;
       processor = (fun ctx obs loc -> process_let ctx obs loc);
       pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "let"));
-      print_term = Some pp_abslet_term;
-      print_case = Some pp_abslet_case;
+      print_term = Some pp_let_term;
+      print_case = Some pp_let_case;
       (* However, a let-binding is always printed as a case tree. *)
       is_case = (fun _ -> true);
     };
@@ -773,14 +1972,24 @@ let () =
       print_case = Some pp_abslet_case;
       is_case = (fun _ -> true);
     };
+  make letblock
+    {
+      name = "let_block";
+      tree = letblock_tree letblock;
+      processor = process_letblock;
+      pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "let block"));
+      print_term = Some pp_letblock_term;
+      print_case = Some pp_letblock_case;
+      is_case = (fun _ -> true);
+    };
   make letrec
     {
       name = "letrec";
       tree = letrec_tree (Op "=") letrec;
       processor = process_letrec;
       pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "let rec"));
-      print_term = Some pp_abslet_term;
-      print_case = Some pp_abslet_case;
+      print_term = Some pp_legacy_letrec_term;
+      print_case = Some pp_legacy_letrec_case;
       is_case = (fun _ -> true);
     };
   make legacyletrec
@@ -789,8 +1998,8 @@ let () =
       tree = letrec_tree Coloneq legacyletrec;
       processor = process_letrec;
       pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "legacy let rec"));
-      print_term = Some pp_abslet_term;
-      print_case = Some pp_abslet_case;
+      print_term = Some pp_legacy_letrec_term;
+      print_case = Some pp_legacy_letrec_case;
       is_case = (fun _ -> true);
     }
 
@@ -872,22 +2081,22 @@ and process_do : type n.
 let rec pp_do_entries prews accum obs : document * Whitespace.t list =
   match obs with
   | Term body :: Token (RBrace, (wsrbrace, _)) :: [] ->
-      let pbody, wbody = pp_term body in
-      ( accum ^^ optional (pp_ws `Nobreak) prews ^^ pbody ^^ pp_ws `None wbody ^^ Token.pp RBrace,
+      let ibody, pbody, wbody = pp_case `Nontrivial body in
+      ( accum ^^ optional (pp_ws `Break) prews ^^ ibody ^^ pbody ^^ pp_ws `None wbody,
         wsrbrace )
   | Term binder :: Token (Bind, (wsbind, _)) :: Term tm :: Token (Op ";", (wssemi, _)) :: obs ->
       let pbinder, wbinder = pp_term binder in
-      let ptm, wtm = pp_term tm in
+      let itm, ptm, wtm = pp_case `Nontrivial tm in
       pp_do_entries (Some wssemi)
         ( accum
-        ^^ optional (pp_ws `Nobreak) prews
+        ^^ optional (pp_ws `Break) prews
         ^^ pbinder
         ^^ pp_ws `Break wbinder
         ^^ Token.pp Bind
         ^^ pp_ws `Break wsbind
+        ^^ itm
         ^^ ptm
-        ^^ pp_ws `None wtm
-        ^^ Token.pp (Op ";") )
+        ^^ pp_ws `None wtm )
         obs
   | _ -> invalid "do"
 
@@ -895,7 +2104,9 @@ let pp_do _obs =
   function
   | Token (Do, (wsdo, _)) :: Token (LBrace, (wslbrace, _)) :: obs ->
       let body, ws = pp_do_entries None empty obs in
-      (Token.pp Do ^^ pp_ws `Nobreak wsdo ^^ Token.pp LBrace, pp_ws `Break wslbrace ^^ body, ws)
+      ( Token.pp Do,
+        nest 2 (pp_ws `Break wsdo ^^ pp_ws `Break wslbrace ^^ body),
+        ws )
   | _ -> invalid "do"
 
 let () =
@@ -1316,7 +2527,7 @@ let () =
             match obs with
             | [ Term x; Token (Coloneq, (wscoloneq, _)); Term body ] ->
                 let px, wx = pp_term x in
-                let ibody, pbody, wbody = pp_case `Nontrivial body in
+                let ibody, pbody, wbody = pp_case `Trivial body in
                 ( group
                     (px ^^ pp_ws `Break wx ^^ Token.pp Coloneq ^^ pp_ws `Nobreak wscoloneq ^^ ibody),
                   pbody,
@@ -1466,7 +2677,7 @@ let pp_tuple_case triv obs =
           | `Trivial -> (Token.pp LParen, group (align (pp_ws `None wslparen ^^ doc)), ws)
           | `Nontrivial -> (Token.pp LParen, group (nest 2 (pp_ws `Cut wslparen ^^ doc)), ws)))
   | `Parens (wslparen, Wrap body, wsrparen) ->
-      let ibody, pbody, wbody = pp_case `Nontrivial body in
+      let ibody, pbody, wbody = pp_case `Trivial body in
       ( Token.pp LParen ^^ pp_ws `None wslparen ^^ ibody,
         pbody ^^ pp_ws `None wbody ^^ Token.pp RParen,
         wsrparen )
@@ -1525,20 +2736,81 @@ let () =
 
 (* Parsing for implicit matches, explicit (including nondependent) matches, and pattern-matching lambdas shares some code. *)
 
-type (_, _, _) identity +=
-  | Implicit_match : (closed, No.plus_omega, closed) identity
-  | Explicit_match : (closed, No.plus_omega, closed) identity
-  | Implicit_case : (closed, No.plus_omega, closed) identity
-  | Explicit_case : (closed, No.plus_omega, closed) identity
-  | Matchlam : (closed, No.plus_omega, closed) identity
-  | Legacy_brackets : (closed, No.plus_omega, closed) identity
+let rec string_of_internal_with_obs = function
+  | Token (With, _) :: Token (LBrace, _) :: obs -> (
+      let rec items acc = function
+        | Term tm :: Token (Op "|", _) :: obs -> items (string_of_generated_term (Wrap tm) :: acc) obs
+        | Term tm :: Token (Op ";", _) :: obs -> (List.rev (string_of_generated_term (Wrap tm) :: acc), obs)
+        | _ -> invalid "internal with"
+      in
+      let rec branches acc = function
+        | [ Token (RBrace, _) ] -> List.rev acc
+        | Token (Ellipsis, _) :: obs ->
+            let rec pats acc = function
+              | Token (Op "|", _) :: Term pat :: Token (Op "|", _) :: _ as obs ->
+                  pats (string_of_generated_term (Wrap pat) :: acc) obs
+              | Token (Op "|", _) :: Term pat :: Term body :: rest ->
+                  ( List.rev (string_of_generated_term (Wrap pat) :: acc),
+                    string_of_generated_term (Wrap body),
+                    rest )
+              | _ -> invalid "internal with branch"
+            in
+            let pats, body, rest = pats [] obs in
+            let acc = ("... | " ^ String.concat " | " pats ^ " " ^ body) :: acc in
+            (match rest with
+            | Token (Op ";", _) :: rest -> branches acc rest
+            | [ Token (RBrace, _) ] -> List.rev acc
+            | _ -> invalid "internal with branches")
+        | _ -> invalid "internal with branches"
+      in
+      let items, obs = items [] obs in
+      "with " ^ String.concat " | " items ^ " " ^ String.concat " " (branches [] obs))
+  | Token (Rewrite, _) :: Token (LBrace, _) :: obs -> (
+      let rec proofs acc = function
+        | Term tm :: Token (Op "|", _) :: obs -> proofs (string_of_generated_term (Wrap tm) :: acc) obs
+        | Term tm :: Token (Op ";", _) :: Term body :: [ Token (RBrace, _) ] ->
+            (List.rev (string_of_generated_term (Wrap tm) :: acc), string_of_generated_term (Wrap body))
+        | _ -> invalid "internal rewrite"
+      in
+      let proofs, body = proofs [] obs in
+      "rewrite " ^ String.concat " | " proofs ^ " " ^ body)
+  | _ -> invalid "internal with"
 
-let implicit_mtch : (closed, No.plus_omega, closed) notation = (Implicit_match, Outfix)
-let explicit_mtch : (closed, No.plus_omega, closed) notation = (Explicit_match, Outfix)
-let implicit_case : (closed, No.plus_omega, closed) notation = (Implicit_case, Outfix)
-let explicit_case : (closed, No.plus_omega, closed) notation = (Explicit_case, Outfix)
-let mtchlam : (closed, No.plus_omega, closed) notation = (Matchlam, Outfix)
-let legacy_brackets : (closed, No.plus_omega, closed) notation = (Legacy_brackets, Outfix)
+and string_of_generated_term_impl tm =
+  match strip_outer_parens tm with
+  | Wrap { value = Notn ((Abs, _), d); _ } -> (
+      match args d with
+      | [ Token (Lambda, _); Term vars; Token (Arrow, _); Term body ] ->
+          "λ " ^ string_of_term (Wrap vars) ^ " → " ^ string_of_generated_term (Wrap body)
+      | _ -> string_of_term tm)
+  | Wrap { value = Notn ((Legacy_abs, _), d); _ } -> (
+      match args d with
+      | [ Term vars; Token (Mapsto, _); Term body ] ->
+          "λ " ^ string_of_term (Wrap vars) ^ " → " ^ string_of_generated_term (Wrap body)
+      | _ -> string_of_term tm)
+  | Wrap { value = Notn ((Cubeabs, _), d); _ } -> (
+      match args d with
+      | [ Term vars; Token (DblMapsto, _); Term body ] ->
+          string_of_term (Wrap vars) ^ " ⤇ " ^ string_of_generated_term (Wrap body)
+      | _ -> string_of_term tm)
+  | Wrap { value = Notn ((Implicit_match, _), d); _ } -> string_of_case_fallback_obs (args d)
+  | Wrap { value = Notn ((Explicit_match, _), d); _ } -> string_of_case_fallback_obs (args d)
+  | Wrap { value = Notn ((Implicit_case, _), d); _ } -> string_of_case_fallback_obs (args d)
+  | Wrap { value = Notn ((Explicit_case, _), d); _ } -> string_of_case_fallback_obs (args d)
+  | Wrap { value = Notn ((Internal_with, _), d); _ } -> string_of_internal_with_obs (args d)
+  | Wrap { value = Notn ((Do_notation, _), d); _ } -> string_of_do_fallback_obs (args d)
+  | Wrap { value = Notn ((Let, _), d); _ } -> (
+      match args d with
+      | Token (Let, _) :: Token (LBrace, _) :: _ -> string_of_letblock_fallback_obs (args d)
+      | _ -> string_of_term tm)
+  | Wrap { value = Notn ((Legacy_let, _), d); _ } -> (
+      match args d with
+      | Token (Let, _) :: Token (LBrace, _) :: _ -> string_of_letblock_fallback_obs (args d)
+      | _ -> string_of_term tm)
+  | Wrap { value = Notn ((Letblock, _), d); _ } -> string_of_letblock_fallback_obs (args d)
+  | _ -> string_of_term tm
+
+let () = string_of_generated_term_ref := { f = string_of_generated_term_impl }
 
 (* Here are the basic match/case notation trees. *)
 
@@ -1900,6 +3172,88 @@ let rec process_branches : type a n.
       ( locate (Synth (Match { tm; sort; branches; refutables; highers = [] })) loc,
         List.flatten (Bwd.to_list highers) )
 
+type 'a compiled_with =
+  | Compiled_with :
+      ('a, 'm, 'am) Raw.Indexed.bplus * 'am check located * bool ref located list -> 'a compiled_with
+
+let process_internal_with ctx obs loc =
+  let process_item (Wrap item) =
+    match process ctx item with
+    | { value = Synth tm; loc } -> locate tm loc
+    | _ -> fatal ?loc:item.loc (Nonsynthesizing "with/rewrite item")
+  in
+  let rec parse_items acc obs =
+    match obs with
+    | Term tm :: Token (Op "|", _) :: rest -> parse_items (Wrap tm :: acc) rest
+    | Term tm :: Token (Op ";", _) :: rest -> (List.rev (Wrap tm :: acc), rest)
+    | _ -> invalid ?loc "internal with"
+  in
+  let compile_with_branches items obs =
+    let (Wrap item_vec) = Vec.of_list items in
+    let (Bplus am) = Raw.Indexed.bplus (Vec.length item_vec) in
+    let base = Matchscope.make ctx in
+    let xctx, nums = Matchscope.exts am base in
+    let xs = Vec.mmap (fun [ n ] -> Either.Right n) [ nums ] in
+    let arity = List.length items in
+    let rec patterns_of_list : type n. (wrapped_parse, n) Vec.t -> pattern list -> (pattern, n) Vec.t =
+     fun items pats ->
+      match (items, pats) with
+      | [], [] -> []
+      | _ :: items, pat :: pats -> pat :: patterns_of_list items pats
+      | _ -> invalid ?loc "internal with branch"
+    in
+    let parse_branch obs =
+      match obs with
+      | Token (Ellipsis, _) :: rest ->
+          let rec parse_patterns n acc obs =
+            match (n, obs) with
+            | 0, Term body :: rest -> (List.rev acc, Wrap body, rest)
+            | n, Token (Op "|", _) :: Term pat :: rest when n > 0 ->
+                parse_patterns (n - 1) (Postprocess.get_pattern pat :: acc) rest
+            | _ -> invalid ?loc "internal with branch"
+          in
+          let patterns, body, rest = parse_patterns arity [] rest in
+          let patterns = patterns_of_list item_vec patterns in
+          ((xctx, patterns, `Normal None, body), rest)
+      | _ -> invalid ?loc "internal with branch"
+    in
+    let rec parse_all acc obs =
+      match obs with
+      | [ Token (RBrace, _) ] -> List.rev acc
+      | _ ->
+          let branch, rest = parse_branch obs in
+          (match rest with
+          | Token (Op ";", _) :: rest -> parse_all (branch :: acc) rest
+          | [ Token (RBrace, _) ] -> List.rev (branch :: acc)
+          | _ -> invalid ?loc "internal with branches")
+    in
+    let body, highers = process_branches xctx xs Emp (parse_all [] obs) loc (`Implicit) in
+    Compiled_with (am, body, highers)
+  in
+  match obs with
+  | Token (Token.With, _) :: Token (LBrace, _) :: obs ->
+      let items, obs = parse_items [] obs in
+      let Compiled_with (am, body, _) = compile_with_branches items obs in
+      locate
+        (Synth
+           (Raw.With
+              (List.map (fun tm -> Raw.With_item (process_item tm)) items, am, body)))
+        loc
+  | Token (Token.Rewrite, _) :: Token (LBrace, _) :: obs ->
+      let proofs, obs = parse_items [] obs in
+      (match obs with
+      | Term body :: [ Token (RBrace, _) ] ->
+          let body = process ctx body in
+          locate
+            (Synth
+               (Raw.With
+                  ( List.map (fun tm -> Raw.Rewrite_item (process_item tm)) proofs,
+                    Raw.Zero,
+                    body )))
+            loc
+      | _ -> invalid ?loc "internal rewrite")
+  | _ -> invalid ?loc "internal with"
+
 let rec get_discriminees :
     observation list -> (wrapped_parse, int) Either.t Vec.wrapped * observation list =
  fun obs ->
@@ -1988,7 +3342,7 @@ let rec pp_branches endtok first triv accum prews obs : document * Whitespace.t 
       let ppats, wpats, obs = pp_patterns empty obs in
       match obs with
       | Token (mapsto, (wsmapsto, _)) :: Term body :: obs ->
-          let ibody, pbody, wbody = pp_case `Nontrivial body in
+          let ibody, pbody, wbody = pp_case `Trivial body in
           pp_branches endtok false triv
             (accum
             ^^ optional (pp_ws `Break) prews
@@ -2037,6 +3391,20 @@ let rec pp_discriminees accum prews obs : document * Whitespace.t list * observa
       (accum ^^ pp_ws `Break prews ^^ px, wx, obs)
   | _ -> invalid "(co)match 4"
 
+let rec pp_case_discriminees_canonical obs : document * observation list =
+  match obs with
+  | Term x :: Token (Op ",", _) :: obs ->
+      let px, wx = pp_term x in
+      let prest, obs = pp_case_discriminees_canonical obs in
+      (px ^^ pp_ws `None wx ^^ char ',' ^^ char ' ' ^^ prest, obs)
+  | Term x :: obs -> (
+      match obs with
+      | (Token (Return, _) :: _ | Token (Of, _) :: _ | Token (LBracket, _) :: _) ->
+          let px, wx = pp_term x in
+          (px ^^ pp_ws `None wx, obs)
+      | _ -> invalid "(co)match canonical discriminees")
+  | _ -> invalid "(co)match canonical discriminees"
+
 let canonical_case_branches obs =
   match List.rev obs with
   | Token ((RBracket | RBrace), ws) :: revobs -> List.rev (Token (RBrace, ws) :: revobs)
@@ -2061,7 +3429,7 @@ let rec pp_case_branches obs : document * Whitespace.t list =
       let ppats, _wpats, obs = pp_patterns empty obs in
       match obs with
       | Token ((Arrow | DblMapsto) as arrow, _) :: Term body :: Token (Op ";", _) :: obs ->
-          let ibody, pbody, _wbody = pp_case `Nontrivial body in
+          let ibody, pbody, _wbody = pp_case `Trivial body in
           let prest, wclose = pp_case_branches obs in
           ( group (nest 2 (align ppats ^^ blank 1 ^^ Token.pp arrow ^^ break 1 ^^ ibody) ^^ pbody)
             ^^ Token.pp (Op ";")
@@ -2069,81 +3437,103 @@ let rec pp_case_branches obs : document * Whitespace.t list =
             ^^ prest,
             wclose )
       | Token ((Arrow | DblMapsto) as arrow, _) :: Term body :: [ Token (RBrace, (wsrbrace, _)) ] ->
-          let ibody, pbody, _wbody = pp_case `Nontrivial body in
+          let ibody, pbody, _wbody = pp_case `Trivial body in
           ( group (nest 2 (align ppats ^^ blank 1 ^^ Token.pp arrow ^^ break 1 ^^ ibody) ^^ pbody)
             ^^ Token.pp RBrace,
             wsrbrace )
       | _ -> invalid "(co)match case 1"
 
+let rec pp_layout_case_branches obs : document * Whitespace.t list =
+  match obs with
+  | [ Token (RBrace, (wsrbrace, _)) ] -> (empty, wsrbrace)
+  | _ ->
+      let ppats, _wpats, obs = pp_patterns empty obs in
+      match obs with
+      | Token ((Arrow | DblMapsto) as arrow, _) :: Term body :: Token (Op ";", (wssemi, _)) :: obs ->
+          let ibody, pbody, _wbody = pp_case `Nontrivial body in
+          let prest, wclose = pp_layout_case_branches obs in
+          ( group (nest 2 (align ppats ^^ blank 1 ^^ Token.pp arrow ^^ break 1 ^^ ibody) ^^ pbody)
+            ^^ pp_ws `None wssemi
+            ^^ hardline
+            ^^ prest,
+            wclose )
+      | Token ((Arrow | DblMapsto) as arrow, _) :: Term body :: [ Token (RBrace, (wsrbrace, _)) ] ->
+          let ibody, pbody, _wbody = pp_case `Nontrivial body in
+          ( group (nest 2 (align ppats ^^ blank 1 ^^ Token.pp arrow ^^ break 1 ^^ ibody) ^^ pbody)
+            ,
+            wsrbrace )
+      | _ -> invalid "(co)match case layout"
+
 (* Print an implicit match, explicit match, matching lambda, or comatch, with possible multiple discriminees and possible 'return'.  We can combine comatches with matches because a "field" is just a term that can be printed like a pattern.  Always nontrivial. *)
 let pp_match triv = function
   | Token ((Match | Case), (wscase, _)) :: obs -> (
-      let pdisc, wdisc, obs = pp_discriminees (Token.pp Case) wscase obs in
-      let pret, wret, obs =
+      ignore wscase;
+      let pdiscs, obs = pp_case_discriminees_canonical obs in
+      let pdisc = Token.pp Case ^^ char ' ' ^^ pdiscs in
+      let phead, obs =
         match obs with
         | Token (Return, (wsreturn, _)) :: Term motive :: Token (LBracket, (wslbrack, _)) :: obs ->
             let pmotive, wmotive = pp_term motive in
-            ( pp_ws `Break wdisc
+            ignore wsreturn;
+            ignore wslbrack;
+            ( pdisc
+              ^^ char ' '
               ^^ Token.pp Return
-              ^^ pp_ws `Nobreak wsreturn
+              ^^ char ' '
               ^^ pmotive
-              ^^ pp_ws `Nobreak wmotive
-              ^^ Token.pp Of
-              ^^ blank 1
-              ^^ Token.pp Lambda
-              ^^ blank 1
-              ^^ Token.pp LBrace,
-              wslbrack,
+              ^^ pp_ws `None wmotive
+              ^^ char ' '
+              ^^ Token.pp Of,
               obs )
         | Token (Return, (wsreturn, _)) :: Term motive :: Token (Of, _) :: Token (LBrace, (wslbrack, _)) :: obs ->
             let pmotive, wmotive = pp_term motive in
-            ( pp_ws `Break wdisc
+            ignore wsreturn;
+            ignore wslbrack;
+            ( pdisc
+              ^^ char ' '
               ^^ Token.pp Return
-              ^^ pp_ws `Nobreak wsreturn
+              ^^ char ' '
               ^^ pmotive
-              ^^ pp_ws `Nobreak wmotive
-              ^^ Token.pp Of
-              ^^ blank 1
-              ^^ Token.pp Lambda
-              ^^ blank 1
-              ^^ Token.pp LBrace,
-              wslbrack,
+              ^^ pp_ws `None wmotive
+              ^^ char ' '
+              ^^ Token.pp Of,
               obs )
         | Token (Return, (wsreturn, _)) :: Term motive :: Token (Of, _) :: Token (Lambda, _) :: Token (LBrace, (wslbrack, _)) :: obs ->
             let pmotive, wmotive = pp_term motive in
-            ( pp_ws `Break wdisc
+            ignore wsreturn;
+            ignore wslbrack;
+            ( pdisc
+              ^^ char ' '
               ^^ Token.pp Return
-              ^^ pp_ws `Nobreak wsreturn
+              ^^ char ' '
               ^^ pmotive
-              ^^ pp_ws `Nobreak wmotive
-              ^^ Token.pp Of
-              ^^ blank 1
-              ^^ Token.pp Lambda
-              ^^ blank 1
-              ^^ Token.pp LBrace,
-              wslbrack,
+              ^^ pp_ws `None wmotive
+              ^^ char ' '
+              ^^ Token.pp Of,
               obs )
         | Token (LBracket, (wslbrack, _)) :: obs
         | Token (Of, _) :: Token (LBrace, (wslbrack, _)) :: obs
         | Token (Of, _) :: Token (Lambda, _) :: Token (LBrace, (wslbrack, _)) :: obs ->
-            ( pp_ws `Break wdisc
-              ^^ Token.pp Of
-              ^^ blank 1
-              ^^ Token.pp Lambda
-              ^^ blank 1
-              ^^ Token.pp LBrace,
-              wslbrack,
-              obs )
+            ignore wslbrack;
+            (pdisc ^^ char ' ' ^^ Token.pp Of, obs)
         | _ -> invalid "(co)match 5" in
       let obs = canonicalize_case_branches obs in
       match obs with
       | [ Token (RBrace, (wsrbrace, _)) ] ->
-          ( align (group (hang 2 pdisc) ^^ pret ^^ pp_ws `Nobreak wret ^^ Token.pp RBrace),
-            empty,
+          ( empty,
+            phead ^^ char ' ' ^^ Token.pp LBrace ^^ Token.pp RBrace,
             wsrbrace )
       | _ ->
-          let pbranches, wbranches = pp_case_branches obs in
-          (align (group (hang 2 pdisc) ^^ pret), group (pp_ws `Break wret ^^ pbranches), wbranches))
+          if triv = `Trivial then
+            let pbranches, wbranches = pp_case_branches obs in
+            ( empty,
+              phead ^^ char ' ' ^^ Token.pp LBrace ^^ pbranches,
+              wbranches )
+          else
+            let pbranches, wbranches = pp_layout_case_branches obs in
+            ( empty,
+              phead ^^ hardline ^^ string "  " ^^ align pbranches,
+              wbranches ))
   | Token (LBracket, (wslbrack, _)) :: obs ->
       let obs =
         match obs with
@@ -2349,6 +3739,20 @@ let process_explicit_match_obs ctx obs loc =
   | _ -> invalid "match"
 
 let () =
+  make internal_with
+    {
+      name = "internal with";
+      tree = Closed_entry (eop With (op LBrace (term RBrace (Done_closed internal_with))));
+      processor = (fun ctx obs loc -> process_internal_with ctx obs loc);
+      pattern = (fun _ loc -> fatal ?loc (Invalid_notation_pattern "internal with"));
+      print_term =
+        Some
+          (fun obs ->
+            let str = string_of_internal_with_obs obs in
+            (PPrint.utf8string str, []));
+      print_case = None;
+      is_case = (fun _ -> false);
+    };
   (* Implicit matches can be multiple and deep matches, with multiple discriminees and multiple patterns. *)
   make implicit_mtch
     {
@@ -2430,10 +3834,6 @@ let () =
    Comatches
    ******************** *)
 
-type (_, _, _) identity += Comatch : (closed, No.plus_omega, closed) identity
-
-let comatch : (closed, No.plus_omega, closed) notation = (Comatch, Outfix)
-
 let rec comatch_fields () =
   Inner
     {
@@ -2487,7 +3887,7 @@ let rec pp_comatch_fields prews accum obs : document * Whitespace.t list =
         obs
   | Term fld :: Token (Op "=", (wseq, _)) :: Term body :: obs ->
       let pfld, wsfld = pp_term fld in
-      let ibody, pbody, wbody = pp_case `Nontrivial body in
+      let ibody, pbody, wbody = pp_case `Trivial body in
       pp_comatch_fields (Some wbody)
         (accum
         ^^ optional (pp_ws `Break) prews

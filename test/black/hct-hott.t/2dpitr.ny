@@ -1,10 +1,10 @@
  {- -*- agdarya-prog-args: ("-proofgeneral" "-parametric" "-direction" "p,rel,Br") -*- -}
 
-import "isfibrant"
-import "fibrant_types"
-import "bookhott"
-import "hott_bookhott"
-import "homotopy"
+open import isfibrant
+open import fibrant_types
+open import bookhott
+open import hott_bookhott
+open import homotopy
 
 postulate A00 : Fib
 
@@ -80,11 +80,11 @@ postulate a01 : A01 t
 postulate a21 : A21 t a01 a11
 
 echo ((λ X Y → Π𝕗 X Y) : ((X : Fib) (Y : X t → Fib) → Fib))⁽ᵖᵖ⁾ A22 B22 f
-       id⟨1⟩ f02 f12 trr f20 a21 {- Double-check that the computed result indeed has the correct type. -}
+       id⟨1⟩ f02 f12 trr f20 a21
 
 echo B22 (A22 f id⟨1⟩ (A02 f liftl a01) (A12 f liftl a11) liftl a21) f
        id⟨1⟩ (f02 (A02 f liftl a01)) (f12 (A12 f liftl a11)) trr⟨1⟩
-       (f20 (A22 f id⟨1⟩ (A02 f liftl a01) (A12 f liftl a11) trl a21)) {- That is, these have the same type: -}
+       (f20 (A22 f id⟨1⟩ (A02 f liftl a01) (A12 f liftl a11) trl a21))
 
 echo (A22 f id⟨1⟩ (A02 f liftl a01) (A12 f liftl a11) trl a21)
 

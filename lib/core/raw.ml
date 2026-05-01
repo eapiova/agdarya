@@ -103,6 +103,7 @@ module rec Make : functor (I : Indices) -> sig
         highers : bool ref located list;
       }
         -> 'a synth
+    | With : 'a with_item list * ('a, 'm, 'am) bplus * 'am check located -> 'a synth
     | Fail : Reporter.Code.t -> 'a synth
     | ImplicitSApp : 'a synth located * Asai.Range.t option * 'a synth located -> 'a synth
     | SFirst :
@@ -110,6 +111,10 @@ module rec Make : functor (I : Indices) -> sig
         * 'a synth option
         -> 'a synth
     | Calc : 'a synth located * ('a check located * 'a check located option) list -> 'a synth
+
+  and _ with_item =
+    | With_item : 'a synth located -> 'a with_item
+    | Rewrite_item : 'a synth located -> 'a with_item
 
   and _ check =
     | Synth : 'a synth -> 'a check
@@ -274,6 +279,7 @@ functor
           highers : bool ref located list;
         }
           -> 'a synth
+      | With : 'a with_item list * ('a, 'm, 'am) bplus * 'am check located -> 'a synth
       | Fail : Reporter.Code.t -> 'a synth
       (* Pass the synthesized type of an argument as an implicit first argument of a function. *)
       | ImplicitSApp : 'a synth located * Asai.Range.t option * 'a synth located -> 'a synth
@@ -284,6 +290,10 @@ functor
           -> 'a synth
       (* Chain of equational reasoning *)
       | Calc : 'a synth located * ('a check located * 'a check located option) list -> 'a synth
+
+    and _ with_item =
+      | With_item : 'a synth located -> 'a with_item
+      | Rewrite_item : 'a synth located -> 'a with_item
 
     (* Checkable raw terms *)
     and _ check =
@@ -503,6 +513,17 @@ module Resolve (R : Resolver) = struct
           let branches = Abwd.map (branch ctx) branches in
           let refutables = Option.map (refutables ctx) r in
           Match { tm; sort; branches; refutables; highers }
+      | With (items, ab1, body) ->
+          let items =
+            List.map
+              (function
+                | R.T1.With_item tm -> R.T2.With_item (synth ctx tm)
+                | R.T1.Rewrite_item tm -> R.T2.Rewrite_item (synth ctx tm))
+              items
+          in
+          let (Bplus ab2) = R.T2.bplus (R.T1.bplus_right ab1) in
+          let ctx2 = append ctx (R.T1.Namevec.none ab1) ab2 in
+          R.T2.With (items, ab2, check ctx2 body)
       | Fail e -> Fail e
       | ImplicitSApp (fn, apploc, arg) -> ImplicitSApp (synth ctx fn, apploc, synth ctx arg)
       | SFirst (tms, arg) ->

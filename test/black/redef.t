@@ -4,7 +4,7 @@
   > EOF
 
   $ cat >two.ny <<EOF
-  > import "one"
+  > open import one
   > A : Set
   > A = sig ()
   > EOF
@@ -24,7 +24,7 @@
   
 
   $ cat >three.ny <<EOF
-  > export "one"
+  > open import one public
   > A : Set
   > A = sig ()
   > EOF
@@ -63,16 +63,16 @@
   $ cat >onesect.ny <<EOF
   > A : Set
   > A = Set
-  > section foo ≔
-  >   A : Set
-  >   A = sig ()
-  >   data B : Set where { }
+  > module foo where {
+  >   A : Set;
+  >   A = sig ();
+  >   data B : Set where { };
   >   data C : Set where { one : C }
-  > end
-  > import foo
+  > }
+  > open foo
   > B : Set
   > B = codata []
-  > export foo
+  > open foo public
   > C : Set
   > C = sig ( one : Set )
   > EOF
@@ -80,9 +80,6 @@
   $ agdarya -v onesect.ny
    ￫ info[I0000]
    ￮ constant A defined
-  
-   ￫ info[I0007]
-   ￮ section foo opened
   
    ￫ info[I0000]
    ￮ constant A defined
@@ -93,9 +90,6 @@
    ￫ info[I0000]
    ￮ constant C defined
   
-   ￫ info[I0008]
-   ￮ section foo closed
-  
    ￫ info[I0000]
    ￮ constant B defined
   
@@ -104,7 +98,7 @@
    1 | C : Set
      ^ redefining constant: C
    ￭ $TESTCASE_ROOT/onesect.ny
-   1 |   data C : Set where { one : C }
+   5 |   data C : Set where { one : C }
      ^ previous definition
   
    ￫ info[I0000]

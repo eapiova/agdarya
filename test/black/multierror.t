@@ -3,7 +3,7 @@
   > postulate B:Set
   > postulate C:Set
   > postulate a:A
-  > record prod (X Y : Set) : Set where { field fst : X ; snd : Y }
+  > record prod (X Y : Set) : Set where { field { fst : X ; snd : Y } }
   > foo : prod B C
   > foo = (a,a)
   > EOF
@@ -56,7 +56,7 @@
   > postulate C:Set
   > postulate a:A
   > postulate c:C
-  > record prod (X Y : Set) : Set where { field fst : X ; snd : Y }
+  > record prod (X Y : Set) : Set where { field { fst : X ; snd : Y } }
   > foo : prod B C
   > foo = (a,c)
   > EOF
@@ -100,7 +100,7 @@
   > postulate B:Set
   > postulate C:Set
   > postulate a:A
-  > record prod (X Y : Set) : Set where { field fst : X ; snd : Y }
+  > record prod (X Y : Set) : Set where { field { fst : X ; snd : Y } }
   > foo : prod (prod B C) (prod C B)
   > foo = ((a,a),(a,a))
   > EOF
@@ -176,7 +176,7 @@
   > postulate B:Set
   > postulate P:B->Set
   > postulate a:A
-  > record Sigma (X : Set) (Y : X -> Set) : Set where { field fst : X ; snd : Y fst }
+  > record Sigma (X : Set) (Y : X -> Set) : Set where { field { fst : X ; snd : Y fst } }
   > foo : Sigma B P
   > foo = (a,a)
   > EOF
@@ -218,7 +218,7 @@
   > data bool : Set where { true : bool ; false : bool }
   > P : bool -> Set
   > P = λ { true → A ; false → B }
-  > record Sigma (X : Set) (Y : X -> Set) : Set where { field fst : X ; snd : Y fst }
+  > record Sigma (X : Set) (Y : X -> Set) : Set where { field { fst : X ; snd : Y fst } }
   > foo : Sigma bool P
   > foo = (a, a)
   > EOF
@@ -262,7 +262,7 @@ Even trivial dependency blocks going on, as long as there is the potential for d
   > postulate A:Set
   > postulate B:Set
   > postulate a:A
-  > record Sigma (X : Set) (Y : X -> Set) : Set where { field fst : X ; snd : Y fst }
+  > record Sigma (X : Set) (Y : X -> Set) : Set where { field { fst : X ; snd : Y fst } }
   > foo : Sigma B (λ _ → B)
   > foo = (a, a)
   > EOF
@@ -483,7 +483,7 @@ Even trivial dependency blocks going on, as long as there is the potential for d
   $ cat >multierr.ny <<EOF
   > postulate A:Set
   > postulate a:A
-  > record foo : Set where { field fst : a ; snd : a }
+  > record foo : Set where { field { fst : a ; snd : a } }
   > EOF
 
   $ agdarya -v multierr.ny
@@ -495,7 +495,7 @@ Even trivial dependency blocks going on, as long as there is the potential for d
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   1 | record foo : Set where { field fst : a ; snd : a }
+   1 | record foo : Set where { field { fst : a ; snd : a } }
      ^ term synthesized type
          A
        but is being checked against type
@@ -507,7 +507,7 @@ Even trivial dependency blocks going on, as long as there is the potential for d
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   1 | record foo : Set where { field fst : a ; snd : a }
+   1 | record foo : Set where { field { fst : a ; snd : a } }
      ^ term synthesized type
          A
        but is being checked against type
@@ -523,7 +523,7 @@ Even trivial dependency blocks going on, as long as there is the potential for d
   > postulate A:Set
   > postulate a:A
   > postulate B : A -> Set
-  > record foo : Set where { field fst : a ; snd : B fst }
+  > record foo : Set where { field { fst : a ; snd : B fst } }
   > EOF
 
   $ agdarya -v multierr.ny
@@ -538,7 +538,7 @@ Even trivial dependency blocks going on, as long as there is the potential for d
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny
-   1 | record foo : Set where { field fst : a ; snd : B fst }
+   1 | record foo : Set where { field { fst : a ; snd : B fst } }
      ^ term synthesized type
          A
        but is being checked against type

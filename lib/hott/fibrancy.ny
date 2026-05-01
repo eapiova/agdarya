@@ -27,9 +27,9 @@ eq.trr2 : (A : Set) (B : Set) (P : A → B → Set) (a0 a1 : A)
 eq.trr2 A B P a0 a1 a2 b0 b1 b2 p = case a2, b2 of λ { rfl, rfl → p} {- We don't need a full equivalence, only a retraction. -}
 
 record rtr (A B : Set) : Set
-where { field to : A → B
+where { field { to : A → B
 ; fro : B → A
-; to_fro : (b : B) → eq B (to (fro b)) b }
+; to_fro : (b : B) → eq B (to (fro b)) b } }
 
 Id_eq : (A0 A1 : Set) (A2 : Id Set A0 A1) (a00 : A0) (a01 : A1)
         (a02 : A2 a00 a01) (a10 : A0) (a11 : A1) (a12 : A2 a10 a11)

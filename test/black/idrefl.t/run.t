@@ -130,7 +130,7 @@
   $ agdarya idrefl.ny -e "synth (refl ((x ↦ x) : (X → X)) {x0} {x0} x2) synth (refl ((x ↦ x) : (X → X)) {x0} {x0} x0)"
    ￫ error[E0401]
    ￭ command-line exec string
-   1 | synth (refl ((x ↦ x) : (X → X)) {x0} {x0} x2) synth (refl ((x ↦ x) : (X → X)) {x0} {x0} x0)
+   1 | synth (refl ((x ↦ x) : (X → X)) {x0} {x0} x2) 
      ^ term synthesized type
          Id X x0 x1
        but is being checked against type

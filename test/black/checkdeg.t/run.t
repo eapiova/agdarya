@@ -15,7 +15,7 @@
   
   [1]
 
-  $ agdarya -e 'import "degconstr" echo refl nil : List A'
+  $ agdarya -e 'open import degconstr' -e 'echo refl nil : List A'
   left (refl a)
     : Sum⁽ᵉ⁾ (Id A) (Id B) (left a) (left a)
   
@@ -33,7 +33,7 @@
   [1]
 
 
-  $ agdarya -e 'import "degconstr" postulate a1 : A echo refl (cons a nil) : Id (List A) (cons a nil) (cons a1 nil)'
+  $ agdarya -e 'open import degconstr' -e 'postulate a1 : A' -e 'echo refl (cons a nil) : Id (List A) (cons a nil) (cons a1 nil)'
   left (refl a)
     : Sum⁽ᵉ⁾ (Id A) (Id B) (left a) (left a)
   
@@ -207,7 +207,7 @@
   
   [1]
 
-  $ agdarya -e 'import "deglamtuple" synth refl (x ↦ (f x, g x)) : (x : A) → Prod (B x) (C x)'
+  $ agdarya -e 'open import deglamtuple' -e 'synth refl (x ↦ (f x, g x)) : (x : A) → Prod (B x) (C x)'
    ￫ error[E0400]
    ￭ $TESTCASE_ROOT/deglamtuple.ny
    1 | synth refl (x ↦ (f x, g x))
@@ -236,7 +236,7 @@
   [1]
 
 
-  $ agdarya -e 'import "degblank" echo refl _ : Id A a0 a1'
+  $ agdarya -e 'open import degblank' -e 'echo refl _ : Id A a0 a1'
   refl a
     : Id A a a
   
@@ -257,7 +257,7 @@
   [1]
 
 
-  $ agdarya -e 'import "degblank" echo sym _ : Id (Id A) a2 a2 (refl a0) (refl a1)'
+  $ agdarya -e 'open import degblank' -e 'echo sym _ : Id (Id A) a2 a2 (refl a0) (refl a1)'
   refl a
     : Id A a a
   

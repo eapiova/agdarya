@@ -1,5 +1,5 @@
 (tests
-  (names lexer parse_arith ambiguity prefixes permute_args higher_fields a4 a6)
+  (names lexer parse_arith ambiguity prefixes permute_args higher_fields a4 a6 a8_layout a9)
 	(libraries parser testutil)
 	(instrumentation (backend landmarks --auto)))
 (cram

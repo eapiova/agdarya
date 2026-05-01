@@ -26,15 +26,15 @@ f' : A → B
 
 f' = ? {- Check whether notations that were in scope at the time of a hole are still available when solving the hole even if they're no longer in scope at the current time, while notations defined later are not in scope for the hole. -}
 
-section sec ≔
+module sec where {
 
-  notation "&" ≔ b
+  notation "&" ≔ b;
 
-  f' : A → B
+  f' : A → B;
 
   f' = ?
 
-end
+}
 
 notation "$" ≔ b
 

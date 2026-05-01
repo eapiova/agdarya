@@ -97,49 +97,46 @@ Notation
 
    notation [(TIGHTNESS)] […] PATTERN […] ≔ HEAD ARGUMENTS
 
-Declare a new mixfix notation; see :ref:`Mixfix notations`.  For new definitions, prefer the integrated form ``def(TIGHTNESS) (PATTERN) : TYPE ≔ BODY``, which defines the internal constant and registers the notation in one command.
+Declare a new mixfix notation; see :ref:`Mixfix notations`.  For operator-style names, prefer Agda-style underscore names together with ``infix``, ``infixl``, or ``infixr`` when possible; otherwise, pair a notation declaration with an ordinary signature and clause definition.
 
 
-Import/export
-^^^^^^^^^^^^^
-
-.. code-block:: none
-
-    import "FILE"
-    import "FILE" | MOD
-  
-Add the extension ``.ny`` to the double-quoted string ``FILE`` and import the file at that location (either absolute or relative to the location of the current file), with the optional modifier ``MOD`` applied to its namespace (see :ref:`Imports and scoping`).  The disk file *must* have the ``.ny`` extension, whereas the string given to ``import`` must *not* have it; this is because in the future the string given to ``import`` will be a more general "library identifier" in the `bantorra <https://redprl.org/bantorra/bantorra/index.html>`_ framework.
+Modules and opening
+^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: none
 
-    import NAME
-    import NAME | MOD
-
-Import the namespace rooted at ``NAME`` into the current top-level namespace, with the optional modifier ``MOD`` applied to it first.
+    module NAME where { COMMANDS }
+    module NAME (Δ) where { COMMANDS }
 
 .. code-block:: none
 
-    export "FILE"
-    export "FILE" | MOD
-    export NAME
-    export NAME | MOD
-  
-Same as above, but also export the new names to other files that import this one.
+    module NAME = MODULE ARGUMENTS
 
-Sections
-^^^^^^^^
+Declare a module, optionally parameterized by a telescope ``Δ``, or define a new module by applying an existing parameterized module.  Before layout is added, module bodies use explicit braces and semicolons.
 
 .. code-block:: none
 
-   section NAME ≔
-   
-Begin a section named ``NAME``, which must be a valid identifier.  All ordinary commands are valid inside a section (including other section commands).
-   
+    open NAME
+    open NAME public
+    open NAME using (ITEMS)
+    open NAME hiding (ITEMS)
+    open NAME renaming (OLD to NEW)
+
+Open an already visible module path into the current scope.  ``public`` also re-exports the opened names.
+
 .. code-block:: none
 
-   end
+    open import MODULE
+    open import MODULE public
+    open import MODULE using (ITEMS) renaming (OLD to NEW)
 
-End the section that was most recently opened and not yet closed.  All the constants that were in the export namespace of that section (i.e. those defined with ``def`` and ``postulate`` or imported from elsewhere with ``export``) are prefixed by the name of that section and merged into the previous namespace.  (See :ref:`Namespaces and sections`.)
+Load ``MODULE.ny`` (using dotted path components as directories) and open its exported namespace into the current scope.  The optional ``using`` / ``hiding`` / ``renaming`` modifiers behave as described in :ref:`Imports and scoping`.  ``open import … public`` also re-exports the imported names.
+
+.. code-block:: none
+
+   private COMMAND
+
+Execute ``COMMAND`` normally inside the current scope, but omit any names it defines from the surrounding module's exported namespace.
 
 
 Quit
@@ -214,7 +211,7 @@ Chdir
 
    chdir "DIR"
 
-Change the current directory to ``DIR``.  Subsequent ``import`` commands will load files from this directory.
+Change the current directory to ``DIR``.  Subsequent ``open import`` commands will load files from this directory.
 
 
 ProofGeneral mode
@@ -374,19 +371,20 @@ If you followed the instructions for :ref:`Installing Ctags`, then you should be
 
 Ctags is implemented with simple regular expressions, which works fairly well but has certain limitations.  It does understand comments, so ``M-.`` will not find commented-out definitions, nor will ``M-?`` find commented-out uses.  It also understands the ``quit`` command and ignores anything that appears after it in a source file.
 
-However, Ctags doesn't understand Agdarya's :ref:`Import modifiers`.  Thus, if you have renamed an identifier with ``import``, ``M-.`` on that identifier won't be able to find its definition, and ``M-?`` on the original identifier will not find renamed usages.
+However, Ctags doesn't understand Agdarya's open modifiers completely.  Thus, if you have renamed an identifier with ``open`` or ``open import``, ``M-.`` on that renamed identifier won't necessarily find its definition, and ``M-?`` on the original identifier may miss renamed usages.
 
-Ctags has a limited understanding of Agdarya's :ref:`sections <Namespaces and sections>`.  A constant declared inside a section is saved to the tags file both with its *unqualified* name (the one given in its ``def`` or ``postulate`` command) and with its *fully qualified* name (the one obtained by prefixing its unqualified name with those of *all* the sections it appears inside).  Therefore, the definition can be found with ``M-.`` from both unqualified uses of an identifier (e.g. those appearing in the same section where it is defined) and fully-qualified uses (e.g. those appearing outside of all nested sections that it is defined in, such as in another file that imports the file it was defined in without any renaming).  However, it is not saved with any *partially* qualified names.  For instance, given the following Agdarya code:
+Ctags has a limited understanding of Agdarya's modules.  A constant declared inside nested modules is saved to the tags file both with its *unqualified* name (the one given in its declaration) and with its *fully qualified* name (the one obtained by prefixing it with all enclosing module names).  Therefore, the definition can be found with ``M-.`` from both unqualified uses in the same opened scope and fully qualified uses outside the module.  However, it is not saved with any *partially* qualified names.  For instance, given the following Agdarya code:
 
 .. code-block:: none
 
-   section foo ≔
-     section bar ≔
-       def baz ≔ …
-     end
-   end
+   module foo where {
+     module bar where {
+       baz : A
+       baz = …
+     }
+   }
 
-the definition ``baz`` can be found under the names ``baz`` and ``foo.bar.baz``,  but not ``bar.baz`` (which it would be referred to by inside the section ``foo`` but outside the section ``bar``).
+the definition ``baz`` can be found under the names ``baz`` and ``foo.bar.baz``, but not ``bar.baz``.
 
 Remember also that if your Emacs version is older than 30.1, so that ``etags-regen-mode`` is not available, you'll need to re-run the command ``etags`` in the root directory of your Agdarya project every time new definitions are added to an imported file in order for the above commands to find them.
 

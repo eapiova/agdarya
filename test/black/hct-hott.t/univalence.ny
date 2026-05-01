@@ -1,10 +1,10 @@
  {- -*- agdarya-prog-args: ("-proofgeneral" "-parametric" "-direction" "p,rel,Br") -*- -}
 
-import "isfibrant"
-import "bookhott"
-import "hott_bookhott"
-import "fibrant_types"
-import "homotopy"
+open import isfibrant
+open import bookhott
+open import hott_bookhott
+open import fibrant_types
+open import homotopy
 
 pre_univalence : (A : Fib) → (B : Fib) → (G : Br Set (A t) (B t)) →
                  (𝕗G : (a : A t) (b : B t) → isFibrant (G a b)) →
@@ -43,7 +43,7 @@ id⟨p⟩ = {a0} {b0} r0 {a1} {b1} r1 ↦
       (isbisim_eqv (Idd𝕗 A.0 A.1 A.2 a0 a1) (Idd𝕗 B.0 B.1 B.2 b0 b1)
          (a2 b2 ↦ (G.2 a2 b2 r0 r1, 𝕗G.2 a2 b2 id r0 r1))
          (a2 b2 ↦ (sym G.2 r0 r1 a2 b2, 𝕗sG a2 b2)) s
-         (re.2 id a0 b0 r0 a1 b1 r1)) } {- Now we put this together with Gel to prove univalence for fibrant types, which we can express for bisimulations or for 1-1 correspondences. -}
+         (re.2 id a0 b0 r0 a1 b1 r1)) }
 
 univalence_bisim : (A B : Fib) → (R : A t → B t → Fib) →
                    (re : isBisim A B R)
@@ -64,7 +64,7 @@ univalence_bisim
 univalence_11 : (A B : Fib) → (R : A t → B t → Fib) → (re : is11 A B R)
                 → Br Fib A B
 
-univalence_11 = λ A B R re → univalence_bisim A B R (bisim_of_11 A B R re) {- Reflexivity of a type is a self-equivalence, but we don't have regularity, so its transports don't reduce to the identity.  However, with univalence we can build an alternative "strict reflexivity" that does. -}
+univalence_11 = λ A B R re → univalence_bisim A B R (bisim_of_11 A B R re)
 
 is11_Id𝕗 : (A : Fib) → is11 A A (Id𝕗 A)
 
@@ -76,7 +76,7 @@ srefl A = univalence_11 A A (Id𝕗 A) (is11_Id𝕗 A)
 
 srefl_is_strict : (A : Fib) → (a : A t) → Br (A t) (srefl A f trr a) a
 
-srefl_is_strict A a = rel a {- More generally, given any Voevodsky equivalence we can easily make it into a 1-1 correspondence and hence an identification. -}
+srefl_is_strict A a = rel a
 
 univalence_vv : (A B : Fib) → (f : A t → B t) →
                 (fe : (b : B t) → isContr (Σ𝕗 A (a ↦ Id𝕗 B (f a) b)))
@@ -86,7 +86,7 @@ univalence_vv
 =
   λ A B f fe →
   univalence_11 A B (a b ↦ Id𝕗 B (f a) b)
-    (contrr ≔ a ↦ iscontr_idfrom B (f a), contrl ≔ fe) {- This is "definitional univalence": we can extract both the function and its inverse definitionally. -}
+    (contrr ≔ a ↦ iscontr_idfrom B (f a), contrl ≔ fe)
 
 univalence_is_left_definitional : (A B : Fib) → (f : A t → B t) →
                                   (fe

@@ -8,84 +8,84 @@ data ℚ₀₊ : Set where { zero : ℚ₀₊ ; suc : ℕ → ℚ₀₊ ; quot :
 
 notation(0) x "/" y ≔ quot x y
 
-section ℕ ≔
+module ℕ where {
 
-  zero : ℕ
+  zero : ℕ;
 
-  zero = 0
+  zero = 0;
 
-  one : ℕ
+  one : ℕ;
 
-  one = 1
+  one = 1;
 
-  echo one
+  echo one;
 
-  one' : ℕ
+  one' : ℕ;
 
-  one' = 1.0
+  one' = 1.0;
 
-  echo one'
+  echo one';
 
-  two : ℕ
-
-  two = 2
-
-end
-
-section ℕ₊ ≔
-
-  one : ℕ₊
-
-  one = 1
-
-  echo one
-
-  two : ℕ₊
+  two : ℕ;
 
   two = 2
 
-  echo two
+}
 
-end
+module ℕ₊ where {
 
-section ℚ ≔
+  one : ℕ₊;
 
-  zero : ℚ₀₊
+  one = 1;
 
-  zero = 0
+  echo one;
 
-  one : ℚ₀₊
+  two : ℕ₊;
 
-  one = 1
-
-  two : ℚ₀₊
-
-  two = 2.0
+  two = 2;
 
   echo two
 
-  half : ℚ₀₊
+}
 
-  half = 0.5
+module ℚ where {
 
-  echo half
+  zero : ℚ₀₊;
 
-  quart : ℚ₀₊
+  zero = 0;
 
-  quart = 0.25
+  one : ℚ₀₊;
 
-  echo quart
+  one = 1;
 
-  half' : ℚ₀₊
+  two : ℚ₀₊;
 
-  half' = 1 / 2
+  two = 2.0;
 
-  echo half'
+  echo two;
 
-  third : ℚ₀₊
+  half : ℚ₀₊;
 
-  third = 1 / 3
+  half = 0.5;
+
+  echo half;
+
+  quart : ℚ₀₊;
+
+  quart = 0.25;
+
+  echo quart;
+
+  half' : ℚ₀₊;
+
+  half' = 1 / 2;
+
+  echo half';
+
+  third : ℚ₀₊;
+
+  third = 1 / 3;
 
   echo third
 
-end
+}

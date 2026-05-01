@@ -1,7 +1,7 @@
   $ cat >wrap.ny <<EOF
   > postulate A:Set
   > postulate a:A
-  > record wrapA : Set where { field unwrap : A }
+  > record wrapA : Set where { field { unwrap : A } }
   > 
   > wa1 : wrapA
   > wa1 = (unwrap ≔ a)

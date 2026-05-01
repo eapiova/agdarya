@@ -1,4 +1,4 @@
-import "univalence"
+open import univalence
 
 𝔹 : Set
 𝔹 = data [ t | f ]

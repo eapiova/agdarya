@@ -35,7 +35,7 @@ This "weak K" is mentioned in the "Pattern-matching without K" paper as justifyi
 The following indexed datatype appears in Agda bug #1025.
 
   $ cat >foo.ny <<EOF
-  > import "jd"
+  > open import jd
   > postulate A : Set
   > postulate a : A
   > data Foo : Jd A a a → Set where { foo : Foo rfl }

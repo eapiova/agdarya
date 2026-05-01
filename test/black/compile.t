@@ -5,7 +5,7 @@ Import compiled files
   > EOF
 
   $ cat >two.ny <<EOF
-  > import "one"
+  > open import one
   > postulate a0 : A
   > EOF
 
@@ -64,16 +64,16 @@ Files are recompiled if the flags change
 Requiring a file multiple times
 
   $ cat >three.ny <<EOF
-  > import "one"
+  > open import one
   > postulate a1 : A
   > EOF
 
   $ agdarya three.ny
 
   $ cat >four.ny <<EOF
-  > import "one"
-  > import "two"
-  > import "three"
+  > open import one
+  > open import two
+  > open import three
   > postulate a2 : Id A a0 a1
   > EOF
 
@@ -130,11 +130,11 @@ Files are recompiled if their dependencies need to be
 Circular dependency
 
   $ cat >foo.ny <<EOF
-  > import "bar"
+  > open import bar
   > EOF
 
   $ cat >bar.ny <<EOF
-  > import "foo"
+  > open import foo
   > EOF
 
   $ agdarya foo.ny
@@ -155,7 +155,7 @@ Import is relative to the file's directory
   > EOF
 
   $ cat >subdir/two.ny <<EOF
-  > import "one"
+  > open import one
   > postulate a : A
   > EOF
 
@@ -163,7 +163,7 @@ Import is relative to the file's directory
 
   $ agdarya subdir/two.ny
 
-  $ agdarya -v -e 'import "subdir/two"'
+  $ agdarya -v -e 'open import subdir.two'
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/subdir/one.ny (compiled)
   
@@ -173,7 +173,7 @@ Import is relative to the file's directory
 
 A file isn't loaded twice even if referred to in different ways
 
-  $ agdarya -v -e 'import "subdir/one"' -e 'import "subdir/two"'
+  $ agdarya -v -e 'open import subdir.one' -e 'open import subdir.two'
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/subdir/one.ny (compiled)
   
@@ -190,13 +190,13 @@ Notations are used from explicitly imported files, but not transitively.
   > EOF
 
   $ cat >n2.ny <<EOF
-  > import "n1"
+  > open import n1
   > notation(0) x "&" y := f x y
   > EOF
 
   $ cat >n3.ny <<EOF
-  > import "n1"
-  > import "n2"
+  > open import n1
+  > open import n2
   > notation(0) x "%" y := f x y
   > EOF
 
@@ -234,7 +234,7 @@ Quitting in imports quits only that file
   $ agdarya qone.ny
 
   $ cat >qtwo.ny <<EOF
-  > import "qone"
+  > open import qone
   > postulate a0 : A
   > EOF
 
@@ -256,7 +256,7 @@ Dimensions work in files loaded from source
 
   $ agdarya dim.ny
 
-  $ agdarya -v -e 'import "dim" echo a2'
+  $ agdarya -v -e 'open import dim' -e 'echo a2'
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/dim.ny (compiled)
   
@@ -265,17 +265,17 @@ Dimensions work in files loaded from source
   
 Echos are not re-executed in compiled files
 
-  $ cat >echo.ny <<EOF
+  $ cat >echofile.ny <<EOF
   > postulate A:Set
   > echo A
   > EOF
 
-  $ agdarya -e 'import "echo"'
+  $ agdarya -e 'open import echofile'
   A
     : Set
   
 
-  $ agdarya -e 'import "echo"'
+  $ agdarya -e 'open import echofile'
    ￫ warning[W2400]
-   ￮ not re-executing echo/synth/show commands when loading compiled file $TESTCASE_ROOT/echo.nyo
+   ￮ not re-executing echo/synth/show commands when loading compiled file $TESTCASE_ROOT/echofile.nyo
   

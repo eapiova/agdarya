@@ -26,8 +26,9 @@ module Lex_and_parse =
 
 open Lex_and_parse
 
-let start : Lex_and_parse.t = make Lexer.Parser.start Parse_tokens.Parser.start
-let trylex str = Parser.Lexer.Specials.run @@ fun () -> run_on_string str start
+let trylex str =
+  Parser.Lexer.Specials.run @@ fun () ->
+  run_on_string str (make (Lexer.Parser.fresh ()) Parse_tokens.Parser.start)
 
 let lex str =
   Parser.Lexer.Specials.run @@ fun () ->

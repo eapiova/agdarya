@@ -41,9 +41,6 @@
      ----------------------------------------------------------------------
      A → B
   
-   ￫ info[I0007]
-   ￮ section sec opened
-  
    ￫ info[I0002]
    ￮ notation «&» defined
   
@@ -55,9 +52,6 @@
      
      ----------------------------------------------------------------------
      A → B
-  
-   ￫ info[I0008]
-   ￮ section sec closed
   
    ￫ info[I0002]
    ￮ notation «$» defined
@@ -425,7 +419,7 @@ No holes in imported file
   $ echo 'A : Set' >to_import.ny
   $ echo 'A = ?' >>to_import.ny
 
-  $ agdarya -e 'import "to_import"'
+  $ agdarya -e 'open import to_import'
    ￫ error[E2002]
    ￭ $TESTCASE_ROOT/to_import.ny
    1 | A = ?

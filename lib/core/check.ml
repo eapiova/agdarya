@@ -247,6 +247,174 @@ let ensure_subtype_or_unify : type a b.
 let refresh_value : type a b. (a, b) Ctx.t -> kinetic value -> kinetic value =
  fun ctx tm -> eval_term (Ctx.env ctx) (readback_val ctx tm)
 
+let same_marshaled_term (type a) ((tm1 : (a, kinetic) term), (tm2 : (a, kinetic) term)) =
+  String.equal
+    (Marshal.to_string tm1 [ Marshal.No_sharing ])
+    (Marshal.to_string tm2 [ Marshal.No_sharing ])
+
+let rec abstract_over_with_term : type a.
+    (a, kinetic) term -> (a, kinetic) term -> ((a, D.zero) snoc, kinetic) term =
+ fun needle tm ->
+  if same_marshaled_term (needle, tm) then
+    Term.Var (Index (Now, id_sface D.zero))
+  else
+    match tm with
+    | Var _ | MetaEnv _ | Pi _ | Let _ | Lam _ | Struct _ | Unshift _ | Unact _ | Shift _ | Weaken _
+      ->
+        Weaken tm
+    | Const c -> Const c
+    | Meta _ -> Weaken tm
+    | Field (tm, fld, fldins) -> Field (abstract_over_with_term needle tm, fld, fldins)
+    | UU n -> UU n
+    | Inst (tm, args) ->
+        Inst
+          ( abstract_over_with_term needle tm,
+            TubeOf.mmap { map = (fun _ [ x ] -> abstract_over_with_term needle x) } [ args ] )
+    | App (impl, fn, args) ->
+        App
+          ( impl,
+            abstract_over_with_term needle fn,
+            CubeOf.mmap { map = (fun _ [ x ] -> abstract_over_with_term needle x) } [ args ] )
+    | Constr (c, n, args) ->
+        Constr
+          ( c,
+            n,
+            List.map
+              (fun arg ->
+                CubeOf.mmap { map = (fun _ [ x ] -> abstract_over_with_term needle x) } [ arg ])
+              args )
+    | Act (tm, s, sort) -> Act (abstract_over_with_term needle tm, s, sort)
+
+type (_, _, _) with_bindings =
+  | WNil : ('b, Fwn.zero, 'b) with_bindings
+  | WCons :
+      ('b, kinetic) term * kinetic value * (('b, D.zero) snoc, 'm, 'c) with_bindings
+      -> ('b, 'm Fwn.suc, 'c) with_bindings
+
+type (_, _) some_with_bindings =
+  | With_bindings : ('b, 'm, 'c) with_bindings -> ('b, 'm) some_with_bindings
+
+type _ simple_with_binding =
+  | Simple_with_binding : ('b, kinetic) term * kinetic value -> 'b simple_with_binding
+
+type _ rewrite_info =
+  | Rewrite_info : {
+      proof_tm : ('b, kinetic) term;
+      proof_ty : kinetic value;
+      lhs_tm : ('b, kinetic) term;
+      rhs_tm : ('b, kinetic) term;
+      base_ty : kinetic value;
+    }
+      -> 'b rewrite_info
+
+let rewrite_transport_field = Field.intern "trr" Hott.dim
+
+let rewrite_info_of_proof : type a b.
+    ?loc:Asai.Range.t ->
+    (a, b) Ctx.t ->
+    kinetic value ->
+    (b, kinetic) term ->
+    b rewrite_info =
+ fun ?loc ctx proof_ty proof_tm ->
+  let invalid () = fatal ?loc (Invalid_synthesized_type ("rewrite proof", PVal (ctx, proof_ty))) in
+  let (TubeOf.Full_tube tyargs) = get_tyargs proof_ty "rewrite proof" in
+  match D.compare (TubeOf.inst tyargs) Hott.dim with
+  | Neq -> invalid ()
+  | Eq -> (
+      match Hott.faces () with
+      | None -> fatal ?loc (Unimplemented "rewrite clauses without hott")
+      | Some (left, right, _) ->
+          let lhs =
+            match pface_of_sface left with
+            | `Proper left -> TubeOf.find tyargs left
+            | `Id Eq -> fatal (Anomaly "unexpected identity left face in rewrite proof")
+          in
+          let rhs =
+            match pface_of_sface right with
+            | `Proper right -> TubeOf.find tyargs right
+            | `Id Eq -> fatal (Anomaly "unexpected identity right face in rewrite proof")
+          in
+          (match (ensure_subtype_or_unify ctx lhs.ty rhs.ty, ensure_subtype_or_unify ctx rhs.ty lhs.ty) with
+          | Ok (), Ok () ->
+              Rewrite_info
+                {
+                  proof_tm;
+                  proof_ty;
+                  lhs_tm = readback_at ctx lhs.tm lhs.ty;
+                  rhs_tm = readback_at ctx rhs.tm rhs.ty;
+                  base_ty = lhs.ty;
+                }
+          | _ -> invalid ()))
+
+type _ rewrite_transport =
+  | Rewrite_transport : ('b, kinetic) term -> 'b rewrite_transport
+
+let weaken_rewrite_transport : type b n. b rewrite_transport -> (b, n) snoc rewrite_transport =
+ fun (Rewrite_transport tm) -> Rewrite_transport (Weaken tm)
+
+let apply_rewrite_transport : type b.
+    b rewrite_transport -> (b, kinetic) term -> (b, kinetic) term =
+ fun (Rewrite_transport trr_tm) tm -> app trr_tm tm
+
+let rec apply_rewrite_transport_potential : type b.
+    b rewrite_transport -> (b, potential) term -> (b, potential) term =
+ fun rw tm ->
+  match tm with
+  | Realize tm -> Realize (apply_rewrite_transport rw tm)
+  | Let (x, v, body) ->
+      Let (x, v, apply_rewrite_transport_potential (weaken_rewrite_transport rw) body)
+  | _ ->
+      fatal (Unimplemented "rewrite clauses over nontrivial potential terms")
+
+let rec weaken_with_bindings : type b m c.
+    (b, m, c) with_bindings -> ((b, D.zero) snoc, m, (c, D.zero) snoc) with_bindings =
+ function
+  | WNil -> WNil
+  | WCons (tm, ty, rest) -> WCons (Weaken tm, ty, weaken_with_bindings rest)
+
+let rec with_bindings_of_simple : type b m.
+    b simple_with_binding list -> m Fwn.t -> (b, m) some_with_bindings =
+ fun items len ->
+  match (items, len) with
+  | [], Zero -> With_bindings WNil
+  | Simple_with_binding (tm, ty) :: items, Suc len ->
+      let items =
+        List.map
+          (fun (Simple_with_binding (tm, ty)) -> Simple_with_binding (Weaken tm, ty))
+          items
+      in
+      let With_bindings rest = with_bindings_of_simple items len in
+      With_bindings (WCons (tm, ty, rest))
+  | [], Suc _ -> fatal (Anomaly "with body arity exceeds item count")
+  | _ :: _, Zero -> fatal (Anomaly "with item count exceeds body arity")
+
+let rec wrap_with_lets : type b m c s. (b, m, c) with_bindings -> (c, s) term -> (b, s) term =
+ fun bindings body ->
+  match bindings with
+  | WNil -> body
+  | WCons (tm, _, rest) -> Let (None, tm, wrap_with_lets rest body)
+
+let rec abstract_over_with_bindings : type b m c.
+    (b, m, c) with_bindings -> (b, kinetic) term -> (c, kinetic) term =
+ fun bindings tm ->
+  match bindings with
+  | WNil -> tm
+  | WCons (item, _, rest) -> abstract_over_with_bindings rest (abstract_over_with_term item tm)
+
+let rec extend_ctx_with_bindings : type a b m am c.
+    (a, b) Ctx.t -> (a, m, am) bplus -> (b, m, c) with_bindings -> (am, c) Ctx.t =
+ fun ctx ab bindings ->
+  match (ab, bindings) with
+  | Zero, WNil -> ctx
+  | Suc ab, WCons (_, ty, rest) -> extend_ctx_with_bindings (Ctx.ext ctx None ty) ab rest
+
+let status_under_with_bindings : type b m c s.
+    (b, s) status -> (b, m, c) with_bindings -> (c, s) status =
+ fun status bindings ->
+  match status with
+  | Kinetic l -> Kinetic l
+  | Potential (head, args, hyp) -> Potential (head, args, fun tail -> hyp (wrap_with_lets bindings tail))
+
 (* A "checkable branch" stores all the information about a branch in a match, both that coming from what the user wrote in the match and what is stored as properties of the datatype.  *)
 type higher_info =
   | Ordinary
@@ -958,6 +1126,8 @@ let rec check : type a b s.
     | SelfRecord _, Kinetic l -> kinetic_of_potential l ctx tm ty "sig"
     | Record _, Kinetic l -> kinetic_of_potential l ctx tm ty "sig"
     | Data _, Kinetic l -> kinetic_of_potential l ctx tm ty "data"
+    | Synth (With (items, ab, body)), Potential _ -> check_with status ctx items ab body ty
+    | Synth (With _), Kinetic l -> kinetic_of_potential l ctx tm ty "with"
     (* If the user left a hole, we create an eternal metavariable. *)
     | Hole { scope = vars; loc = pos; li; ri; num }, _ ->
         (* Holes aren't numbered by the file they appear in. *)
@@ -2804,6 +2974,205 @@ and check_higher_field : type a b c d m i ic0.
       check_fields status Noeta ctx ty m (D.plus_zero m) codata_args fields tyargs tms ctms etms
         errs
 
+and rewrite_arg_cube : type a b n.
+    ?loc:Asai.Range.t ->
+    (a, b) Ctx.t ->
+    (n, kinetic value) CubeOf.t ->
+    a check located ->
+    kinetic value ->
+    (n, (b, kinetic) term) CubeOf.t * (n, kinetic value) CubeOf.t =
+ fun ?loc ctx doms proof proof_ty ->
+  let (TubeOf.Full_tube proof_tyargs) = get_tyargs proof_ty "rewrite proof" in
+  match (D.compare (TubeOf.inst proof_tyargs) Hott.dim, D.compare (CubeOf.dim doms) Hott.dim, Hott.faces ()) with
+  | Neq, _, _ | _, Neq, _ ->
+      fatal ?loc (Invalid_synthesized_type ("rewrite proof", PVal (ctx, proof_ty)))
+  | _, _, None -> fatal ?loc (Unimplemented "rewrite clauses without hott")
+  | Eq, Eq, Some (left, right, _) ->
+      let left_ty = CubeOf.find doms left in
+      let right_ty = CubeOf.find doms right in
+      let left_arg =
+        match pface_of_sface left with
+        | `Proper pleft -> TubeOf.find proof_tyargs pleft
+        | `Id Eq -> fatal (Anomaly "unexpected identity left face in rewrite proof")
+      in
+      let right_arg =
+        match pface_of_sface right with
+        | `Proper pright -> TubeOf.find proof_tyargs pright
+        | `Id Eq -> fatal (Anomaly "unexpected identity right face in rewrite proof")
+      in
+      let ensure face got expected =
+        with_loc loc @@ fun () ->
+        match equal_val ctx got expected with
+        | Ok () -> ()
+        | Error why ->
+            fatal
+              (Unequal_synthesized_boundary
+                 { face; got = PVal (ctx, got); expected = PVal (ctx, expected); why })
+      in
+      ensure left left_arg.ty left_ty;
+      ensure right right_arg.ty right_ty;
+      let top_ty =
+        inst (CubeOf.find_top doms)
+          (Hott.tube
+             { tm = left_arg.tm; ty = left_ty }
+             { tm = right_arg.tm; ty = right_ty }
+          <|> Anomaly "failed to build rewrite boundary tube")
+      in
+      let proof_tm = check (Kinetic `Nolet) ctx proof top_ty in
+      let proof_val = eval_term (Ctx.env ctx) proof_tm in
+      let cargs =
+        Hott.cube
+          (readback_at ctx left_arg.tm left_ty)
+          (readback_at ctx right_arg.tm right_ty)
+          proof_tm
+        <|> Anomaly "failed to build rewrite argument cube"
+      in
+      let eargs =
+        Hott.cube left_arg.tm right_arg.tm proof_val
+        <|> Anomaly "failed to build rewrite value cube"
+      in
+      (cargs, eargs)
+
+and make_rewrite_transport : type a b.
+    ?loc:Asai.Range.t ->
+    (a, b) Ctx.t ->
+    (b, kinetic) term ->
+    kinetic value ->
+    a check located ->
+    b rewrite_info ->
+    b rewrite_transport =
+ fun ?loc ctx family_tm family_ty proof (Rewrite_info { proof_ty; _ }) ->
+  let family_sort = sort_of_ty ctx (view_type family_ty "rewrite family") in
+  let acted_family_tm = Term.Act (family_tm, deg_zero Hott.dim, (family_sort, `Other)) in
+  let acted_family_ty =
+    act_ty (eval_term (Ctx.env ctx) family_tm) family_ty (deg_zero Hott.dim)
+  in
+  match view_type acted_family_ty "rewrite family action" with
+  | Canonical (_, Pi (impl, _, doms, _), ins, _) ->
+      let Eq = eq_of_ins_zero ins in
+      let cargs, _ = rewrite_arg_cube ?loc ctx doms proof proof_ty in
+      Rewrite_transport
+        (Field
+           ( Term.App (impl, acted_family_tm, cargs),
+             rewrite_transport_field,
+             id_ins D.zero (D.zero_plus Hott.dim) ))
+  | _ -> fatal ?loc (Anomaly "rewrite family action is not a function")
+
+and check_with : type a b m am.
+    (b, potential) status ->
+    (a, b) Ctx.t ->
+    a with_item list ->
+    (a, m, am) bplus ->
+    am check located ->
+    kinetic value ->
+    (b, potential) term =
+ fun status ctx items ab body ty ->
+  match (items, ab) with
+  | [], Zero -> check status ctx body ty
+  | [], Suc _ -> fatal (Anomaly "with body arity exceeds item count")
+  | With_item _ :: _, _ ->
+      let items =
+        List.map
+          (function
+            | With_item item ->
+                let citem, item_ty = synth (Kinetic `Nolet) ctx item in
+                Simple_with_binding (citem, item_ty)
+            | Rewrite_item _ -> fatal (Anomaly "mixed with/rewrite items"))
+          items
+      in
+      let With_bindings bindings = with_bindings_of_simple items (bplus_right ab) in
+      let bodyctx = extend_ctx_with_bindings ctx ab bindings in
+      let body_ty =
+        eval_term (Ctx.env bodyctx)
+          (abstract_over_with_bindings bindings (readback_val ctx ty))
+      in
+      let cbody = check (status_under_with_bindings status bindings) bodyctx body body_ty in
+      wrap_with_lets bindings cbody
+  | Rewrite_item item :: items, Zero ->
+      let cproof, proof_ty = synth (Kinetic `Nolet) ctx item in
+      let rwinfo = rewrite_info_of_proof ?loc:item.loc ctx proof_ty cproof in
+      let (Rewrite_info { lhs_tm; rhs_tm; base_ty; _ }) = rwinfo in
+      let proof = { value = Synth item.value; loc = item.loc } in
+      let family_body_tm =
+        Term.Lam
+          ( `Explicit,
+            singleton_variables D.zero None,
+            abstract_over_with_term rhs_tm (readback_val ctx ty) )
+      in
+      let body_ty = eval_term (Ctx.env ctx) (app family_body_tm lhs_tm) in
+      let family_ty =
+        eval_term (Ctx.env ctx)
+          (pi (singleton_variables D.zero None) (readback_val ctx base_ty) (Term.UU D.zero))
+      in
+      let rw = make_rewrite_transport ?loc:item.loc ctx family_body_tm family_ty proof rwinfo in
+      let cbody = check_with status ctx items Zero body body_ty in
+      (match cbody with
+      | Realize tm -> Realize (apply_rewrite_transport rw tm)
+      | _ -> apply_rewrite_transport_potential rw cbody)
+  | Rewrite_item _ :: _, Suc _ -> fatal (Anomaly "rewrite item count exceeds body arity")
+
+and synth_with : type a b m am s.
+    ?nosynth:Code.t Asai.Diagnostic.t ->
+    (b, s) status ->
+    (a, b) Ctx.t ->
+    a with_item list ->
+    (a, m, am) bplus ->
+    am check located ->
+    (b, s) term * kinetic value =
+ fun ?nosynth status ctx items ab body ->
+  match (items, ab) with
+  | [], Zero -> (
+      match body.value with
+      | Synth stm -> synth ?nosynth status ctx { value = stm; loc = body.loc }
+      | _ -> fatal_or nosynth (Nonsynthesizing "with-expression without synthesizing body"))
+  | [], Suc _ -> fatal (Anomaly "with body arity exceeds item count")
+  | With_item _ :: _, _ ->
+      let items =
+        List.map
+          (function
+            | With_item item ->
+                let citem, item_ty = synth (Kinetic `Nolet) ctx item in
+                Simple_with_binding (citem, item_ty)
+            | Rewrite_item _ -> fatal (Anomaly "mixed with/rewrite items"))
+          items
+      in
+      let With_bindings bindings = with_bindings_of_simple items (bplus_right ab) in
+      let bodyctx = extend_ctx_with_bindings ctx ab bindings in
+      let cbody, body_ty =
+        match body.value with
+        | Synth stm ->
+            synth ?nosynth (status_under_with_bindings status bindings) bodyctx
+              { value = stm; loc = body.loc }
+        | _ -> fatal_or nosynth (Nonsynthesizing "with-expression without synthesizing body")
+      in
+      let outer_ty = eval_term (Ctx.env ctx) (wrap_with_lets bindings (readback_val bodyctx body_ty)) in
+      (wrap_with_lets bindings cbody, outer_ty)
+  | Rewrite_item item :: items, Zero ->
+      let cproof, proof_ty = synth (Kinetic `Nolet) ctx item in
+      let rwinfo = rewrite_info_of_proof ?loc:item.loc ctx proof_ty cproof in
+      let (Rewrite_info { lhs_tm; rhs_tm; base_ty; _ }) = rwinfo in
+      let proof = { value = Synth item.value; loc = item.loc } in
+      let cbody, body_ty = synth_with ?nosynth status ctx items Zero body in
+      let family_body_tm =
+        Term.Lam
+          ( `Explicit,
+            singleton_variables D.zero None,
+            abstract_over_with_term lhs_tm (readback_val ctx body_ty) )
+      in
+      let outer_ty = eval_term (Ctx.env ctx) (app family_body_tm rhs_tm) in
+      let family_ty =
+        eval_term (Ctx.env ctx)
+          (pi (singleton_variables D.zero None) (readback_val ctx base_ty) (Term.UU D.zero))
+      in
+      let rw = make_rewrite_transport ?loc:item.loc ctx family_body_tm family_ty proof rwinfo in
+      (match status with
+      | Kinetic _ -> (apply_rewrite_transport rw cbody, outer_ty)
+      | Potential _ ->
+          (match cbody with
+          | Realize tm -> (Realize (apply_rewrite_transport rw tm), outer_ty)
+          | _ -> (apply_rewrite_transport_potential rw cbody, outer_ty)))
+  | Rewrite_item _ :: _, Suc _ -> fatal (Anomaly "rewrite item count exceeds body arity")
+
 and synth : type a b s.
     ?nosynth:Code.t Asai.Diagnostic.t ->
     (b, s) status ->
@@ -3110,6 +3479,7 @@ and synth : type a b s.
         let ctm, Not_none ety = synth_or_check_letrec ?nosynth status ctx vtys vs body None in
         (* The synthesized type of the body is also correct for the whole let-expression, because it was synthesized in a context where the variable is bound not just to its type but to its value, so it doesn't include any extra level variables (i.e. it can be silently "strengthened"). *)
         (ctm, ety)
+    | With (items, ab, body), _ -> synth_with ?nosynth status ctx items ab body
     | Match _, Kinetic l -> (
         match l with
         | `Let -> raise Case_tree_construct_in_let

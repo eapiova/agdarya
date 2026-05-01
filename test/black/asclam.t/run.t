@@ -16,7 +16,7 @@
   
    ￫ error[E0401]
    ￭ command-line exec string
-   1 | postulate C : Set echo ((x : A) ↦ ()) : C → unit
+   1 | echo ((x : A) ↦ ()) : C → unit
      ^ term synthesized type
          A
        but is being checked against type

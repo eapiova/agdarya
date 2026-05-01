@@ -9,19 +9,21 @@ let parse_fails str =
   false
 
 let () =
-  Core.Reporter.run ~fatal:(fun _ -> raise (Failure "fatal error")) ~emit:(fun _ -> ()) @@ fun () ->
-  Core.Origin.Origin.run @@ fun () ->
-  Parser.Lexer.Specials.run @@ fun () ->
-  Parser.Builtins.install ();
+  Testutil.Repl.run @@ fun () ->
   (match parse_command "f x = g x where { g y = y; h : A; h = g x }" with
   | Parser.Command.Command.Clause
       {
-        where_block =
-          Some
+        body =
+          Parser.Command.Body
             {
-              first = Parser.Command.Local_clause _;
-              rest =
-                [ (_, Parser.Command.Local_type_sig _); (_, Parser.Command.Local_clause _) ];
+              where_block =
+                Some
+                  {
+                    first = Parser.Command.Local_clause _;
+                    rest =
+                      [ (_, Parser.Command.Local_type_sig _); (_, Parser.Command.Local_clause _) ];
+                    _;
+                  };
               _;
             };
         _;

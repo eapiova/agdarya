@@ -9,148 +9,93 @@
   > nums.three : Nat
   > nums.three = suc (suc (suc zero))
   > plus : (x y : Nat) → Nat
-  > plus x y = match y [ zero ↦ x | suc y ↦ suc (plus x y) ]
-  > times : (x y : Nat) → Nat
-  > times x y = match y [ zero ↦ zero | suc y ↦ plus (times x y) x ]
-  > minus : (x y : Nat) → Nat
-  > minus x y = match y, x [ zero, x ↦ x | suc y, suc x ↦ minus x y | suc _, zero ↦ y ]
-  > notation(5) x "+" y ≔ plus x y
-  > notation(6) x "*" y ≔ times x y
-  > notation(5) x "-" y ≔ minus x y
+  > plus x y = case y of λ { zero → x; suc y → suc (plus x y) }
+  > notation(5) x "+" y := plus x y
   > EOF
 
-Renaming individual imports
+Renaming imported names
 
-  $ agdarya -e 'import "nat" | renaming myone yourone echo yourone'
+  $ agdarya -e 'open import nat renaming (myone to yourone)' -e 'echo yourone'
   1
     : Nat
   
 
-Renaming a whole subtree, clobbering the rest
+Using a subset of imported names
 
-  $ agdarya -e 'import "nat" | renaming nums . echo two'
+  $ agdarya -e 'open import nat using (myzero; nums.two)' -e 'echo myzero' -e 'echo nums.two'
+  0
+    : _OUT_OF_SCOPE.Nat
+  
   2
     : _OUT_OF_SCOPE.Nat
   
-Renaming a subtree while preserving the rest
 
-  $ agdarya -e 'import "nat" | union (id, renaming nums .) echo two'
-  2
-    : Nat
-  
-Excluding a subtree
+Hiding a subtree
 
-  $ agdarya -e 'import "nat" | except nums echo myone echo two'
+  $ agdarya -e 'open import nat hiding (nums)' -e 'echo myone' -e 'echo nums.two'
   1
     : Nat
   
    ￫ error[E0300]
    ￭ command-line exec string
-   1 | import "nat" | except nums echo myone echo two
-     ^ unbound variable: two
+   1 | echo nums.two
+     ^ unbound variable: nums.two
   
   [1]
 
-Renaming everything (i.e. import qualified)
+We can import only the notation subtree
 
-  $ agdarya -e 'import "nat" | renaming . nat echo nat.myzero echo nat.nums.three'
-  0
-    : nat.Nat
-  
-  3
-    : nat.Nat
-  
-We get notations if we keep the main subtree
-
-  $ agdarya -e 'import "nat" | renaming myone yourone echo 1 + 1'
-  2
-    : Nat
-  
-We can get only the notations by keeping only that subtree
-
-  $ agdarya -e 'import "nat" | only notations echo 1 + 1'
+  $ agdarya -e 'open import nat using (notations)' -e 'echo 1 + 1'
   2
     : _OUT_OF_SCOPE.Nat
   
 
-Or exclude the notations but get everything else
+Or hide the notation subtree and keep the ordinary names
 
-  $ agdarya -e 'import "nat" | except notations echo myzero echo 1 + 1'
+  $ agdarya -e 'open import nat hiding (notations)' -e 'echo myzero' -e 'echo 1 + 1'
   0
-    : Nat
-  
-   ￫ error[E0400]
-   ￮ non-synthesizing term in synthesizing position (argument of echo)
-  
-  [1]
-
-Or import some of the notations but not others
-
-  $ agdarya -e 'import "nat" | in notations union (only «_ + _», only «_ * _») echo 1+1 echo 1*1 echo (1-1 : Nat)'
-  2
-    : Nat
-  
-  1
     : Nat
   
    ￫ error[E0200]
    ￭ command-line exec string
-   1 | import "nat" | in notations union (only «_ + _», only «_ * _») echo 1+1 echo 1*1 echo (1-1 : Nat)
+   1 | echo 1 + 1
      ^ parse error
   
   [1]
 
-We can also import from a namespace rather than a file.
+Using and renaming also work on already visible modules
 
-  $ agdarya -e 'postulate a.b : Set postulate a.c : Set import a echo b'
-  a.b
-    : Set
-  
-
-  $ agdarya -e 'postulate a.b : Set postulate a.c : Set import a | renaming b d echo d'
-  a.b
-    : Set
-  
-
-But this doesn't affect the export namespace:
-
-  $ cat >importns.ny <<EOF
-  > postulate a.b : Set
-  > postulate a.c : Set
-  > import a
-  > echo b
-  > EOF
-
-  $ agdarya importns.ny -e 'echo a.b echo b'
-  a.b
-    : Set
-  
-  a.b
+  $ agdarya -e 'module A where { postulate B : Set; postulate C : Set }' -e 'open A using (B)' -e 'echo B' -e 'echo C'
+  A.B
     : Set
   
    ￫ error[E0300]
    ￭ command-line exec string
-   1 | echo a.b echo b
-     ^ unbound variable: b
+   1 | echo C
+     ^ unbound variable: C
   
   [1]
 
-Unless we tell it to:
+  $ agdarya -e 'module A where { postulate B : Set; postulate C : Set }' -e 'open A renaming (B to D)' -e 'echo D'
+  A.B
+    : Set
+  
 
-  $ cat >exportns.ny <<EOF
-  > postulate a.b : Set
-  > postulate a.c : Set
-  > export a
-  > echo b
+`public` re-exports opened module contents
+
+  $ cat >reexp.ny <<EOF
+  > module A where { postulate B : Set }
+  > open A public
+  > echo B
   > EOF
 
-  $ agdarya exportns.ny -e 'echo a.b echo b'
-  a.b
+  $ agdarya reexp.ny -e 'echo B' -e 'echo A.B'
+  A.B
     : Set
   
-  a.b
+  A.B
     : Set
   
-  a.b
+  A.B
     : Set
   

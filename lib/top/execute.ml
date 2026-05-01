@@ -111,6 +111,7 @@ end
 type pending_defs = {
   cmds : Parser.Command.t list;
   existing : Core.Constant.t Parser.Command.StringsMap.t;
+  private_ : bool;
 }
 
 let ordinary_pending : pending_defs option ref = ref None
@@ -118,22 +119,26 @@ let ordinary_pending : pending_defs option ref = ref None
 let rec flush_pending_commands () =
   match !ordinary_pending with
   | None -> ()
-  | Some { cmds; existing } ->
+  | Some { cmds; existing; private_ } ->
       ordinary_pending := None;
       let defs = Parser.Command.defs_of_pending_commands cmds in
       let exec_defs =
         match Origin.current () with
         | Instant _ -> Parser.Command.exec_defs_current
         | Top | File _ -> Parser.Command.exec_defs in
+      let export = if private_ then Some (Parser.Scope.get_export ()) else None in
       ignore (exec_defs ~existing defs);
+      Option.iter Parser.Scope.set_export export;
       ()
 
 and enqueue_ordinary_command cmd =
   let ordinary_source_head existing =
     Parser.Command.ordinary_source_head ~prefer_ordinary:(fun name -> Parser.Command.StringsMap.mem name existing) cmd
   in
+  let private_ = Parser.Command.ordinary_private cmd in
   (match (!ordinary_pending, Option.bind !ordinary_pending (fun pending -> ordinary_source_head pending.existing)) with
-  | Some { cmds; existing }, Some (name, _) when not (Parser.Command.StringsMap.mem name existing) ->
+  | Some { private_ = pending_private; _ }, Some _ when pending_private <> private_ -> flush_pending_commands ()
+  | Some { cmds; existing; _ }, Some (name, _) when not (Parser.Command.StringsMap.mem name existing) ->
       let shadows_existing_syntax =
         Parser.Scope.lookup_field name <> None || Parser.Scope.lookup_constr name <> None
       in
@@ -147,7 +152,7 @@ and enqueue_ordinary_command cmd =
   let pending =
     match !ordinary_pending with
     | Some pending -> pending
-    | None -> { cmds = []; existing = Parser.Command.StringsMap.empty } in
+    | None -> { cmds = []; existing = Parser.Command.StringsMap.empty; private_ } in
   let existing =
     match ordinary_source_head pending.existing with
     | Some (name, loc) when not (Parser.Command.StringsMap.mem name pending.existing) ->
@@ -155,7 +160,7 @@ and enqueue_ordinary_command cmd =
         Parser.Command.StringsMap.add name const pending.existing
     | _ -> pending.existing in
   Parser.Command.predeclare_ordinary_syntax cmd existing;
-  ordinary_pending := Some { cmds = pending.cmds @ [ cmd ]; existing }
+  ordinary_pending := Some { cmds = pending.cmds @ [ cmd ]; existing; private_ }
 
 let source_contents (source : Asai.Range.source) =
   match source with
@@ -175,6 +180,159 @@ let split_lines_preserving_newlines content =
   in
   go 0 0 []
 
+let split_inline_reserved_commands content =
+  let module Scan = struct
+    type t = {
+      block_comment_depth : int;
+      nesting_depth : int;
+      guillemet_depth : int;
+      in_string : bool;
+      escaped : bool;
+    }
+  end in
+  let utf8_guillemet_start = "\xC2\xAB" in
+  let utf8_guillemet_end = "\xC2\xBB" in
+  let starts_with_utf8 s i piece =
+    let lp = String.length piece in
+    i + lp <= String.length s && String.sub s i lp = piece
+  in
+  let initial_state : Scan.t =
+    {
+      block_comment_depth = 0;
+      nesting_depth = 0;
+      guillemet_depth = 0;
+      in_string = false;
+      escaped = false;
+    }
+  in
+  let len = String.length content in
+  let reserved_command_keywords =
+    [
+      "postulate";
+      "echo";
+      "synth";
+      "notation";
+      "infixl";
+      "infixr";
+      "infix";
+      "import";
+      "export";
+      "section";
+      "end";
+      "data";
+      "record";
+      "display";
+      "solve";
+      "split";
+      "show";
+      "fmt";
+      "undo";
+      "quit";
+      "chdir";
+      "module";
+      "open";
+      "private";
+      "public";
+    ]
+  in
+  let word_boundary i =
+    i >= len
+    ||
+    match content.[i] with
+    | ' ' | '\t' | '\n' | '\r' | '(' | '{' | '"' -> true
+    | _ -> false
+  in
+  let starts_reserved_at i =
+    List.find_opt
+      (fun kw ->
+        let lk = String.length kw in
+        i + lk <= len
+        && String.sub content i lk = kw
+        && (i = 0
+           ||
+           match content.[i - 1] with
+           | ' ' | '\t' | '\n' | '\r' -> true
+           | _ -> false)
+        && word_boundary (i + lk))
+      reserved_command_keywords
+  in
+  let push_chunk acc start stop =
+    if stop <= start then acc
+    else
+      let chunk = String.sub content start (stop - start) in
+      if String.trim chunk = "" then acc else chunk :: acc
+  in
+  let rec go i (state : Scan.t) chunk_start seen_nonblank acc =
+    if i >= len then
+      List.rev (push_chunk acc chunk_start len)
+    else if state.block_comment_depth > 0 then
+      if i + 1 < len && content.[i] = '{' && content.[i + 1] = '-' then
+        go (i + 2) { state with block_comment_depth = state.block_comment_depth + 1 } chunk_start
+          seen_nonblank acc
+      else if i + 1 < len && content.[i] = '-' && content.[i + 1] = '}' then
+        go (i + 2) { state with block_comment_depth = state.block_comment_depth - 1 } chunk_start
+          seen_nonblank acc
+      else
+        go (i + 1) state chunk_start seen_nonblank acc
+    else if state.guillemet_depth > 0 then
+      if starts_with_utf8 content i utf8_guillemet_start then
+        go (i + 2) { state with guillemet_depth = state.guillemet_depth + 1 } chunk_start
+          seen_nonblank acc
+      else if starts_with_utf8 content i utf8_guillemet_end then
+        go (i + 2) { state with guillemet_depth = state.guillemet_depth - 1 } chunk_start
+          seen_nonblank acc
+      else
+        go (i + 1) state chunk_start seen_nonblank acc
+    else if state.in_string then
+      if state.escaped then
+        go (i + 1) { state with escaped = false } chunk_start seen_nonblank acc
+      else
+        match content.[i] with
+        | '\\' -> go (i + 1) { state with escaped = true } chunk_start seen_nonblank acc
+        | '"' -> go (i + 1) { state with in_string = false } chunk_start seen_nonblank acc
+        | _ -> go (i + 1) state chunk_start seen_nonblank acc
+    else if i + 2 < len && content.[i] = '{' && content.[i + 1] = '-' && content.[i + 2] = '#' then
+      go (i + 3) state chunk_start seen_nonblank acc
+    else if i + 1 < len && content.[i] = '{' && content.[i + 1] = '-' then
+      go (i + 2) { state with block_comment_depth = 1 } chunk_start seen_nonblank acc
+    else if i + 1 < len && content.[i] = '-' && content.[i + 1] = '-' then
+      let rec skip_line j =
+        if j >= len || content.[j] = '\n' then j else skip_line (j + 1)
+      in
+      go (skip_line i) state chunk_start seen_nonblank acc
+    else if starts_with_utf8 content i utf8_guillemet_start then
+      go (i + 2) { state with guillemet_depth = 1 } chunk_start seen_nonblank acc
+    else if content.[i] = '"' then
+      go (i + 1) { state with in_string = true; escaped = false } chunk_start seen_nonblank acc
+    else if content.[i] = '(' || content.[i] = '[' || content.[i] = '{' then
+      go (i + 1) { state with nesting_depth = state.nesting_depth + 1 } chunk_start seen_nonblank acc
+    else if content.[i] = ')' || content.[i] = ']' || content.[i] = '}' then
+      go (i + 1) { state with nesting_depth = max 0 (state.nesting_depth - 1) } chunk_start
+        seen_nonblank acc
+    else if state.nesting_depth = 0 then
+      match starts_reserved_at i with
+      | Some kw when seen_nonblank ->
+          let acc = push_chunk acc chunk_start i in
+          go (i + String.length kw) state i false acc
+      | _ ->
+          let seen_nonblank =
+            seen_nonblank
+            || match content.[i] with
+               | ' ' | '\t' | '\n' | '\r' -> false
+               | _ -> true
+          in
+          go (i + 1) state chunk_start seen_nonblank acc
+    else
+      let seen_nonblank =
+        seen_nonblank
+        || match content.[i] with
+           | ' ' | '\t' | '\n' | '\r' -> false
+           | _ -> true
+      in
+      go (i + 1) state chunk_start seen_nonblank acc
+  in
+  go 0 initial_state 0 false []
+
 let indent_of_line line =
   let rec go i =
     if i < String.length line && (line.[i] = ' ' || line.[i] = '\t') then go (i + 1) else i
@@ -192,6 +350,23 @@ let is_word_boundary s i =
   | ' ' | '\t' | '\n' | '\r' | '(' | '{' | '"' -> true
   | _ -> false
 
+let has_word line word =
+  let llen = String.length line and lw = String.length word in
+  let is_boundary = function
+    | None -> true
+    | Some (' ' | '\t' | '\n' | '\r' | '(' | '{' | ')' | '}' | '[' | ']' | ',' | ';' | '|') -> true
+    | _ -> false
+  in
+  let rec go i =
+    i + lw <= llen
+    &&
+    ( String.sub line i lw = word
+      && is_boundary (if i = 0 then None else Some line.[i - 1])
+      && is_word_boundary line (i + lw)
+      || go (i + 1) )
+  in
+  go 0
+
 let has_sig_or_clause_marker line =
   let len = String.length line in
   let rec go i =
@@ -201,7 +376,7 @@ let has_sig_or_clause_marker line =
     | ':' | '=' -> true
     | _ -> go (i + 1)
   in
-  go 0
+  go 0 || has_word line "with" || has_word line "rewrite"
 
 let reserved_command_keywords =
   [
@@ -231,6 +406,22 @@ let reserved_command_keywords =
     "private";
     "public";
   ]
+
+let layout_introducer_keywords = [ "where"; "of"; "do"; "let"; "postulate"; "field" ]
+
+let ends_with_word s word =
+  let ls = String.length s and lw = String.length word in
+  ls >= lw
+  && String.sub s (ls - lw) lw = word
+  && (ls = lw
+     ||
+     match s.[ls - lw - 1] with
+     | ' ' | '\t' | '\n' | '\r' -> true
+     | _ -> false)
+
+let opens_layout_block_line line =
+  let trimmed = String.trim line in
+  List.exists (ends_with_word trimmed) layout_introducer_keywords
 
 let starts_reserved_command trimmed =
   List.exists
@@ -386,13 +577,32 @@ let split_source_commands_with_boundaries content =
   let current = ref None in
   let chunks = ref [] in
   let state = ref initial_split_scan_state in
+  let layout_stack = ref [] in
+  let pending_layout_indent = ref None in
+  let pop_layouts indent =
+    let rec go = function
+      | top :: rest when indent < top -> go rest
+      | stack -> stack
+    in
+    layout_stack := go !layout_stack
+  in
+  let maybe_open_layout indent =
+    match !pending_layout_indent with
+    | Some base when indent > base ->
+        layout_stack := indent :: !layout_stack;
+        pending_layout_indent := None
+    | Some _ -> pending_layout_indent := None
+    | None -> ()
+  in
   let flush_current () =
     match !current with
     | None -> ()
     | Some (buf, indent, _) ->
         ignore indent;
         chunks := Buffer.contents buf :: !chunks;
-        current := None
+        current := None;
+        layout_stack := [];
+        pending_layout_indent := None
   in
   List.iter
     (fun line ->
@@ -425,26 +635,37 @@ let split_source_commands_with_boundaries content =
             Buffer.add_buffer buf prelude;
             Buffer.clear prelude;
             Buffer.add_string buf line;
-            current := Some (buf, indent, Option.get start_kind))
+            current := Some (buf, indent, Option.get start_kind);
+            if not inside_construct && opens_layout_block_line sanitized then
+              pending_layout_indent := Some indent)
           else (
             Buffer.add_string prelude line)
       | Some (buf, current_indent, current_kind) ->
+          if not blank then (
+            maybe_open_layout indent;
+            if not inside_construct then pop_layouts indent);
+          let inside_layout = !layout_stack <> [] || Option.is_some !pending_layout_indent in
           if blank then (
-            if chunk_expects_continuation current_kind buf then
+            if chunk_expects_continuation current_kind buf || inside_layout then
               Buffer.add_string buf line
             else (
               flush_current ();
               Buffer.clear prelude))
           else if starts
+                  && not inside_layout
                   && (current_kind = `Header || indent <= current_indent)
                   && not (chunk_expects_continuation current_kind buf)
           then (
             flush_current ();
             let buf = Buffer.create (max 64 (String.length line)) in
             Buffer.add_string buf line;
-            current := Some (buf, indent, Option.get start_kind))
+            current := Some (buf, indent, Option.get start_kind);
+            if not inside_construct && opens_layout_block_line sanitized then
+              pending_layout_indent := Some indent)
           else (
-            Buffer.add_string buf line))
+            Buffer.add_string buf line;
+            if not inside_construct && opens_layout_block_line sanitized then
+              pending_layout_indent := Some indent))
     lines;
   flush_current ();
   List.rev !chunks
@@ -659,7 +880,8 @@ and load_string ?init_visible title content =
 and execute_source ~holes_allowed ?init_visible ?renderer file (source : Asai.Range.source) =
   Origin.with_file ~holes_allowed file @@ fun () ->
   Option.iter Scope.set_visible init_visible;
-  let render_command renderer cdns ws cmd =
+  let pending_postulates = ref None in
+  let render_single renderer cdns ws cmd =
     let new_cdns = Parser.Command.condense cmd in
     let ws =
       match renderer with
@@ -676,9 +898,32 @@ and execute_source ~holes_allowed ?init_visible ?renderer file (source : Asai.Ra
       | None -> [] in
     (new_cdns, ws)
   in
+  let flush_pending_postulates cdns ws =
+    match !pending_postulates with
+    | None -> (cdns, ws)
+    | Some (group_cdns, group_ws, wsaxiom, first, rest) ->
+        pending_postulates := None;
+        render_single renderer group_cdns group_ws
+          (Parser.Command.Postulate_block { wsaxiom; wslbrace = []; first; rest; wsrbrace = [] })
+  in
+  let render_command renderer cdns ws cmd =
+    match cmd with
+    | Parser.Command.Axiom ({ wsaxiom; nonparam; name; loc; wsname; parameters; wscolon; ty } as axiom) ->
+        let entry : Parser.Command.axiom_entry =
+          { nonparam; name; loc; wsname; parameters; wscolon; ty }
+        in
+        (match !pending_postulates with
+        | None -> pending_postulates := Some (cdns, ws, wsaxiom, entry, [])
+        | Some (group_cdns, group_ws, first_wsaxiom, first, rest) ->
+            pending_postulates := Some (group_cdns, group_ws, first_wsaxiom, first, rest @ [ ([], entry) ]));
+        (Parser.Command.condense (Parser.Command.Axiom axiom), [])
+    | _ ->
+        let cdns, ws = flush_pending_postulates cdns ws in
+        render_single renderer cdns ws cmd
+  in
   let rec batch_fragment p src cdns ws =
     match Parser.Command.Parse.final p with
-    | Eof -> (cdns, ws)
+    | Eof -> flush_pending_postulates cdns ws
     | Bof prews ->
         let cdns, ws = if cdns = `None then (`Bof, prews) else (cdns, ws) in
         let p, src = Parser.Command.Parse.restart_parse p src in
@@ -686,12 +931,15 @@ and execute_source ~holes_allowed ?init_visible ?renderer file (source : Asai.Ra
     | cmd ->
         let _ = execute_command cmd in
         let new_cdns, ws = render_command renderer cdns ws cmd in
-        let p, src = Parser.Command.Parse.restart_parse p src in
-        batch_fragment p src new_cdns ws
+        if Parser.Command.Parse.has_consumed_end p then (new_cdns, ws)
+        else
+          let p, src = Parser.Command.Parse.restart_parse p src in
+          batch_fragment p src new_cdns ws
   in
   let rec exec_chunks ?title cdns ws = function
     | [] ->
         flush_pending_commands ();
+        let _cdns, ws = flush_pending_postulates cdns ws in
         (match renderer with
         | Some render -> render (pp_ws `Cut ws)
         | None -> ())
@@ -700,12 +948,24 @@ and execute_source ~holes_allowed ?init_visible ?renderer file (source : Asai.Ra
         | Some `Header -> flush_pending_commands ()
         | Some `Sig_or_clause | None -> ());
         let too_many = ref false in
+        let split_inline = ref None in
         let parsed = ref None in
         Reporter.try_with
           (fun () -> parsed := Some (Parser.Command.parse_single ?title chunk))
           ~fatal:(fun d ->
             match d.message with
             | Too_many_commands -> too_many := true
+            | Parse_error ->
+                let inline_chunks =
+                  if title = Some "command-line exec string" && not (String.contains chunk '\n') then
+                    split_inline_reserved_commands chunk
+                  else
+                    []
+                in
+                if List.length inline_chunks > 1 then
+                  split_inline := Some inline_chunks
+                else
+                  Reporter.fatal_diagnostic d
             | _ -> Reporter.fatal_diagnostic d);
         if !too_many then
           let src : Asai.Range.source = `String { content = chunk; title } in
@@ -713,13 +973,16 @@ and execute_source ~holes_allowed ?init_visible ?renderer file (source : Asai.Ra
           let new_cdns, ws = batch_fragment p src cdns ws in
           exec_chunks ?title new_cdns ws chunks
         else
-          match !parsed with
-          | Some (prews, Some cmd) ->
-              let ws = if cdns = `None then prews else ws in
-              let _ = execute_command cmd in
-              let new_cdns, ws = render_command renderer cdns ws cmd in
-              exec_chunks ?title new_cdns ws chunks
-          | Some (_, None) | None -> exec_chunks ?title cdns ws chunks)
+          match !split_inline with
+          | Some inline_chunks -> exec_chunks ?title cdns ws (inline_chunks @ chunks)
+          | None ->
+              match !parsed with
+              | Some (prews, Some cmd) ->
+                  let ws = if cdns = `None then prews else ws in
+                  let _ = execute_command cmd in
+                  let new_cdns, ws = render_command renderer cdns ws cmd in
+                  exec_chunks ?title new_cdns ws chunks
+              | Some (_, None) | None -> exec_chunks ?title cdns ws chunks)
   in
   let run_source () =
     match source with
@@ -743,7 +1006,8 @@ and execute_source ~holes_allowed ?init_visible ?renderer file (source : Asai.Ra
 
 (* Parse, execute (if requested by Flags), and reformat (if requested by Flags) all the commands in a source. *)
 and batch renderer p src cdns ws =
-  let render_command renderer cdns ws cmd =
+  let pending_postulates = ref None in
+  let render_single renderer cdns ws cmd =
     let new_cdns = Parser.Command.condense cmd in
     let ws =
       match renderer with
@@ -760,9 +1024,33 @@ and batch renderer p src cdns ws =
       | None -> [] in
     (new_cdns, ws)
   in
+  let flush_pending_postulates cdns ws =
+    match !pending_postulates with
+    | None -> (cdns, ws)
+    | Some (group_cdns, group_ws, wsaxiom, first, rest) ->
+        pending_postulates := None;
+        render_single renderer group_cdns group_ws
+          (Parser.Command.Postulate_block { wsaxiom; wslbrace = []; first; rest; wsrbrace = [] })
+  in
+  let render_command renderer cdns ws cmd =
+    match cmd with
+    | Parser.Command.Axiom ({ wsaxiom; nonparam; name; loc; wsname; parameters; wscolon; ty } as axiom) ->
+        let entry : Parser.Command.axiom_entry =
+          { nonparam; name; loc; wsname; parameters; wscolon; ty }
+        in
+        (match !pending_postulates with
+        | None -> pending_postulates := Some (cdns, ws, wsaxiom, entry, [])
+        | Some (group_cdns, group_ws, first_wsaxiom, first, rest) ->
+            pending_postulates := Some (group_cdns, group_ws, first_wsaxiom, first, rest @ [ ([], entry) ]));
+        (Parser.Command.condense (Parser.Command.Axiom axiom), [])
+    | _ ->
+        let cdns, ws = flush_pending_postulates cdns ws in
+        render_single renderer cdns ws cmd
+  in
   match Parser.Command.Parse.final p with
   | Eof -> (
       flush_pending_commands ();
+      let _cdns, ws = flush_pending_postulates cdns ws in
       match renderer with
       | Some render -> render (pp_ws `Cut ws)
       | None -> ())
@@ -779,10 +1067,10 @@ and batch renderer p src cdns ws =
 and execute_command cmd =
   let action_taken () = Loading.modify (fun s -> { s with actions = true }) in
   let get_file file = load_file file false in
-  match cmd with
-  | Parser.Command.TypeSig _ | Parser.Command.Clause _ ->
+  match Parser.Command.ordinary_source_head cmd with
+  | Some _ ->
       enqueue_ordinary_command cmd;
       (None, [])
-  | _ ->
+  | None ->
       flush_pending_commands ();
       Parser.Command.execute ~action_taken ~get_file cmd

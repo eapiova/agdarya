@@ -95,7 +95,7 @@ Comments and strings
 
 There are two kinds of comments.  A line comment starts with a backquote ````` and extends to the end of the line.  A block comment starts with ``{``` and ends with ```}``.  Block comments can be nested and can contain line comments, but cannot start inside a line comment.
 
-String literals are surrounded by double quotes, as in ``"hello, world"``.  Currently, double-quoted strings appear in the syntax of some commands, such as ``notation`` and ``import``, but do not exist internally in the language of Agdarya.
+String literals are surrounded by double quotes, as in ``"hello, world"``.  Currently, double-quoted strings appear in a few commands and pragmas, but do not exist internally in the language of Agdarya.
 
 
 Tokens
@@ -130,11 +130,12 @@ An *atomic identifier* can be any string of non-whitespace characters, other tha
 
 .. code-block:: none
    
-   and postulate codata data def display echo end export import infix infixl infixr
-   chdir in let match notation option quit rec return section show sig solve synth
-   undo
+   and case chdir codata constructor data def display do echo end export field fmt
+   hiding import infix infixl infixr let match module notation of open option
+   postulate private public quit rec record renaming return section show sig
+   solve split synth to undo using where
 
-An *identifier* consists of one or more atomic identifiers joined by periods.  Variable names must be atomic identifiers, while constant names must be identifiers (internal periods denote :ref:`namespaces<Namespaces and sections>`).  In particular, (atomic) identifiers may *start* with a digit, such as for instance ``2Cat`` or ``2−Cat`` for the type of 2-categories.
+An *identifier* consists of one or more atomic identifiers joined by periods.  Variable names must be atomic identifiers, while constant names must be identifiers (internal periods denote :ref:`modules and namespaces <Imports and scoping>`).  In particular, (atomic) identifiers may *start* with a digit, such as for instance ``2Cat`` or ``2−Cat`` for the type of 2-categories.
 
 In addition, enclosing guillemets ``«`` and ``»`` can be used to make an atomic identifier out of *any* sequence of characters at all, including spaces, periods, comment sequences, and special characters.  Thus, for instance, ``«a long string»`` is a single atomic identifier, and likewise ``«foo.bar»`` is a single *atomic* identifier (unlike ``foo.bar`` which is ``bar`` in namespace ``foo``).  Note that the guillemets in such cases are *part* of the identifier: thus for instance ``«foo»`` is a different identifier than ``foo``.  Guillemets can also be nested: ``«a«b»c»`` is a single atomic identifier.
 

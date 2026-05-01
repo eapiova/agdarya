@@ -375,6 +375,10 @@ module F = struct
     | Act (_, _, _) -> fprintf ppf "Act(?)"
     | Match { tm; sort = _; branches = br; refutables = _; highers = _ } ->
         fprintf ppf "Match (%a, (%a))" synth tm.value branches br
+    | With (items, _, body) ->
+        fprintf ppf "With(%a, %a)"
+          (pp_print_list ~pp_sep:(fun ppf () -> pp_print_string ppf ", ") with_item)
+          items check body.value
     | UU -> fprintf ppf "Set"
     | Fail _ -> fprintf ppf "Error"
     | ImplicitSApp (fn, _, arg) -> fprintf ppf "ImplicitSApp(%a, %a)" synth fn.value synth arg.value
@@ -384,6 +388,11 @@ module F = struct
           (List.map (fun (_, x, _) -> x) tms)
           (pp_print_option synth) arg
     | Calc _ -> fprintf ppf "Calc(?)"
+
+  and with_item : type a. formatter -> a with_item -> unit =
+   fun ppf -> function
+    | With_item tm -> fprintf ppf "with %a" synth tm.value
+    | Rewrite_item tm -> fprintf ppf "rewrite %a" synth tm.value
 
   and branches : type a. formatter -> (Constr.t, a branch) Abwd.t -> unit =
    fun ppf brs ->

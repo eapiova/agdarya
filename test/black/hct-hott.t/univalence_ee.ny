@@ -1,11 +1,11 @@
  {- -*- agdarya-prog-args: ("-proofgeneral" "-parametric" "-direction" "p,rel,Br") -*- -}
 
-import "isfibrant"
-import "bookhott"
-import "hott_bookhott"
-import "fibrant_types"
-import "homotopy"
-import "univalence"
+open import isfibrant
+open import bookhott
+open import hott_bookhott
+open import fibrant_types
+open import homotopy
+open import univalence
 
 isBisim_ee : (A00 A01 : Fib) → (A02 : Br Fib A00 A01) → (A10 A11 : Fib) →
              (A12 : Br Fib A10 A11) → (A20 : Br Fib A00 A10) →
@@ -84,6 +84,7 @@ tb = λ a00 a01 a10 a11 a20 a21 →
       (re tb a00 a01 a10 a11 a20 a21);
 id⟨p⟩ =
   λ a00 a01 a02 a10 a11 a12 a20 a21 a22 b00 b01 b02 b10 b11 b12 b20 b21 b22 →
+
 
 
     isbisim_ee_eqv (Idd𝕗 A00.0 A00.1 A00.2 a00 b00)
@@ -276,7 +277,7 @@ id⟨p⟩ = a0 a1 ⤇
              a0⟨20⟩ a1⟨20⟩ (sym a20) a0⟨21⟩ a1⟨21⟩ (sym a21) a0⟨22⟩ a1⟨22⟩))
          (re.2 id⟨1⟩ a0⟨00⟩ a0⟨01⟩ a0⟨02⟩ a0⟨10⟩ a0⟨11⟩ a0⟨12⟩ a0⟨20⟩
             a0⟨21⟩ a0⟨22⟩ a1⟨00⟩ a1⟨01⟩ a1⟨02⟩ a1⟨10⟩ a1⟨11⟩ a1⟨12⟩ a1⟨20⟩
-            a1⟨21⟩ a1⟨22⟩)) } {- Of course, we need a 2-dimensional version of Gel. -}
+            a1⟨21⟩ a1⟨22⟩)) }
 
 Gel_ee : (A00 A01 : Set) → (A02 : Br Set A00 A01) → (A10 A11 : Set) →
          (A12 : Br Set A10 A11) → (A20 : Br Set A00 A10) →
@@ -355,6 +356,7 @@ univalence_ee : (A00 A01 : Fib) → (A02 : Br Fib A00 A01) → (A10 A11 : Fib) �
 
 univalence_ee A00 A01 A02 A10 A11 A12 A20 A21 R re
 =
+
 
   let Rt
     : (a00 : A00 t) (a01 : A01 t) (a02 : A02 t a00 a01) (a10 : A10 t)

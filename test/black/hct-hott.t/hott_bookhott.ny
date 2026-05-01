@@ -1,7 +1,7 @@
 {- -*- agdarya-prog-args: ("-proofgeneral" "-parametric" "-direction" "p,rel,Br") -*- -}
 
-import "isfibrant"
-import "bookhott"
+open import isfibrant
+open import bookhott
 
 {- Facts about the interaction of Book HoTT equivalences (regarded as the outer 2LTT layer) and HOTT identity types. -}
 

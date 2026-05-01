@@ -11,9 +11,6 @@
    ￫ info[I0002]
    ￮ notation «_ / _» defined
   
-   ￫ info[I0007]
-   ￮ section ℕ opened
-  
    ￫ info[I0000]
    ￮ constant zero defined
   
@@ -32,12 +29,6 @@
    ￫ info[I0000]
    ￮ constant two defined
   
-   ￫ info[I0008]
-   ￮ section ℕ closed
-  
-   ￫ info[I0007]
-   ￮ section ℕ₊ opened
-  
    ￫ info[I0000]
    ￮ constant one defined
   
@@ -49,12 +40,6 @@
   
   2
     : ℕ₊
-  
-   ￫ info[I0008]
-   ￮ section ℕ₊ closed
-  
-   ￫ info[I0007]
-   ￮ section ℚ opened
   
    ￫ info[I0000]
    ￮ constant zero defined
@@ -91,9 +76,6 @@
   
   1 / 3
     : ℚ₀₊
-  
-   ￫ info[I0008]
-   ￮ section ℚ closed
   
    ￫ warning[W2305]
    ￮ can't write compiled file: $TESTCASE_ROOT/numerals.nyo

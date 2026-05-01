@@ -13,14 +13,14 @@ let isfibrant = [%blob "isfibrant.ny"]
 let fibrancy = [%blob "fibrancy.ny"]
 
 let bootstrap _title content =
-  List.iter
-    (fun chunk ->
+  Top.Execute.split_source_commands_with_boundaries content
+  |> List.iter
+       (fun chunk ->
       match Parser.Command.parse_single chunk with
       | _, Some cmd ->
           let _ = Top.Execute.execute_command cmd in
           ()
-      | _, None -> ())
-    (Top.Execute.split_source_commands_with_boundaries content);
+      | _, None -> ());
   Top.Execute.flush_pending_commands ()
 
 (* For frobnicating things, we need to look up the defined terms that result from the bootstrapping. *)

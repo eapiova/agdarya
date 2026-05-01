@@ -206,7 +206,7 @@ All axioms using a nonparametric postulate must also be nonparametric
   
    ￫ error[E0312]
    ￭ command-line exec string
-   1 | postulate #(nonparametric) A : Set postulate #(nonparametric) a : A postulate a' : A
+   1 | postulate a' : A
      ^ constant A is or uses a nonparametric postulate, can't be used in a parametric command
   
   [1]

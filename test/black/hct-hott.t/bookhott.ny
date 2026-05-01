@@ -1,129 +1,286 @@
-{- -*- agdarya-prog-args: ("-proofgeneral" "-parametric" "-direction" "p,rel,Br") -*- -}
+ {- -*- agdarya-prog-args: ("-proofgeneral" "-parametric" "-direction" "p,rel,Br") -*- -}
 
 {- Basic facts from Book HoTT using the Martin-Lof identity type.  We are treating this as the outer layer of 2LTT used in Orton-Pitts style to build an inner HOTT layer. -}
-
-section eq ≔
+module eq where {
 
   eq : (A : Set) → (a : A) → A → Set
+;
   eq A a = data [ rfl : eq A a a ]
+;
 
-  cat : (A : Set) → (x y z : A) → (u : eq A x y) → (v : eq A y z) → eq A x z
-  cat A x y z u v = match v [ rfl ↦ u ]
+  cat : (A : Set) → (x y z : A) → (u : eq A x y) → (v : eq A y z)
+        → eq A x z
+;
+  cat A x y z u v = case v of λ { rfl → u}
+;
 
-  cat3 : (A : Set) → (x y z w : A) → (p : eq A x y) → (q : eq A y z) → (r : eq A z w) → eq A x w
-  cat3 A x y z w p q r = match q, r [ rfl, rfl ↦ p ]
+  cat3 : (A : Set) → (x y z w : A) → (p : eq A x y) → (q : eq A y z) →
+         (r : eq A z w)
+         → eq A x w
+;
+  cat3 A x y z w p q r = case q, r of λ { rfl, rfl → p}
+;
 
-  idl : (A : Set) → (a0 a1 : A) → (a2 : eq A a0 a1) → eq (eq A a0 a1) (cat A a0 a0 a1 rfl a2) a2
-  idl A a0 a1 a2 = match a2 [ rfl ↦ rfl ]
+  idl : (A : Set) → (a0 a1 : A) → (a2 : eq A a0 a1)
+        → eq (eq A a0 a1) (cat A a0 a0 a1 rfl a2) a2
+;
+  idl A a0 a1 a2 = case a2 of λ { rfl → rfl}
+;
 
   inv : (A : Set) → (a0 a1 : A) → (a2 : eq A a0 a1) → eq A a1 a0
-  inv A a0 a1 a2 = match a2 [ rfl ↦ rfl ]
+;
+  inv A a0 a1 a2 = case a2 of λ { rfl → rfl}
+;
 
-  ap : (A B : Set) → (f : A → B) → (a0 a1 : A) → (a2 : eq A a0 a1) → eq B (f a0) (f a1)
-  ap A B f a0 a1 a2 = match a2 [ rfl ↦ rfl ]
+  ap : (A B : Set) → (f : A → B) → (a0 a1 : A) → (a2 : eq A a0 a1)
+       → eq B (f a0) (f a1)
+;
+  ap A B f a0 a1 a2 = case a2 of λ { rfl → rfl}
+;
 
-  ap_ap : (A B C : Set) → (f : A → B) → (g : B → C) → (a0 a1 : A) → (a2 : eq A a0 a1) → eq (eq C (g (f a0)) (g (f a1)))
-        (ap B C g (f a0) (f a1) (ap A B f a0 a1 a2))
-        (ap A C (x ↦ g (f x)) a0 a1 a2)
-  ap_ap A B C f g a0 a1 a2 = match a2 [ rfl ↦ rfl ]
+  ap_ap : (A B C : Set) → (f : A → B) → (g : B → C) → (a0 a1 : A) →
+          (a2 : eq A a0 a1)
+          → eq (eq C (g (f a0)) (g (f a1)))
+              (ap B C g (f a0) (f a1) (ap A B f a0 a1 a2))
+              (ap A C (x ↦ g (f x)) a0 a1 a2)
+;
+  ap_ap A B C f g a0 a1 a2 = case a2 of λ { rfl → rfl}
+;
 
-  trr : (A : Set) → (P : A → Set) → (a0 a1 : A) → (a2 : eq A a0 a1) → (p : P a0) → P a1
-  trr A P a0 a1 a2 p = match a2 [ rfl ↦ p ]
+  trr : (A : Set) → (P : A → Set) → (a0 a1 : A) → (a2 : eq A a0 a1) →
+        (p : P a0)
+        → P a1
+;
+  trr A P a0 a1 a2 p = case a2 of λ { rfl → p}
+;
 
-  trr_ap : (A B : Set) → (P : A → Set) → (Q : B → Set) → (f : A → B) → (g : (x : A) → P x → Q (f x)) → (a0 a1 : A) → (a2 : eq A a0 a1) → (p : P a0) → eq (Q (f a1)) (g a1 (trr A P a0 a1 a2 p))
-        (trr B Q (f a0) (f a1) (ap A B f a0 a1 a2) (g a0 p))
-  trr_ap A B P Q f g a0 a1 a2 p = match a2 [ rfl ↦ rfl ]
+  trr_ap : (A B : Set) → (P : A → Set) → (Q : B → Set) → (f : A → B) →
+           (g : (x : A) → P x → Q (f x)) → (a0 a1 : A) → (a2 : eq A a0 a1) →
+           (p : P a0)
+           → eq (Q (f a1)) (g a1 (trr A P a0 a1 a2 p))
+               (trr B Q (f a0) (f a1) (ap A B f a0 a1 a2) (g a0 p))
+;
+  trr_ap A B P Q f g a0 a1 a2 p = case a2 of λ { rfl → rfl}
+;
 
-  trr2 : (A : Set) → (B : Set) → (P : A → B → Set) → (a0 a1 : A) → (a2 : eq A a0 a1) → (b0 b1 : B) → (b2 : eq B b0 b1) → (p : P a0 b0) → P a1 b1
-  trr2 A B P a0 a1 a2 b0 b1 b2 p = match a2, b2 [ rfl, rfl ↦ p ]
+  trr2 : (A : Set) → (B : Set) → (P : A → B → Set) → (a0 a1 : A) →
+         (a2 : eq A a0 a1) → (b0 b1 : B) → (b2 : eq B b0 b1) →
+         (p : P a0 b0)
+         → P a1 b1
+;
+  trr2 A B P a0 a1 a2 b0 b1 b2 p = case a2, b2 of λ { rfl, rfl → p}
+;
 
-  trl2 : (A : Set) → (B : Set) → (P : A → B → Set) → (a0 a1 : A) → (a2 : eq A a0 a1) → (b0 b1 : B) → (b2 : eq B b0 b1) → (p : P a1 b1) → P a0 b0
-  trl2 A B P a0 a1 a2 b0 b1 b2 p = match a2, b2 [ rfl, rfl ↦ p ]
+  trl2 : (A : Set) → (B : Set) → (P : A → B → Set) → (a0 a1 : A) →
+         (a2 : eq A a0 a1) → (b0 b1 : B) → (b2 : eq B b0 b1) →
+         (p : P a1 b1)
+         → P a0 b0
+;
+  trl2 A B P a0 a1 a2 b0 b1 b2 p = case a2, b2 of λ { rfl, rfl → p}
+;
 
-  trr2_ap : (A B : Set) → (P : A → B → Set) → (C D : Set) → (Q : C → D → Set) → (f : A → C) → (g : B → D) → (h : (x : A) (y : B) → P x y → Q (f x) (g y)) → (a0 a1 : A) → (a2 : eq A a0 a1) → (b0 b1 : B) → (b2 : eq B b0 b1) → (p : P a0 b0) → eq (Q (f a1) (g b1)) (h a1 b1 (trr2 A B P a0 a1 a2 b0 b1 b2 p))
-        (trr2 C D Q (f a0) (f a1) (ap A C f a0 a1 a2) (g b0) (g b1)
-           (ap B D g b0 b1 b2) (h a0 b0 p))
-  trr2_ap A B P C D Q f g h a0 a1 a2 b0 b1 b2 p = match a2, b2 [ rfl, rfl ↦ rfl ]
+  trr2_ap : (A B : Set) → (P : A → B → Set) → (C D : Set) →
+            (Q : C → D → Set) → (f : A → C) → (g : B → D) →
+            (h : (x : A) (y : B) → P x y → Q (f x) (g y)) → (a0 a1 : A) →
+            (a2 : eq A a0 a1) → (b0 b1 : B) → (b2 : eq B b0 b1) →
+            (p : P a0 b0)
+            → eq (Q (f a1) (g b1))
+                (h a1 b1 (trr2 A B P a0 a1 a2 b0 b1 b2 p))
+                (trr2 C D Q (f a0) (f a1) (ap A C f a0 a1 a2) (g b0) (g b1)
+                   (ap B D g b0 b1 b2) (h a0 b0 p))
+;
+  trr2_ap A B P C D Q f g h a0 a1 a2 b0 b1 b2 p
+  =
+    case a2, b2 of λ { rfl, rfl → rfl}
+;
 
-  whiskerR : (A : Set) → (a0 a1 a2 : A) → (a01 a01' : eq A a0 a1) → (a02 : eq (eq A a0 a1) a01 a01') → (a12 : eq A a1 a2) → eq (eq A a0 a2) (cat A a0 a1 a2 a01 a12) (cat A a0 a1 a2 a01' a12)
-  whiskerR A a0 a1 a2 a01 a01' a02 a12 = match a12 [ rfl ↦ a02 ]
+  whiskerR : (A : Set) → (a0 a1 a2 : A) → (a01 a01' : eq A a0 a1) →
+             (a02 : eq (eq A a0 a1) a01 a01') → (a12 : eq A a1 a2)
+             → eq (eq A a0 a2) (cat A a0 a1 a2 a01 a12)
+                 (cat A a0 a1 a2 a01' a12)
+;
+  whiskerR A a0 a1 a2 a01 a01' a02 a12 = case a12 of λ { rfl → a02}
+;
 
-  unwhiskerR : (A : Set) → (a0 a1 a2 : A) → (a01 a01' : eq A a0 a1) → (a12 : eq A a1 a2) → (a02 : eq (eq A a0 a2) (cat A a0 a1 a2 a01 a12)
-             (cat A a0 a1 a2 a01' a12)) → eq (eq A a0 a1) a01 a01'
-  unwhiskerR A a0 a1 a2 a01 a01' a12 a02 = match a12 [ rfl ↦ a02 ]
+  unwhiskerR : (A : Set) → (a0 a1 a2 : A) → (a01 a01' : eq A a0 a1) →
+               (a12 : eq A a1 a2) →
+               (a02
+               : eq (eq A a0 a2) (cat A a0 a1 a2 a01 a12)
+                   (cat A a0 a1 a2 a01' a12))
+               → eq (eq A a0 a1) a01 a01'
+;
+  unwhiskerR A a0 a1 a2 a01 a01' a12 a02 = case a12 of λ { rfl → a02}
 
-end
+}
 
 eq = eq⟨eq⟩
 
-eqd : (A : Set) → (B : A → Set) → (a0 a1 : A) → (a2 : eq A a0 a1) → (b0 : B a0) → (b1 : B a1) → Set
-eqd A B a0 a1 a2 b0 b1 = match a2 [ eq.rfl ↦ eq (B a0) b0 b1 ]
-
-ap2d : (A : Set) → (B : A → Set) → (C : Set) → (f : (a : A) → B a → C) → (a0 a1 : A) → (a2 : eq A a0 a1) → (b0 : B a0) → (b1 : B a1) → (b2 : eqd A B a0 a1 a2 b0 b1) → eq C (f a0 b0) (f a1 b1)
-ap2d A B C f a0 a1 a2 b0 b1 b2 = match a2, b2 [ eq.rfl, eq.rfl ↦ eq.rfl ]
-
-eqdd : (A : Set) → (B : A → Set) → (C : (a : A) → B a → Set) → (a0 a1 : A) → (a2 : eq A a0 a1) → (b0 : B a0) → (b1 : B a1) → (b2 : eqd A B a0 a1 a2 b0 b1) → (c0 : C a0 b0) → (c1 : C a1 b1) → Set
-eqdd A B C a0 a1 a2 b0 b1 b2 c0 c1 = match a2, b2 [ eq.rfl, eq.rfl ↦ eq (C a0 b0) c0 c1 ]
-
-ap3d : (A : Set) → (B : A → Set) → (C : (a : A) → B a → Set) → (D : Set) → (f : (a : A) (b : B a) → C a b → D) → (a0 a1 : A) → (a2 : eq A a0 a1) → (b0 : B a0) → (b1 : B a1) → (b2 : eqd A B a0 a1 a2 b0 b1) → (c0 : C a0 b0) → (c1 : C a1 b1) → (c2 : eqdd A B C a0 a1 a2 b0 b1 b2 c0 c1) → eq D (f a0 b0 c0) (f a1 b1 c1)
-ap3d A B C D f a0 a1 a2 b0 b1 b2 c0 c1 c2 = match a2, b2, c2 [ eq.rfl, eq.rfl, eq.rfl ↦ eq.rfl ]
-
-section sq ≔
-
-  sq : (A : Set) → (a00 : A) → (a01 : A) (a02 : eq A a00 a01) (a10 a11 : A) (a12 : eq A a10 a11)
-      (a20 : eq A a00 a10) (a21 : eq A a01 a11)
+eqd : (A : Set) → (B : A → Set) → (a0 a1 : A) → (a2 : eq A a0 a1) →
+      (b0 : B a0) → (b1 : B a1)
       → Set
-  sq A a00 = data [
-  | rfl : sq A a00 a00 rfl a00 a00 rfl rfl rfl ]
 
-  hrfl : (A : Set) → (a0 a1 : A) → (a2 : eq A a0 a1) → sq A a0 a0 rfl a1 a1 rfl a2 a2
-  hrfl A a0 a1 a2 = match a2 [ rfl ↦ rfl ]
+eqd A B a0 a1 a2 b0 b1 = case a2 of λ { eq.rfl → eq (B a0) b0 b1}
 
-  nat_toid : (A : Set) → (f : A → A) → (p : (x : A) → eq A (f x) x) → (a0 a1 : A) → (a2 : eq A a0 a1) → sq A (f a0) (f a1) (eq.ap A A f a0 a1 a2) a0 a1 a2 (p a0) (p a1)
-  nat_toid A f p a0 a1 a2 = match a2 [ rfl ↦ hrfl A (f a0) a0 (p a0) ]
+ap2d : (A : Set) → (B : A → Set) → (C : Set) → (f : (a : A) → B a → C) →
+       (a0 a1 : A) → (a2 : eq A a0 a1) → (b0 : B a0) → (b1 : B a1) →
+       (b2 : eqd A B a0 a1 a2 b0 b1)
+       → eq C (f a0 b0) (f a1 b1)
 
-  ap : (A B : Set) → (f : A → B) → (a00 a01 : A) → (a02 : eq A a00 a01) → (a10 a11 : A) → (a12 : eq A a10 a11) → (a20 : eq A a00 a10) → (a21 : eq A a01 a11) → (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21) → sq B (f a00) (f a01) (eq.ap A B f a00 a01 a02) (f a10) (f a11)
-        (eq.ap A B f a10 a11 a12) (eq.ap A B f a00 a10 a20)
-        (eq.ap A B f a01 a11 a21)
-  ap A B f a00 a01 a02 a10 a11 a12 a20 a21 a22 = match a22 [ rfl ↦ rfl ]
+ap2d A B C f a0 a1 a2 b0 b1 b2
+=
+  case a2, b2 of λ { eq.rfl, eq.rfl → eq.rfl}
 
-  act02 : (A : Set) → (a00 a01 : A) → (a02 : eq A a00 a01) → (a10 a11 : A) → (a12 : eq A a10 a11) → (a20 : eq A a00 a10) → (a21 : eq A a01 a11) → (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21) → (a02' : eq A a00 a01) → (p : eq (eq A a00 a01) a02 a02') → sq A a00 a01 a02' a10 a11 a12 a20 a21
-  act02 A a00 a01 a02 a10 a11 a12 a20 a21 a22 a02' p = match p [ rfl ↦ a22 ]
+eqdd : (A : Set) → (B : A → Set) → (C : (a : A) → B a → Set) → (a0 a1 : A) →
+       (a2 : eq A a0 a1) → (b0 : B a0) → (b1 : B a1) →
+       (b2 : eqd A B a0 a1 a2 b0 b1) → (c0 : C a0 b0) → (c1 : C a1 b1)
+       → Set
 
-  act20 : (A : Set) → (a00 a01 : A) → (a02 : eq A a00 a01) → (a10 a11 : A) → (a12 : eq A a10 a11) → (a20 : eq A a00 a10) → (a21 : eq A a01 a11) → (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21) → (a20' : eq A a00 a10) → (p : eq (eq A a00 a10) a20 a20') → sq A a00 a01 a02 a10 a11 a12 a20' a21
-  act20 A a00 a01 a02 a10 a11 a12 a20 a21 a22 a20' p = match p [ rfl ↦ a22 ]
+eqdd A B C a0 a1 a2 b0 b1 b2 c0 c1
+=
+  case a2, b2 of λ { eq.rfl, eq.rfl → eq (C a0 b0) c0 c1}
 
-  to_cat : (A : Set) → (a00 a01 : A) → (a02 : eq A a00 a01) → (a10 a11 : A) → (a12 : eq A a10 a11) → (a20 : eq A a00 a10) → (a21 : eq A a01 a11) → (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21) → eq (eq A a00 a11) (eq.cat A a00 a01 a11 a02 a21)
-        (eq.cat A a00 a10 a11 a20 a12)
-  to_cat A a00 a01 a02 a10 a11 a12 a20 a21 a22 = match a22 [ rfl ↦ rfl ]
+ap3d : (A : Set) → (B : A → Set) → (C : (a : A) → B a → Set) → (D : Set) →
+       (f : (a : A) (b : B a) → C a b → D) → (a0 a1 : A) →
+       (a2 : eq A a0 a1) → (b0 : B a0) → (b1 : B a1) →
+       (b2 : eqd A B a0 a1 a2 b0 b1) → (c0 : C a0 b0) → (c1 : C a1 b1) →
+       (c2 : eqdd A B C a0 a1 a2 b0 b1 b2 c0 c1)
+       → eq D (f a0 b0 c0) (f a1 b1 c1)
 
-  to_cat3 : (A : Set) → (a00 a01 : A) → (a02 : eq A a00 a01) → (a10 a11 : A) → (a12 : eq A a10 a11) → (a20 : eq A a00 a10) → (a21 : eq A a01 a11) → (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21) → eq (eq A a10 a11) a12
-        (eq.cat3 A a10 a00 a01 a11 (eq.inv A a00 a10 a20) a02 a21)
-  to_cat3 A a00 a01 a02 a10 a11 a12 a20 a21 a22 = match a22 [ rfl ↦ rfl ]
+ap3d A B C D f a0 a1 a2 b0 b1 b2 c0 c1 c2
+=
+  case a2, b2, c2 of λ { eq.rfl, eq.rfl, eq.rfl → eq.rfl}
 
-  all_rfl_21 : (A : Set) → (a : A) → (a2 : eq A a a) → (a22 : sq A a a rfl a a rfl rfl a2) → eq (eq A a a) a2 rfl
-  all_rfl_21 A a a2 a22 = eq.cat (eq A a a) a2 (eq.cat A a a a rfl a2) rfl
-        (eq.inv (eq A a a) (eq.cat A a a a rfl a2) a2 (eq.idl A a a a2))
-        (to_cat A a a rfl a a rfl rfl a2 a22)
+module sq where {
 
-  unact21 : (A : Set) → (a00 a01 : A) → (a02 : eq A a00 a01) → (a10 a11 : A) → (a12 : eq A a10 a11) → (a20 : eq A a00 a10) → (a21 : eq A a01 a11) → (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21) → (a21' : eq A a01 a11) → (a22' : sq A a00 a01 a02 a10 a11 a12 a20 a21') → eq (eq A a01 a11) a21 a21'
-  unact21 A a00 a01 a02 a10 a11 a12 a20 a21 a22 a21' a22' = match a22 [
-  | rfl ↦ eq.inv (eq A a00 a00) a21' rfl (all_rfl_21 A a00 a21' a22')]
+  sq : (A : Set) → (a00 : A) → (a01 : A) (a02 : eq A a00 a01) (a10 a11 : A)
+       (a12 : eq A a10 a11) (a20 : eq A a00 a10) (a21 : eq A a01 a11)
+       → Set
+;
+  sq A a00 = data [ rfl : sq A a00 a00 rfl a00 a00 rfl rfl rfl ]
+;
 
-  cancel_12_eq_21 : (A : Set) → (a00 a01 : A) → (a02 : eq A a00 a01) → (a11 : A) → (a12 : eq A a01 a11) → (a20 : eq A a00 a01) → (a22 : sq A a00 a01 a02 a01 a11 a12 a20 a12) → eq (eq A a00 a01) a02 a20
-  cancel_12_eq_21 A a00 a01 a02 a11 a12 a20 a22 = eq.unwhiskerR A a00 a01 a11 a02 a20 a12
-        (to_cat A a00 a01 a02 a01 a11 a12 a20 a12 a22)
+  hrfl : (A : Set) → (a0 a1 : A) → (a2 : eq A a0 a1)
+         → sq A a0 a0 rfl a1 a1 rfl a2 a2
+;
+  hrfl A a0 a1 a2 = case a2 of λ { rfl → rfl}
+;
 
-end
+  nat_toid : (A : Set) → (f : A → A) → (p : (x : A) → eq A (f x) x) →
+             (a0 a1 : A) → (a2 : eq A a0 a1)
+             → sq A (f a0) (f a1) (eq.ap A A f a0 a1 a2) a0 a1 a2 (p a0)
+                 (p a1)
+;
+  nat_toid A f p a0 a1 a2 = case a2 of λ { rfl → hrfl A (f a0) a0 (p a0)}
+;
+
+  ap : (A B : Set) → (f : A → B) → (a00 a01 : A) → (a02 : eq A a00 a01) →
+       (a10 a11 : A) → (a12 : eq A a10 a11) → (a20 : eq A a00 a10) →
+       (a21 : eq A a01 a11) → (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21)
+       → sq B (f a00) (f a01) (eq.ap A B f a00 a01 a02) (f a10) (f a11)
+           (eq.ap A B f a10 a11 a12) (eq.ap A B f a00 a10 a20)
+           (eq.ap A B f a01 a11 a21)
+;
+  ap A B f a00 a01 a02 a10 a11 a12 a20 a21 a22 = case a22 of λ { rfl → rfl}
+;
+
+  act02 : (A : Set) → (a00 a01 : A) → (a02 : eq A a00 a01) → (a10 a11 : A) →
+          (a12 : eq A a10 a11) → (a20 : eq A a00 a10) →
+          (a21 : eq A a01 a11) →
+          (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21) →
+          (a02' : eq A a00 a01) → (p : eq (eq A a00 a01) a02 a02')
+          → sq A a00 a01 a02' a10 a11 a12 a20 a21
+;
+  act02 A a00 a01 a02 a10 a11 a12 a20 a21 a22 a02' p
+  =
+    case p of λ { rfl → a22}
+;
+
+  act20 : (A : Set) → (a00 a01 : A) → (a02 : eq A a00 a01) → (a10 a11 : A) →
+          (a12 : eq A a10 a11) → (a20 : eq A a00 a10) →
+          (a21 : eq A a01 a11) →
+          (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21) →
+          (a20' : eq A a00 a10) → (p : eq (eq A a00 a10) a20 a20')
+          → sq A a00 a01 a02 a10 a11 a12 a20' a21
+;
+  act20 A a00 a01 a02 a10 a11 a12 a20 a21 a22 a20' p
+  =
+    case p of λ { rfl → a22}
+;
+
+  to_cat : (A : Set) → (a00 a01 : A) → (a02 : eq A a00 a01) → (a10 a11 : A) →
+           (a12 : eq A a10 a11) → (a20 : eq A a00 a10) →
+           (a21 : eq A a01 a11) →
+           (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21)
+           → eq (eq A a00 a11) (eq.cat A a00 a01 a11 a02 a21)
+               (eq.cat A a00 a10 a11 a20 a12)
+;
+  to_cat A a00 a01 a02 a10 a11 a12 a20 a21 a22 = case a22 of λ { rfl → rfl}
+;
+
+  to_cat3 : (A : Set) → (a00 a01 : A) → (a02 : eq A a00 a01) →
+            (a10 a11 : A) → (a12 : eq A a10 a11) → (a20 : eq A a00 a10) →
+            (a21 : eq A a01 a11) →
+            (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21)
+            → eq (eq A a10 a11) a12
+                (eq.cat3 A a10 a00 a01 a11 (eq.inv A a00 a10 a20) a02 a21)
+;
+  to_cat3 A a00 a01 a02 a10 a11 a12 a20 a21 a22
+  =
+    case a22 of λ { rfl → rfl}
+;
+
+  all_rfl_21 : (A : Set) → (a : A) → (a2 : eq A a a) →
+               (a22 : sq A a a rfl a a rfl rfl a2)
+               → eq (eq A a a) a2 rfl
+;
+  all_rfl_21 A a a2 a22
+  =
+    eq.cat (eq A a a) a2 (eq.cat A a a a rfl a2) rfl
+      (eq.inv (eq A a a) (eq.cat A a a a rfl a2) a2 (eq.idl A a a a2))
+      (to_cat A a a rfl a a rfl rfl a2 a22)
+;
+
+  unact21 : (A : Set) → (a00 a01 : A) → (a02 : eq A a00 a01) →
+            (a10 a11 : A) → (a12 : eq A a10 a11) → (a20 : eq A a00 a10) →
+            (a21 : eq A a01 a11) →
+            (a22 : sq A a00 a01 a02 a10 a11 a12 a20 a21) →
+            (a21' : eq A a01 a11) →
+            (a22' : sq A a00 a01 a02 a10 a11 a12 a20 a21')
+            → eq (eq A a01 a11) a21 a21'
+;
+  unact21 A a00 a01 a02 a10 a11 a12 a20 a21 a22 a21' a22'
+  =
+    case a22 of λ {
+  rfl → eq.inv (eq A a00 a00) a21' rfl (all_rfl_21 A a00 a21' a22')}
+;
+
+  cancel_12_eq_21 : (A : Set) → (a00 a01 : A) → (a02 : eq A a00 a01) →
+                    (a11 : A) → (a12 : eq A a01 a11) → (a20 : eq A a00 a01) →
+                    (a22 : sq A a00 a01 a02 a01 a11 a12 a20 a12)
+                    → eq (eq A a00 a01) a02 a20
+;
+  cancel_12_eq_21 A a00 a01 a02 a11 a12 a20 a22
+  =
+    eq.unwhiskerR A a00 a01 a11 a02 a20 a12
+      (to_cat A a00 a01 a02 a01 a11 a12 a20 a12 a22)
+
+}
 
 sq = sq.sq
 
-selfnat : (A : Set) → (f : A → A) → (H : (x : A) → eq A (f x) x) → (a : A) → eq (eq A (f (f a)) (f a)) (eq.ap A A f (f a) a (H a)) (H (f a))
-selfnat A f H a = sq.cancel_12_eq_21 A (f (f a)) (f a) (eq.ap A A f (f a) a (H a)) a
-      (H a) (H (f a)) (sq.nat_toid A f H (f a) a (H a))
+selfnat : (A : Set) → (f : A → A) → (H : (x : A) → eq A (f x) x) → (a : A)
+          → eq (eq A (f (f a)) (f a)) (eq.ap A A f (f a) a (H a)) (H (f a))
+
+selfnat A f H a
+=
+  sq.cancel_12_eq_21 A (f (f a)) (f a) (eq.ap A A f (f a) a (H a)) a (H a)
+    (H (f a)) (sq.nat_toid A f H (f a) a (H a))
 
 eqv : (A B : Set) → Set
-eqv A B = sig (
+
+eqv A B
+=
+  sig (
   to : A → B,
   fro : B → A,
   fro_to : (a : A) → eq A (fro (to a)) a,
@@ -134,10 +291,15 @@ eqv A B = sig (
 
 notation(1) A "≅" B ≔ eqv A B
 
-fro_to_fro : (A B : Set) → (e : A ≅ B) → (y : B) → eq (eq A (e fro (e to (e fro y))) (e fro y))
-      (eq.ap B A (e fro) (e to (e fro y)) y (e to_fro y))
-      (e fro_to (e fro y))
-fro_to_fro A B e y = let f ≔ e to in
+fro_to_fro : (A B : Set) → (e : A ≅ B) → (y : B)
+             → eq (eq A (e fro (e to (e fro y))) (e fro y))
+                 (eq.ap B A (e fro) (e to (e fro y)) y (e to_fro y))
+                 (e fro_to (e fro y))
+
+fro_to_fro A B e y
+=
+
+  let f ≔ e to in
   let g ≔ e fro in
   let ap_f ≔ eq.ap A B f in
   let ap_g ≔ eq.ap B A g in
@@ -187,8 +349,15 @@ fro_to_fro A B e y = let f ≔ e to in
           (selfnat A gf η (g y)))) (η (g y))
     (sq.nat_toid A gf η (gfg y) (g y) (ap_g (fg y) y (ε y)))
 
-adjointify : (A B : Set) → (f : A → B) → (g : B → A) → (η : (a : A) → eq A (g (f a)) a) → (ε : (b : B) → eq B (f (g b)) b) → A ≅ B
-adjointify A B f g η ε = let ap_f ≔ eq.ap A B f in
+adjointify : (A B : Set) → (f : A → B) → (g : B → A) →
+             (η : (a : A) → eq A (g (f a)) a) →
+             (ε : (b : B) → eq B (f (g b)) b)
+             → A ≅ B
+
+adjointify A B f g η ε
+=
+
+  let ap_f ≔ eq.ap A B f in
   let ap_g ≔ eq.ap B A g in
   let fg : B → B ≔ x ↦ f (g x) in
   let ap_fg ≔ eq.ap B B fg in

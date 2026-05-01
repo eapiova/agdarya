@@ -4,10 +4,7 @@ let parse_command str =
   | _, None -> raise (Failure "expected command")
 
 let () =
-  Core.Reporter.run ~fatal:(fun _ -> raise (Failure "fatal error")) ~emit:(fun _ -> ()) @@ fun () ->
-  Core.Origin.Origin.run @@ fun () ->
-  Parser.Lexer.Specials.run @@ fun () ->
-  Parser.Builtins.install ();
+  Testutil.Repl.run @@ fun () ->
   ignore (parse_command "SqrtA : Set");
   ignore (parse_command "SqrtA = codata [ root⟨e⟩ x : A ]");
   ignore (parse_command "sqrt_a : SqrtA");

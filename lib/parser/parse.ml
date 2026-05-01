@@ -706,7 +706,7 @@ module Term = struct
             fun p -> C.Lex_and_parse.run_on_channel ic p ) in
     Range.run ~env @@ fun () ->
     let p =
-      C.Lex_and_parse.make Lexer.Parser.start
+      C.Lex_and_parse.make (Lexer.Parser.fresh ())
         (C.Basic.make (Origin.current ()) (C.term_only ?li ?ri ())) in
     let p = run p in
     C.ensure_success p

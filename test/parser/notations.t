@@ -44,7 +44,7 @@ Testing notation commands
     : A
   
 
-  $ agdarya -e 'postulate A : Set' -e 'section Nat :=' -e 'postulate _+_ : A → A → A' -e 'end' -e 'infixl 6 Nat._+_' -e 'postulate a : A' -e 'echo a+a'
+  $ agdarya -e 'postulate A : Set' -e 'module Nat where { postulate _+_ : A → A → A }' -e 'infixl 6 Nat._+_' -e 'postulate a : A' -e 'echo a+a'
   a + a
     : A
   
@@ -243,21 +243,15 @@ Testing notation commands
 
 This should be an error:
 
-  $ agdarya -v -e 'postulate A:Set' -e 'postulate f:A->A->A' -e 'section nat :=' -e 'notation(0) x "+" y := f x y' -e 'end' -e 'postulate a:A' -e 'echo a + a'
+  $ agdarya -v -e 'postulate A:Set' -e 'postulate f:A->A->A' -e 'module nat where { notation(0) x "+" y := f x y }' -e 'postulate a:A' -e 'echo a + a'
    ￫ info[I0001]
    ￮ postulate A assumed
   
    ￫ info[I0001]
    ￮ postulate f assumed
   
-   ￫ info[I0007]
-   ￮ section nat opened
-  
    ￫ info[I0002]
    ￮ notation «_ + _» defined
-  
-   ￫ info[I0008]
-   ￮ section nat closed
   
    ￫ info[I0001]
    ￮ postulate a assumed
@@ -271,21 +265,15 @@ This should be an error:
 
 This should work:
 
-  $ agdarya -v -e 'postulate A:Set' -e 'postulate f:A->A->A' -e 'section nat :=' -e 'notation(0) x "+" y := f x y' -e 'end' -e 'import nat | only notations' -e 'postulate a:A' -e 'echo a + a'
+  $ agdarya -v -e 'postulate A:Set' -e 'postulate f:A->A->A' -e 'module nat where { notation(0) x "+" y := f x y }' -e 'open nat using (notations)' -e 'postulate a:A' -e 'echo a + a'
    ￫ info[I0001]
    ￮ postulate A assumed
   
    ￫ info[I0001]
    ￮ postulate f assumed
   
-   ￫ info[I0007]
-   ￮ section nat opened
-  
    ￫ info[I0002]
    ￮ notation «_ + _» defined
-  
-   ￫ info[I0008]
-   ￮ section nat closed
   
    ￫ info[I0001]
    ￮ postulate a assumed
@@ -296,32 +284,34 @@ This should work:
 
 Integrated notation definitions should export and import the same way:
 
-  $ agdarya -v -e 'postulate A:Set' -e 'section nat :=' -e 'def(1) (x "+" y) : A -> A -> A := x y ↦ x' -e 'end' -e 'import nat | only notations' -e 'postulate a:A' -e 'synth a + a'
+  $ agdarya -v -e 'postulate A:Set' -e 'module nat where { _+_ : A -> A -> A; _+_ x y = x; infixl 1 _+_ }' -e 'open nat using (notations)' -e 'postulate a:A' -e 'synth a + a'
    ￫ info[I0001]
    ￮ postulate A assumed
   
-   ￫ error[E0216]
-   ￮ def syntax removed; use a top-level signature followed by one or more clauses
+   ￫ info[I0000]
+   ￮ constant _+_ defined
   
-  [1]
+   ￫ info[I0002]
+   ￮ notation «_ + _» defined
+  
+   ￫ info[I0001]
+   ￮ postulate a assumed
+  
+  a + a
+    : A
+  
 
 As should this:
 
-  $ agdarya -v -e 'postulate A:Set' -e 'postulate f:A->A->A' -e 'section nat :=' -e 'notation(0) x "+" y := f x y' -e 'end' -e 'import nat | seq (only notations, renaming notations notations.nat)' -e 'postulate a:A' -e 'echo a + a'
+  $ agdarya -v -e 'postulate A:Set' -e 'postulate f:A->A->A' -e 'module nat where { notation(0) x "+" y := f x y }' -e 'open nat' -e 'postulate a:A' -e 'echo a + a'
    ￫ info[I0001]
    ￮ postulate A assumed
   
    ￫ info[I0001]
    ￮ postulate f assumed
   
-   ￫ info[I0007]
-   ￮ section nat opened
-  
    ￫ info[I0002]
    ￮ notation «_ + _» defined
-  
-   ￫ info[I0008]
-   ￮ section nat closed
   
    ￫ info[I0001]
    ￮ postulate a assumed

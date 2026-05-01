@@ -1,131 +1,105 @@
 Imports and scoping
 ===================
 
-File imports
+File loading
 ------------
 
-The command ``import "FILE"`` executes another Agdarya file and adds (some of) its definitions and notations to the current namespace.  The disk file *must* have the ``.ny`` extension, whereas the string given to ``import`` must *not* have it; thus ``import "mylib"`` loads the file ``mylib.ny``.
+The command ``open import Foo.Bar`` executes the file ``Foo/Bar.ny`` and opens its exported namespace into the current visible scope.  The imported file cannot access definitions from the current file unless it imports them itself.  Importing is not transitive: if ``a.ny`` says ``open import b`` and ``b.ny`` says ``open import c``, then names from ``c`` are not available in ``a`` unless ``a`` also imports ``c`` explicitly.
 
-The commands in the imported file cannot access any definitions from other files, including the current one, except those that it imports itself.  Importing is not transitive: if ``a.ny`` imports ``b.ny``, and ``b.ny`` imports ``c.ny``, then the definitions from ``c.ny`` do not appear in the namespace of ``a.ny`` unless it also imports ``c.ny`` explicitly.
+More precisely, Agdarya tracks both a visible namespace and an export namespace.  ``open import`` only affects the visible namespace, while ``open import … public`` affects both: the imported names become visible in the current file and are also re-exported to later importers of the current file.  The analogous rule holds for ``open M`` versus ``open M public`` on an already visible module path ``M``.
 
-More precisely, there are two namespaces at any time: the "import" namespace, which determines the names that are available to use in the current file, and the "export" namespace, which determines the names that will be made available to other files that import this one.  The command ``import`` only affects the import namespace, but the variant using the word ``export`` instead affects both.
+By contrast, when in interactive mode or executing a command-line ``-e`` string, all definitions from files and strings explicitly specified earlier on the command line are available, even if they were not re-exported.  This does not carry over transitively through further imports.  Standard input (indicated by ``-`` on the command line) is treated as an ordinary file; thus it must import any files it wants to use, but its definitions are automatically available to later ``-e`` strings and interactive commands.
 
-By contrast, when in interactive mode or executing a command-line ``-e`` string, all definitions from all files and strings that were explicitly specified previously on the command line are available, even if not exported.  This does not carry over transitively to files imported by them.  Standard input (indicated by ``-`` on the command line) is treated as an ordinary file; thus it must import any other files it wants to use, but its definitions are automatically available in ``-e`` strings and interactive mode.
+No file is executed more than once during a single run, even if it is imported multiple times.  Thus, if both ``b.ny`` and ``c.ny`` say ``open import d``, and ``a.ny`` imports both ``b`` and ``c``, then effectful commands such as ``echo`` in ``d.ny`` happen only once, there is only one copy of ``d``'s exported names in the visible namespace of ``a.ny``, and the definitions seen through ``b`` and ``c`` are compatible.  Circular imports are rejected.  Execution still follows the command-line order together with depth-first traversal of imports as they are encountered.
 
-No file will be executed more than once during a single run, even if it is imported by multiple other files.  Thus, if both ``b.ny`` and ``c.ny`` import ``d.ny``, and ``a.ny`` imports both ``b.ny`` and ``c.ny``, any effectual commands like ``echo`` in ``d.ny`` will only happen once, there will only be one copy of the definitions from ``d.ny`` in the namespace of ``a.ny``, and the definitions from ``b.ny`` and ``c.ny`` are compatible.  Circular imports are not allowed (and are checked for).  The order of execution is as specified on the command-line, with depth-first traversal of import statements as they are encountered.  Thus, for instance, if the command-line is ``agdarya one.ny two.ny`` but ``one.ny`` imports ``two.ny``, then ``two.ny`` will be executed during ``one.ny`` whenever that import statement is encountered, and then skipped when we get to it on the command-line since it was already executed.
+.. _Namespaces and sections:
 
-Namespaces and sections
------------------------
+Namespaces and modules
+----------------------
 
-Agdarya uses `Yuujinchou <https://redprl.org/yuujinchou/yuujinchou/>`_ for hierarchical namespacing, with periods to separate namespaces.  Thus a name like ``nat.plus`` lies in the ``nat`` namespace.  You can define a constant with such a name explicitly:
-
-.. code-block:: none
-   
-   def nat.plus ≔ BODY
-
-According to Yuujinchou, namespaces are untyped, implicit, and patchable: you can add anything you want to the ``nat`` namespace, anywhere, simply by defining it with a name that starts with ``nat.``
-
-In addition, the ``section`` command allows defining a group of constants without an explicit namespace, but with a given prefix added to their names afterwards.  For example, an equivalent way of defining ``nat.plus`` would be:
+Agdarya uses `Yuujinchou <https://redprl.org/yuujinchou/yuujinchou/>`_ for hierarchical namespacing, with periods separating namespace components.  Thus a name such as ``nat.plus`` lies in the namespace ``nat``.  You can define such a constant directly:
 
 .. code-block:: none
 
-   section nat ≔
-     def plus ≔ BODY
-   end
+   nat.plus : A
+   nat.plus = BODY
 
-All ordinary commands are valid inside a section, including other section commands.  When a section is closed with ``end``, all the constants that were defined in that section are prefixed by the name of that section and merged into the outer namespace (which might itself be another section, and so on).
-
-Like a file, a section has both a visible namespace and an export namespace, and ``import`` statements in a section only affect the visible namespace.  Thus, imported names are no longer visible after the section is closed.  But as with importing files, if you use ``export`` instead inside a section, then the imported names are placed in export namespace; thus when the section is closed they are treated like constants defined in the section and are merged into the outer namespace with the section name prefix.
-
-Since a namespace simply consists of all constants whose name begins with a certain prefix, you can add to it (or "patch" it) at any time, simply by defining more such constants.  To define many more such constants at once, you can open another section with the same name.  Note, however, that "re-opening" a namespace like this does not automatically import the previously contents of that namespace.  That is:
+More commonly, you group related definitions with a module declaration:
 
 .. code-block:: none
 
-   section nat ≔
-     def plus ≔ BODY
-     ` Here the above definition is called "plus"
-   end
+   module nat where {
+     plus : A;
+     plus = BODY
+   }
 
-   ` Here the above definition is called "nat.plus"
-
-   section nat ≔
-     ` Here the above definition is still called "nat.plus"
-   end
-
-If you want to import the previous contents, you can say ``import nat`` in the second ``section``; see :ref:`Importing namespaces`.
-
-
-Import modifiers
-----------------
-
-By default, an ``import`` command merges the namespace of the imported file with the current namespace.  However, it is also possible to apply Yuujinchou *modifiers* to the imported namespace before it is merged with the command form ``import FILE | MOD``.  (The symbol ``|`` is intended to suggest a Unix pipe that sends the definitions of ``FILE`` through the modifiers before importing them.)  The valid modifiers are exactly the `Yuujinchou modifiers <https://redprl.org/yuujinchou/yuujinchou/Yuujinchou/Language/index.html#modifier-builders>`_:
-
-- ``all``: Keep everything, checking that there is something to keep.
-- ``id``: Keep everything, without checking that there is anything to keep.
-- ``none``: Drop everything, checking that there was something to drop.
-- ``only NAME``: Keep only the namespace rooted at ``NAME``, without renaming anything.  Thus ``only nat`` will keep ``nat.plus`` and ``nat.times``, under those names, but discard ``int.plus``.
-- ``except NAME``: Keep everything except the namespace rooted at ``NAME``, without renaming anything.  Thus ``except nat`` will discard ``nat.plus`` and ``nat.times`` but keep ``int.plus`` and ``real.plus``.
-- ``in NAME MOD``: Apply the modifier ``MOD`` to the namespace rooted at ``NAME``, leaving everything else alone.  Thus ``in nat only plus`` will keep ``nat.plus.assoc`` and ``nat.plus.comm`` and ``int.times`` but discard ``nat.times.assoc``.
-- ``renaming NAME1 NAME2``: Rename the namespace rooted at ``NAME1`` to instead be rooted at ``NAME2``, checking that ``NAME1`` is nonempty, and silently dropping anything already present under ``NAME2``.
-- ``seq (MOD1, MOD2, …)``: Perform the modifiers ``MOD1``, ``MOD2``, and so on in order.  In particular, ``seq ()`` is equivalent to ``id``.
-- ``union (MOD1, MOD2, …)``: Apply all the modifiers ``MOD1``, ``MOD2`` to the original namespace in parallel and take the union of the results.  In particular, ``union ()`` is like ``none`` but doesn't check that there is anything to drop.
-
-The ``NAME`` s in all these commands are ordinary identifiers, with one additional option: a bare period ``.`` represents the root namespace.  Thus ``renaming nat .`` will rename ``nat.plus`` to just ``plus`` and ``nat.times`` to just ``times``, discarding everything that doesn't start with ``nat``.  On the other hand, ``renaming . foo`` will add ``foo`` to the beginning of everything.  In particular, therefore, ``import "arith" | renaming . arith`` is the standard sort of "qualified import" that will import definitions like ``nat.plus`` from a file like ``arith.ny`` but renamed to ``arith.nat.plus``.
-
-Currently, you can and must specify explicitly the qualifying namespace prefix; it has no automatic relationship to the imported filename or path.  More generally, the full syntax for Yuujinchou modifiers is rather verbose, so we may introduce abbreviated versions of some common operations.  Feedback is welcome about what those should be.
-
-
-Importing namespaces
---------------------
-
-The first argument of the ``import`` command can also be a namespace, with the effect that the contents of that namespace are merged with the root, possibly with a modifier applied.  Thus, for instance, after the following:
+This defines the constant ``nat.plus``.  Before layout is added in :ref:`A8`, module bodies use explicit braces and semicolons.  Modules can be nested, and they can also be parameterized:
 
 .. code-block:: none
-   
-   postulate a.one : ℕ ≔ 1
-   postulate a.two : ℕ ≔ 2
-   import a | renaming one uno
 
-the names ``a.one`` and ``uno`` will refer to ``1`` while the names ``a.two`` and ``two`` will refer to ``2``.
+   module NatOps (A : Set) where {
+     id : A → A;
+     id x = x
+   }
 
-Imported names also remain available in their original locations; there is no way to remove a name from the scope once it is added.  In addition, names imported this way are not *exported* from the current file when it it loaded by another file.  That is, if the above example is in a file ``foo.ny``, then if some other file says ``import "foo"`` then it will only be able to access the original names ``a.one`` and ``a.two``, not the new ones ``uno`` and ``two``.  But, of course, they are exported if the variant called ``export`` is used instead.
+   module NatIds = NatOps ℕ
+
+The command ``open nat`` opens an already visible module path into the current visible namespace.  This makes names such as ``plus`` available unqualified while leaving their qualified names such as ``nat.plus`` available as well.  Using ``public`` on ``open`` re-exports the opened names.
+
+Inside a module, ``private`` keeps a declaration visible within the module body but omits it from the module's exported namespace:
+
+.. code-block:: none
+
+   module M where {
+     private postulate hidden : Set;
+     postulate visible : Set
+   }
+
+After this, ``M.visible`` is available outside the module, while ``M.hidden`` is not.
+
+
+.. _Import modifiers:
+
+Open modifiers
+--------------
+
+Both ``open`` and ``open import`` accept a small family of namespace modifiers:
+
+- ``using (x; y; foo.bar)`` keeps only the listed names or subtrees.
+- ``hiding (x; foo.bar)`` keeps everything except the listed names or subtrees.
+- ``renaming (x to y; foo.bar to baz.qux)`` renames names or subtrees after the previous filtering step.
+
+At most one of ``using`` and ``hiding`` may appear, followed optionally by ``renaming``.  For example:
+
+.. code-block:: none
+
+   open import Nat using (zero; suc)
+   open import Nat hiding (notations)
+   open import Nat using (nums.two) renaming (nums.two to two)
+   open M public renaming (B to C)
+
+There is no separate ``import`` / ``export`` command anymore, and the older Yuujinchou modifier DSL (such as ``| only``, ``| except``, ``| seq``, and ``| union``) is not part of the public surface syntax.
 
 
 Importing notations
 -------------------
 
-Visibility of notations defined by another file, or in a section, is implemented as a special case of importing names.  Specifically, when a new notation is declared, it is associated to a name in the current namespace prefixed by ``notations``.  The name is obtained from its pattern by replacing variables with underscores, concatenating them with the symbols (unquoted) separated by spaces, and surrounding it in guillemets ``«»`` to make it an atomic identifier (see :ref:`Identifiers`).  Thus, for instance,
+Visibility of notations defined by another file or module is implemented as a special case of opening names.  When a new notation is declared, it is associated to a generated name in the current namespace prefixed by ``notations``.  For instance,
 
 .. code-block:: none
 
    notation(1) x "+" y ≔ plus x y
 
-associates this notation to the name ``notations.«_ + _»``.
+creates a notation name under ``notations``.
 
-Then, whenever another file or section is imported, any notations that are present in the ``notations`` namespace after the modifiers are applied become available in the current file.  Since by default the complete namespace of an imported file is merged with the current one, this means that by default all notations defined in that file also become available.
-
-The ``notations`` namespace is not otherwise special: you can put constants in it too, but this is not recommended.  The names of constants and of notations inhabit the same domain: you cannot have a constant and a notation with the same name, although since newly created notations always have names autogenerated from their patterns and starting with ``notations`` this is not usually a problem.  It is possible for notations to end up with names that don't start with ``notation`` through import modifiers, but in that case they are not available to the parser.
-
-For example, you can avoid making any imported notations available by using the modifier ``except notations``, or you can import only the notations and no definitions with ``only notations``.  Or you can import only a few particular notations with a modifier like ``in notations union (only «_ + _»; only «_ * _»)``.  In particular, if you import an entire file qualified such as ``import "arith" | renaming . arith``, then a notation such as ``notations.«_ + _»`` in ``"arith.ny"`` will be renamed to ``arith.notations.«_ + _»``, which is not in the ``notations`` namespace and thus will not be available to the parser.  To import all the constants qualified but make all the notations available, you can use one of the following.
+This means that notation visibility is controlled by the same ``using`` / ``hiding`` / ``renaming`` machinery as ordinary names.  For example:
 
 .. code-block:: none
 
-   import "arith" | seq (renaming . arith, renaming arith.notations notations)
-   import "arith" | union (renaming . arith, only notations)
+   open import Nat using (notations)
+   open Nat hiding (notations)
 
-Similarly, notations that are defined inside a section named ``nat`` will appear outside that section in the namespace ``nat.notations``.  Since this is not in the global ``notations`` namespace, these notations will no longer be in effect after the section is closed.  You can bring them into the global scope, while keeping definitions from the section qualified, by issuing the following command after the section closes.
-
-.. code-block:: none
-
-   import nat | only notations
-
-You can also put them into a sub-namespace of ``notations`` with a command like this:
-
-.. code-block:: none
-
-   import nat | seq (only notations, renaming notations notations.nat)
-
-Notations in sub-namespaces of ``notations`` still have an effect on printing and parsing, so there is not much difference between these two for purposes of the present file.  However, if you change ``import`` to ``export`` in the above two statements, then users who import the current file will also get these notations by default.  But with the second option, these users will also be able to choose to import *only* the ``nat`` notations with ``in notations only nat``, or all notations except the ``nat`` notations with ``in notations except nat``.  Thus, sub-namespaces of ``notations`` act somewhat like Rocq's `notation scopes <https://rocq-prover.org/doc/V9.0.0/refman/user-extensions/syntax-extensions.html#notation-scopes>`_, although they can (currently) only be opened globally, and not locally to part of a term.
+The ``notations`` subtree is not otherwise special on the naming side: it is an ordinary namespace subtree that the parser consults when deciding which notations are in scope.  In practice, if you want imported definitions to remain qualified while still exposing selected notation subtrees, the most robust A7 approach is to place the definitions inside modules and then ``open`` only the parts you want.
 
 
 Compilation

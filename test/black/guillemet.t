@@ -14,46 +14,42 @@
    ￮ constant «a + b» defined
   
 
-  $ agdarya -v -e "«foo.bar» : Set" -e "«foo.bar» = sig ()" -e "import foo" -e "x : bar" -e "x = ()"
+  $ agdarya -v -e "module foo where { bar : Set; bar = sig () }" -e "open foo" -e "x : bar" -e "x = ()"
    ￫ info[I0000]
-   ￮ constant «foo.bar» defined
+   ￮ constant bar defined
   
-   ￫ error[E0300]
-   ￭ command-line exec string
-   1 | x : bar
-     ^ unbound variable: bar
+   ￫ info[I0000]
+   ￮ constant x defined
   
-  [1]
 
-  $ agdarya -v -e "«foo.bar» : Set" -e "«foo.bar» = sig ()" -e "import «foo def x : bar»" -e "x = ()"
+  $ agdarya -v -e "module «foo def x : bar» where { x : Set; x = sig () }" -e "open «foo def x : bar»" -e "y : x" -e "y = ()"
    ￫ info[I0000]
-   ￮ constant «foo.bar» defined
+   ￮ constant x defined
   
-   ￫ error[E0400]
-   ￮ non-synthesizing term in synthesizing position (body of def without specified type)
+   ￫ info[I0000]
+   ￮ constant y defined
   
-  [1]
 
-  $ agdarya -v -e "«foo.bar» : Set" -e "«foo.bar» = sig ()" -e "import «foo def x : bar := ()"
+  $ agdarya -v -e "module «foo def x : bar» where { x : Set; x = sig () }" -e "open «foo def x : bar"
    ￫ info[I0000]
-   ￮ constant «foo.bar» defined
+   ￮ constant x defined
   
    ￫ error[E0200]
    ￭ command-line exec string
-   1 | import «foo def x : bar := ()‹EOF›
+   1 | open «foo def x : bar‹EOF›
      ^ parse error
   
   [1]
 
-  $ agdarya -v -e "foo.«a long name» : Set" -e "foo.«a long name» = sig ()" -e "import foo" -e "« » : «a long name»" -e "« » = ()"
+  $ agdarya -v -e "module foo where { «a long name» : Set; «a long name» = sig () }" -e "open foo" -e "« » : «a long name»" -e "« » = ()"
    ￫ info[I0000]
-   ￮ constant foo.«a long name» defined
+   ￮ constant «a long name» defined
   
    ￫ info[I0000]
    ￮ constant « » defined
   
 
-  $ agdarya -v -e "«contains \` comments» : Set" -e "«contains \` comments» = sig ()" -e "import foo" -e "«{\`» : «contains \` comments»" -e "«{\`» = ()"
+  $ agdarya -v -e "module foo where { «contains \` comments» : Set; «contains \` comments» = sig () }" -e "open foo" -e "«{\`» : «contains \` comments»" -e "«{\`» = ()"
    ￫ info[I0000]
    ￮ constant «contains ` comments» defined
   
@@ -61,7 +57,7 @@
    ￮ constant «{`» defined
   
 
-  $ agdarya -v -e "«contains \" quotes» : Set" -e "«contains \" quotes» = sig ()" -e "import foo" -e "«\"» : «contains \" quotes»" -e "«\"» = ()"
+  $ agdarya -v -e "module foo where { «contains \" quotes» : Set; «contains \" quotes» = sig () }" -e "open foo" -e "«\"» : «contains \" quotes»" -e "«\"» = ()"
    ￫ info[I0000]
    ￮ constant «contains " quotes» defined
   

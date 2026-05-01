@@ -3,6 +3,8 @@ open Lex
 
 let () =
   Core.Reporter.run ~fatal:(fun _ -> raise (Failure "fatal error")) ~emit:(fun _ -> ()) @@ fun () ->
+  Parser.Unparse.install ();
+  Parser.Display.run ~init:Parser.Display.default @@ fun () ->
   Parser.Range.run ~env:{ source = `String { title = None; content = "" }; length = 0L }
   @@ fun () ->
   assert (lex "a b c" = [ (Ident [ "a" ], []); (Ident [ "b" ], []); (Ident [ "c" ], []) ]);
